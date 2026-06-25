@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - hunter_db:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Dormant for now: kept running so it's ready when the vulnerability API is
+  # built. Rails does not connect to it yet.
+  mongo:
+    image: mongo:8
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "127.0.0.1:27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        RAILS_ENV: development
+        BUNDLE_WITHOUT: ""
+    # Load .env into the container. Without this, compose only uses .env for
+    # ${VAR} substitution at parse time; env_file makes compose error loudly if
+    # .env is missing or malformed.
+    env_file:
+      - .env
+    command: >
+      sh -c "rm -f tmp/pids/server.pid &&
+             bundle exec rails db:prepare &&
+             bundle exec rails db:seed &&
+             foreman start -f Procfile.dev"
+    environment:
+      RAILS_ENV: development
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      # Mongo connection details — passed through now, consumed once the
+      # vulnerability API is built.
+      MONGO_HOST: ${MONGO_HOST:-mongo}
+      MONGO_PORT: ${MONGO_PORT:-27017}
+      MONGO_DATABASE: ${MONGO_DATABASE:-hunter}
+      MONGO_COLLECTION: ${MONGO_COLLECTION:-vulnerabilities}
+      MONGO_USERNAME: ${MONGO_USERNAME:-}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+    volumes:
+      # Mount source for live reload — code edits hot-reload in the container.
+      - ./web:/app
+    ports:
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    tty: true
+    stdin_open: true
+
+volumes:
+  hunter_db:
+  mongodb_data:

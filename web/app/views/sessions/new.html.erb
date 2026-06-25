@@ -1,0 +1,33 @@
+<div class="min-h-screen flex items-center justify-center px-4">
+  <div class="w-full max-w-sm">
+    <div class="mb-8 text-center">
+      <h1 class="text-3xl font-bold tracking-tight text-zinc-100">hunter</h1>
+      <p class="mt-1 text-sm text-zinc-500">Vulnerability management</p>
+    </div>
+
+    <% if alert = flash[:alert] %>
+      <p class="mb-4 rounded-lg border border-red-900/50 bg-red-950/50 px-3 py-2 text-sm text-red-400" id="alert"><%= alert %></p>
+    <% end %>
+
+    <% if notice = flash[:notice] %>
+      <p class="mb-4 rounded-lg border border-emerald-900/50 bg-emerald-950/50 px-3 py-2 text-sm text-emerald-400" id="notice"><%= notice %></p>
+    <% end %>
+
+    <%= form_with url: session_url, class: "space-y-4" do |form| %>
+      <div>
+        <%= form.label :username, class: "block text-sm font-medium text-zinc-400 mb-1" %>
+        <%= form.text_field :username, required: true, autofocus: true, autocomplete: "username", placeholder: "admin", value: params[:username],
+              class: "block w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" %>
+      </div>
+
+      <div>
+        <%= form.label :password, class: "block text-sm font-medium text-zinc-400 mb-1" %>
+        <%= form.password_field :password, required: true, autocomplete: "current-password", placeholder: "••••••••", maxlength: 72,
+              class: "block w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" %>
+      </div>
+
+      <%= form.submit "Sign in",
+            class: "w-full cursor-pointer rounded-md bg-indigo-600 px-3.5 py-2.5 text-center font-medium text-white hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-950" %>
+    <% end %>
+  </div>
+</div>
