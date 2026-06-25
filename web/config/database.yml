@@ -1,0 +1,43 @@
+# PostgreSQL. Versions 9.5 and up are supported.
+#
+# Connection settings are driven by environment variables so the same config
+# works locally and inside Docker (see docker-compose.yaml / .env).
+#
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  # For details on connection pooling, see Rails configuration guide
+  # https://guides.rubyonrails.org/configuring.html#database-pooling
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  host: <%= ENV.fetch("DB_HOST", "localhost") %>
+  port: <%= ENV.fetch("DB_PORT", 5432) %>
+  username: <%= ENV.fetch("DB_USERNAME", "postgres") %>
+  password: <%= ENV.fetch("DB_PASSWORD", "postgres") %>
+
+development:
+  <<: *default
+  database: hunter_development
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  <<: *default
+  database: hunter_test
+
+production:
+  primary: &primary_production
+    <<: *default
+    database: hunter_production
+  cache:
+    <<: *primary_production
+    database: hunter_production_cache
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *primary_production
+    database: hunter_production_queue
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *primary_production
+    database: hunter_production_cable
+    migrations_paths: db/cable_migrate
