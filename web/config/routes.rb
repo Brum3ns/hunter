@@ -15,6 +15,8 @@ Rails.application.routes.draw do
   namespace :vulnerabilities do
     get "/", to: "overview#index", as: :root
     patch "/:id/status", to: "statuses#update", as: :status
+    post "/:id/runs",          to: "runs#create", as: :runs
+    get  "/:id/runs/:job_id",  to: "runs#show",   as: :run
     get "/:id", to: "details#show", as: :detail
   end
   get "control_center", to: "control_center#index"

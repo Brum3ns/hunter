@@ -1,0 +1,39 @@
+<%# Self-polling frame. While non-terminal it carries the `poller` controller and
+    reloads itself; on terminal state the poller is omitted so polling stops. %>
+<%= turbo_frame_tag "runner_run_#{job.vulnerability_id}",
+      src: (job.terminal? ? nil : vulnerabilities_run_path(job.vulnerability_id, job.id)),
+      data: (job.terminal? ? {} : { controller: "poller", poller_interval_value: 1500 }) do %>
+  <div class="rounded-lg border border-zinc-200 dark:border-zinc-800">
+    <div class="flex items-center gap-2 border-b border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
+      <span class="inline-flex items-center rounded-full px-2 py-0.5 font-medium ring-1 ring-inset
+        <%= case job.status
+              when "succeeded" then "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20"
+              when "failed"    then "bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-400/20"
+              when "running"   then "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/20"
+              else                  "bg-zinc-100 text-zinc-600 ring-zinc-500/20 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-500/20"
+            end %>">
+        <%= job.status %>
+      </span>
+      <% unless job.exit_status.nil? %><span class="text-zinc-500 dark:text-zinc-400">exit <%= job.exit_status %></span><% end %>
+      <% if job.duration_ms %><span class="text-zinc-500 dark:text-zinc-400"><%= job.duration_ms %> ms</span><% end %>
+      <% if job.output_truncated %><span class="text-zinc-400 dark:text-zinc-500">(truncated)</span><% end %>
+    </div>
+
+    <div class="p-3">
+      <% if job.error.present? %>
+        <p class="text-sm text-rose-600 dark:text-rose-400"><%= job.error %></p>
+      <% elsif job.terminal? %>
+        <% if job.stdout.present? %>
+          <%= render "vulnerabilities/details/code_block", title: "stdout", content: job.stdout %>
+        <% end %>
+        <% if job.stderr.present? %>
+          <div class="mt-2">
+            <%= render "vulnerabilities/details/code_block", title: "stderr", content: job.stderr %>
+          </div>
+        <% end %>
+      <% else %>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400">Running…</p>
+      <% end %>
+    </div>
+  </div>
+<% end %>
