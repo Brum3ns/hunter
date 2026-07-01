@@ -29,7 +29,7 @@ module Vulnerabilities
       return head :not_found unless @job
 
       @job.reap_if_stale!
-      render "vulnerabilities/runs/result", layout: false, locals: { job: @job }
+      render layout: false
     end
   end
 end
