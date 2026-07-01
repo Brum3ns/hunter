@@ -25,7 +25,7 @@ module Vulnerabilities
     end
 
     def show
-      @job = RunnerJob.find_by(id: params[:job_id], vulnerability_id: params[:id])
+      @job = RunnerJob.find_by(id: params[:job_id], vulnerability_id: params[:id], requested_by: Current.user)
       return head :not_found unless @job
 
       @job.reap_if_stale!

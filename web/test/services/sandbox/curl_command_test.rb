@@ -74,7 +74,7 @@ class Sandbox::CurlCommandTest < ActiveSupport::TestCase
 
   test "execute never runs invalid input" do
     called = false
-    Sandbox::CurlCommand.stub(:capture, ->(*) { called = true; ["", "", 0] }) do
+    stub_methods(Sandbox::CurlCommand, capture: ->(*, **) { called = true; ["", "", 0] }) do
       result = Sandbox::CurlCommand.execute("curl file:///etc/passwd", max_time: 5, max_output: 1000)
       refute called
       refute_nil result.error
@@ -84,7 +84,7 @@ class Sandbox::CurlCommandTest < ActiveSupport::TestCase
 
   test "execute injects safety flags and returns a Result" do
     seen = nil
-    Sandbox::CurlCommand.stub(:capture, ->(argv, **) { seen = argv; ["body", "", 0] }) do
+    stub_methods(Sandbox::CurlCommand, capture: ->(argv, **) { seen = argv; ["body", "", 0] }) do
       result = Sandbox::CurlCommand.execute("curl https://example.com", max_time: 7, max_output: 1000)
       assert_equal 0, result.exit_status
       assert_equal "body", result.stdout
@@ -95,7 +95,7 @@ class Sandbox::CurlCommandTest < ActiveSupport::TestCase
   end
 
   test "execute truncates output over the cap" do
-    Sandbox::CurlCommand.stub(:capture, ->(*) { ["x" * 5000, "", 0] }) do
+    stub_methods(Sandbox::CurlCommand, capture: ->(*, **) { ["x" * 5000, "", 0] }) do
       result = Sandbox::CurlCommand.execute("curl https://example.com", max_time: 5, max_output: 100)
       assert_equal 100, result.stdout.bytesize
       assert result.output_truncated
