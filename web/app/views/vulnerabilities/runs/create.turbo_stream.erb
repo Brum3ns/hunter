@@ -1,0 +1,3 @@
+<%= turbo_stream.replace "runner_run_#{@job.vulnerability_id}" do %>
+  <%= render "vulnerabilities/runs/result", job: @job %>
+<% end %>

@@ -1,0 +1,156 @@
+<%
+  meta   = finding.metadata
+  fnd    = finding.finding
+  tgt    = finding.target
+  rep    = finding.report
+  poc    = finding.poc
+  http   = finding.attributes["request"] || {}
+  sev    = fnd["severity"].to_s
+  tags   = Array(fnd["tags"]).reject(&:blank?)
+%>
+
+<header class="shrink-0 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+  <div class="flex items-start justify-between gap-4">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium <%= severity_badge_classes(sev) %>">
+          <%= sev.presence&.humanize || "—" %>
+        </span>
+        <span class="truncate text-xs uppercase tracking-wide text-zinc-400 dark:text-zinc-500"><%= meta["tool"].presence || "—" %></span>
+      </div>
+      <h2 class="mt-2 text-lg font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
+        <%= fnd["name"].presence || "Untitled finding" %>
+      </h2>
+      <p class="mt-0.5 break-all text-sm text-zinc-500 dark:text-zinc-400">
+        <%= tgt["url"].presence || tgt["host"].presence || tgt["input"].presence || "—" %>
+      </p>
+    </div>
+    <button type="button" data-action="click->drawer#close" aria-label="Close"
+            class="-mr-1 shrink-0 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+      <%= heroicon "x-mark", classes: "h-5 w-5" %>
+    </button>
+  </div>
+
+  <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+    <%= render "vulnerabilities/overview/status_badge", finding: finding %>
+    <% if rep["status_updated_by"].present? %>
+      <span class="text-xs text-zinc-400 dark:text-zinc-500">
+        updated by <span class="font-medium text-zinc-500 dark:text-zinc-400"><%= rep["status_updated_by"] %></span>
+      </span>
+    <% end %>
+  </div>
+</header>
+
+<div class="slim-scroll flex-1 space-y-7 overflow-y-auto px-6 py-6">
+  <section>
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Classification</h3>
+    <dl class="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+      <%= render "vulnerabilities/details/field", label: "Severity", value: sev.presence&.humanize %>
+      <%= render "vulnerabilities/details/field", label: "Type",     value: fnd["type"] %>
+      <%= render "vulnerabilities/details/field", label: "CWE",      value: fnd["cwe"] %>
+      <%= render "vulnerabilities/details/field", label: "Confidence", value: poc["confidence"] %>
+      <%= render "vulnerabilities/details/field", label: "Submitted", value: rep["submitted"] ? "Yes" : "No" %>
+    </dl>
+  </section>
+
+  <% if tags.any? %>
+    <section>
+      <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Tags</h3>
+      <div class="flex flex-wrap gap-1.5">
+        <% tags.each do |tag| %>
+          <span class="rounded border border-zinc-200 px-1.5 py-0.5 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"><%= tag %></span>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+
+  <section>
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Program</h3>
+    <dl class="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+      <%= render "vulnerabilities/details/field", label: "Program", value: meta["program"] %>
+      <%= render "vulnerabilities/details/field", label: "Asset",   value: meta["asset"] %>
+      <%= render "vulnerabilities/details/field", label: "Scan ID", value: meta["scan_id"] %>
+      <%= render "vulnerabilities/details/field", label: "Date",    value: meta["date"] %>
+    </dl>
+  </section>
+
+  <section>
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Target</h3>
+    <dl class="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+      <%= render "vulnerabilities/details/field", label: "Host",   value: tgt["host"] %>
+      <%= render "vulnerabilities/details/field", label: "IP",     value: tgt["ip"] %>
+      <%= render "vulnerabilities/details/field", label: "Port",   value: tgt["port"] %>
+      <%= render "vulnerabilities/details/field", label: "Method", value: tgt["method"] %>
+      <%= render "vulnerabilities/details/field", label: "Input",  value: tgt["input"] %>
+    </dl>
+    <% if tgt["url"].present? %>
+      <div class="mt-4">
+        <%= render "vulnerabilities/details/field", label: "URL", value: tgt["url"] %>
+      </div>
+    <% end %>
+  </section>
+
+  <% if meta["description"].present? || meta["impact"].present? %>
+    <section class="space-y-4">
+      <% if meta["description"].present? %>
+        <div>
+          <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Description</h3>
+          <p class="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"><%= meta["description"] %></p>
+        </div>
+      <% end %>
+      <% if meta["impact"].present? %>
+        <div>
+          <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Impact</h3>
+          <p class="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"><%= meta["impact"] %></p>
+        </div>
+      <% end %>
+    </section>
+  <% end %>
+
+  <% if poc["llm_reasoning"].present? || poc["curl"].present? || Array(poc["extracted"]).reject(&:blank?).any? %>
+    <section class="space-y-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Proof of Concept</h3>
+
+      <% if poc["llm_reasoning"].present? %>
+        <p class="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"><%= poc["llm_reasoning"] %></p>
+      <% end %>
+
+      <% extracted = Array(poc["extracted"]).reject(&:blank?) %>
+      <% if extracted.any? %>
+        <div>
+          <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Extracted</p>
+          <ul class="space-y-1">
+            <% extracted.each do |item| %>
+              <li class="rounded bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"><%= item %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <% if poc["curl"].present? %>
+        <%= render "vulnerabilities/details/code_block", title: "curl", content: poc["curl"], language: "bash" %>
+        <div class="mt-3">
+          <%= button_to vulnerabilities_runs_path(finding.id),
+                class: "inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200" do %>
+            <%= heroicon "play", classes: "h-3.5 w-3.5" %> Run curl
+          <% end %>
+          <div class="mt-3">
+            <%= turbo_frame_tag "runner_run_#{finding.id}" %>
+          </div>
+        </div>
+      <% end %>
+    </section>
+  <% end %>
+
+  <% if http["request"].present? || http["response"].present? %>
+    <section class="space-y-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">HTTP Transaction</h3>
+      <% if http["request"].present? %>
+        <%= render "vulnerabilities/details/code_block", title: "Request", content: http["request"], body_mime: true %>
+      <% end %>
+      <% if http["response"].present? %>
+        <%= render "vulnerabilities/details/code_block", title: "Response", content: http["response"], body_mime: true %>
+      <% end %>
+    </section>
+  <% end %>
+</div>
