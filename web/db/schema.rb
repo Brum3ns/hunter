@@ -10,9 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_01_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_01_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pgcrypto"
 
   create_table "api_tokens", force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -23,6 +24,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_000001) do
     t.bigint "user_id", null: false
     t.index ["token_digest"], name: "index_api_tokens_on_token_digest", unique: true
     t.index ["user_id"], name: "index_api_tokens_on_user_id"
+  end
+
+  create_table "runner_jobs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "kind", null: false
+    t.text "command", null: false
+    t.string "vulnerability_id", null: false
+    t.string "status", default: "queued", null: false
+    t.integer "exit_status"
+    t.text "stdout"
+    t.text "stderr"
+    t.boolean "output_truncated", default: false, null: false
+    t.string "error"
+    t.bigint "requested_by_id", null: false
+    t.bigint "runner_id"
+    t.integer "duration_ms"
+    t.datetime "claimed_at"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runner_id"], name: "index_runner_jobs_on_runner_id"
+    t.index ["requested_by_id"], name: "index_runner_jobs_on_requested_by_id"
+    t.index ["status", "kind", "created_at"], name: "index_runner_jobs_on_status_and_kind_and_created_at"
   end
 
   create_table "runners", force: :cascade do |t|
@@ -54,5 +78,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_000001) do
   end
 
   add_foreign_key "api_tokens", "users"
+  add_foreign_key "runner_jobs", "runners"
+  add_foreign_key "runner_jobs", "users", column: "requested_by_id"
   add_foreign_key "sessions", "users"
 end
