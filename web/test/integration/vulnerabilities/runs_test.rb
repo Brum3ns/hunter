@@ -31,6 +31,7 @@ class Vulnerabilities::RunsTest < ActionDispatch::IntegrationTest
     stub_methods(Vulnerabilities::MongoSource, find: bad) do
       post "/vulnerabilities/abc/runs", headers: { "Accept" => "text/vnd.turbo-stream.html" }
     end
+    assert_response :success
     assert_equal "failed", RunnerJob.last.status
   end
 
@@ -56,5 +57,13 @@ class Vulnerabilities::RunsTest < ActionDispatch::IntegrationTest
     get "/vulnerabilities/abc/runs/#{job.id}"
     assert_response :success
     assert_equal "failed", job.reload.status
+  end
+
+  test "show returns 404 when the job belongs to a different user" do
+    other_user = users(:two)
+    job = RunnerJob.create!(kind: "curl", command: "curl https://x", vulnerability_id: "abc", requested_by: other_user, status: "queued")
+    sign_in_as(@user)
+    get "/vulnerabilities/abc/runs/#{job.id}"
+    assert_response :not_found
   end
 end
