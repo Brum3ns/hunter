@@ -14,8 +14,8 @@ services:
       timeout: 5s
       retries: 10
 
-  # Dormant for now: kept running so it's ready when the vulnerability API is
-  # built. Rails does not connect to it yet.
+  # Backs the vulnerability module (and future modules). Rails connects via the
+  # MONGO_* env below.
   mongo:
     image: mongo:8
     volumes:
@@ -42,23 +42,28 @@ services:
       - .env
     command: >
       sh -c "rm -f tmp/pids/server.pid &&
+             bundle install &&
              bundle exec rails db:prepare &&
              bundle exec rails db:seed &&
              foreman start -f Procfile.dev"
     environment:
       RAILS_ENV: development
-      DB_HOST: db
-      DB_PORT: 5432
+      # PostgreSQL connection — every setting overridable from .env.
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-hunter_development}
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      # Mongo connection details — passed through now, consumed once the
-      # vulnerability API is built.
+      # MongoDB connection — every setting overridable from .env.
       MONGO_HOST: ${MONGO_HOST:-mongo}
       MONGO_PORT: ${MONGO_PORT:-27017}
-      MONGO_DATABASE: ${MONGO_DATABASE:-hunter}
+      MONGO_DATABASE: ${MONGO_DATABASE:-bugbounty}
       MONGO_COLLECTION: ${MONGO_COLLECTION:-vulnerabilities}
       MONGO_USERNAME: ${MONGO_USERNAME:-}
       MONGO_PASSWORD: ${MONGO_PASSWORD:-}
+      MONGO_AUTH_SOURCE: ${MONGO_AUTH_SOURCE:-admin}
+      MONGO_SERVER_SELECTION_TIMEOUT: ${MONGO_SERVER_SELECTION_TIMEOUT:-3}
+      MONGO_CONNECT_TIMEOUT: ${MONGO_CONNECT_TIMEOUT:-3}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
     volumes:
@@ -73,6 +78,29 @@ services:
         condition: service_healthy
     tty: true
     stdin_open: true
+
+  runner:
+    build:
+      context: .
+      dockerfile: runner/Dockerfile
+    env_file: [.env]
+    environment:
+      HUNTER_API_URL: http://web:5000
+      RUNNER_TOKEN: ${RUNNER_TOKEN}
+      RUNNER_POLL_INTERVAL: ${RUNNER_POLL_INTERVAL:-2}
+      CURL_MAX_TIME: ${CURL_MAX_TIME:-30}
+      CURL_MAX_OUTPUT: ${CURL_MAX_OUTPUT:-262144}
+    depends_on:
+      web:
+        condition: service_started
+    user: "65534:65534"
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 128
+    restart: unless-stopped
 
 volumes:
   hunter_db:
