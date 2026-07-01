@@ -50,7 +50,8 @@ loop do
       next
     end
     result = Sandbox::CurlCommand.execute(job["command"], max_time: MAX_TIME, max_output: MAX_OUTPUT)
-    submit(job["id"], result)
+    res = submit(job["id"], result)
+    warn "submit failed for job #{job["id"]}: HTTP #{res.code}" unless res.code.start_with?("2")
   rescue => e
     warn "runner error: #{e.class}: #{e.message}"
     sleep POLL * 3
