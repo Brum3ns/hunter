@@ -67,6 +67,16 @@ class RunnerJobTest < ActiveSupport::TestCase
     assert_equal "running", job.reload.status
   end
 
+  test "reap_stale! reaps all running jobs past the TTL" do
+    job = queue
+    RunnerJob.claim!(@curl_runner)
+    job.reload.update_column(:started_at, 1.hour.ago)
+    count = RunnerJob.reap_stale!
+    assert_equal 1, count
+    assert_equal "failed", job.reload.status
+    assert_match(/timed out/i, job.error)
+  end
+
   test "terminal? is true only for succeeded/failed" do
     job = queue
     refute job.terminal?

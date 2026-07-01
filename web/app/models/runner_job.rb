@@ -21,7 +21,7 @@ class RunnerJob < ApplicationRecord
     kinds = Array(runner.kinds)
     return nil if kinds.empty?
 
-    row = connection.exec_query(<<~SQL, "RunnerJob Claim", [runner.id, kinds.to_s.gsub(/\A\[|\]\z/, "")], prepare: false).first
+    row = connection.exec_query(<<~SQL, "RunnerJob Claim", [runner.id, kinds.join(",")], prepare: false).first
       UPDATE runner_jobs SET status = 'running', runner_id = $1, claimed_at = now(), started_at = now(), updated_at = now()
       WHERE id = (
         SELECT id FROM runner_jobs
@@ -60,7 +60,7 @@ class RunnerJob < ApplicationRecord
 
   def self.reap_stale!
     where(status: "running").where(started_at: ..TTL_SECONDS.seconds.ago)
-      .update_all(status: "failed", error: "runner timed out", finished_at: Time.current)
+      .update_all(status: "failed", error: "runner timed out", finished_at: Time.current, updated_at: Time.current)
   end
 
   def terminal?
