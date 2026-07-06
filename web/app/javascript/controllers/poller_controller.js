@@ -1,17 +1,33 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Reloads its host <turbo-frame> on an interval until the frame stops carrying
-// this controller (terminal state). Cleans up its timer on disconnect.
+// Polls a job endpoint on an interval and applies the returned Turbo Stream,
+// which replaces the whole result frame. When the job reaches a terminal state
+// the replacement markup omits this controller, so it disconnects and polling
+// stops — and because each update replaces the entire frame, no stale `src`
+// lingers to re-fetch and wipe the final result.
 export default class extends Controller {
-  static values = { interval: { type: Number, default: 1500 } }
+  static values = { url: String, interval: { type: Number, default: 1500 } }
 
   connect() {
-    this.timer = setInterval(() => {
-      if (this.element.tagName === "TURBO-FRAME") this.element.reload()
-    }, this.intervalValue)
+    if (!this.hasUrlValue) return
+
+    this.timer = setInterval(() => this.poll(), this.intervalValue)
   }
 
   disconnect() {
     if (this.timer) clearInterval(this.timer)
+  }
+
+  async poll() {
+    try {
+      const response = await fetch(this.urlValue, {
+        headers: { Accept: "text/vnd.turbo-stream.html" }
+      })
+      if (!response.ok) return
+
+      window.Turbo.renderStreamMessage(await response.text())
+    } catch (_error) {
+      // Transient network error — the next tick will retry.
+    }
   }
 }

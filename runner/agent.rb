@@ -6,8 +6,15 @@ require_relative "curl_command"
 # Minimal pull loop: claim a curl job, execute it in this hardened container,
 # post the result back. Outbound HTTP only; never opens a listening socket.
 API   = ENV.fetch("HUNTER_API_URL", "http://web:5000")
-TOKEN = ENV.fetch("RUNNER_TOKEN")
+TOKEN = ENV.fetch("RUNNER_TOKEN", "").strip
 POLL  = Float(ENV.fetch("RUNNER_POLL_INTERVAL", "2"))
+
+# Without a token every claim just 401s forever and no job is ever run, so fail
+# loudly at startup instead of looping silently. Mint one with
+# `bin/rails runners:create NAME=curl-runner KINDS=curl` and set RUNNER_TOKEN.
+if TOKEN.empty?
+  abort "RUNNER_TOKEN is not set — mint one with `bin/rails runners:create` and put it in .env"
+end
 MAX_TIME   = Integer(ENV.fetch("CURL_MAX_TIME", "30"))
 MAX_OUTPUT = Integer(ENV.fetch("CURL_MAX_OUTPUT", "262144"))
 
@@ -30,11 +37,18 @@ def claim
   JSON.parse(res.body)
 end
 
+# curl output is captured in binary mode, so it may hold non-UTF-8 bytes (gzip,
+# images, truncated multibyte). Scrub to valid UTF-8 so JSON serialization and
+# the Postgres text columns never choke and drop an otherwise-complete result.
+def utf8(str)
+  str.to_s.dup.force_encoding("UTF-8").scrub("�")
+end
+
 def submit(id, result)
   post("/api/v1/runner/jobs/#{id}/result", {
     exit_status: result.exit_status,
-    stdout: result.stdout,
-    stderr: result.stderr,
+    stdout: utf8(result.stdout),
+    stderr: utf8(result.stderr),
     error: result.error,
     duration_ms: result.duration_ms,
     output_truncated: result.output_truncated

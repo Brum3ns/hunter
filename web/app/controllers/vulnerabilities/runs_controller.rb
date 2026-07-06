@@ -29,7 +29,17 @@ module Vulnerabilities
       return head :not_found unless @job
 
       @job.reap_if_stale!
-      render layout: false
+
+      respond_to do |format|
+        format.turbo_stream do
+          render turbo_stream: turbo_stream.replace(
+            "runner_run_#{@job.vulnerability_id}",
+            partial: "vulnerabilities/runs/result",
+            locals: { job: @job }
+          )
+        end
+        format.html { render layout: false }
+      end
     end
   end
 end
