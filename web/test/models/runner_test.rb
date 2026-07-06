@@ -31,4 +31,18 @@ class RunnerTest < ActiveSupport::TestCase
     Runner.generate(name: "dup", kinds: %w[curl])
     assert_raises(ActiveRecord::RecordInvalid) { Runner.generate(name: "dup", kinds: %w[curl]) }
   end
+
+  test "destroying a runner nullifies its jobs but keeps them" do
+    runner, = Runner.generate(name: "curl-runner", kinds: %w[curl])
+    user = users(:one)
+    job = RunnerJob.create!(kind: "curl", command: "curl https://x", vulnerability_id: "v",
+                            requested_by: user, status: "running", runner: runner, started_at: Time.current)
+    runner.destroy
+    assert RunnerJob.exists?(job.id), "job should survive runner deletion"
+    assert_nil job.reload.runner_id
+  end
+
+  test "kinds must be present" do
+    assert_raises(ActiveRecord::RecordInvalid) { Runner.generate(name: "empty", kinds: []) }
+  end
 end

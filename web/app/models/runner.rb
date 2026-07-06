@@ -5,8 +5,11 @@ require "digest"
 # kind is in its `kinds` allowlist. Tokens are stored SHA-256 digest-only, minted
 # out-of-band via `bin/rails runners:create`.
 class Runner < ApplicationRecord
+  has_many :runner_jobs, dependent: :nullify
+
   validates :name, presence: true, uniqueness: true
   validates :token_digest, presence: true, uniqueness: true
+  validates :kinds, presence: true
 
   def self.generate(name:, kinds:)
     raw = SecureRandom.urlsafe_base64(32)
