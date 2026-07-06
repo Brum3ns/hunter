@@ -50,17 +50,33 @@ class RunnerJob < ApplicationRecord
     )
   end
 
+  # A queued job past the TTL means no runner ever claimed it (runner down or
+  # unconfigured); a running job past the TTL means the runner died mid-job.
+  # Both are failed so the UI stops polling and shows a cause instead of
+  # spinning forever.
   def reap_if_stale!
-    return false unless status == "running"
-    return false unless started_at && started_at < TTL_SECONDS.seconds.ago
+    cutoff = TTL_SECONDS.seconds.ago
 
-    update!(status: "failed", error: "runner timed out", finished_at: Time.current)
-    true
+    if status == "running" && started_at && started_at < cutoff
+      update!(status: "failed", error: "runner timed out", finished_at: Time.current)
+      return true
+    end
+
+    if status == "queued" && created_at && created_at < cutoff
+      update!(status: "failed", error: "no runner picked up this job", finished_at: Time.current)
+      return true
+    end
+
+    false
   end
 
   def self.reap_stale!
-    where(status: "running").where(started_at: ..TTL_SECONDS.seconds.ago)
+    cutoff = TTL_SECONDS.seconds.ago
+    running = where(status: "running").where(started_at: ..cutoff)
       .update_all(status: "failed", error: "runner timed out", finished_at: Time.current, updated_at: Time.current)
+    queued = where(status: "queued").where(created_at: ..cutoff)
+      .update_all(status: "failed", error: "no runner picked up this job", finished_at: Time.current, updated_at: Time.current)
+    running + queued
   end
 
   def terminal?

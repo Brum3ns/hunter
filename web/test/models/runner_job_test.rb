@@ -67,6 +67,20 @@ class RunnerJobTest < ActiveSupport::TestCase
     assert_equal "running", job.reload.status
   end
 
+  test "reap_if_stale! fails a queued job no runner ever claimed" do
+    job = queue
+    job.update_column(:created_at, 1.hour.ago)
+    assert job.reload.reap_if_stale!
+    assert_equal "failed", job.reload.status
+    assert_match(/no runner/i, job.error)
+  end
+
+  test "reap_if_stale! leaves a freshly queued job alone" do
+    job = queue
+    refute job.reload.reap_if_stale!
+    assert_equal "queued", job.reload.status
+  end
+
   test "reap_stale! reaps all running jobs past the TTL" do
     job = queue
     RunnerJob.claim!(@curl_runner)

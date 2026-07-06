@@ -13,8 +13,11 @@ module Sandbox
   module CurlCommand
     module_function
 
-    MAX_ARGS = 60
-    MAX_LENGTH = 8_000
+    # Real curl PoCs (e.g. Burp's "copy as curl") carry many -H headers and long
+    # cookie/authorization values, so these ceilings are generous; they exist to
+    # bound abuse, not to reject legitimate commands.
+    MAX_ARGS = 400
+    MAX_LENGTH = 32_000
 
     Result = Struct.new(
       :exit_status, :stdout, :stderr, :error, :duration_ms, :output_truncated,

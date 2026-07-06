@@ -66,10 +66,16 @@ class Sandbox::CurlCommandTest < ActiveSupport::TestCase
   end
 
   test "rejects too many arguments" do
-    args = (["curl"] + Array.new(80, "-H") + ["https://example.com"]).join(" ")
+    args = (["curl"] + Array.new(500, "-H") + ["https://example.com"]).join(" ")
     ok, reason = validate(args)
     refute ok
     assert_match(/many|long/i, reason)
+  end
+
+  test "accepts a realistic curl with many headers" do
+    args = (["curl"] + Array.new(40) { |i| "-H 'X-H#{i}: v'" } + ["https://example.com"]).join(" ")
+    ok, = validate(args)
+    assert ok, "a curl with 40 headers should be accepted"
   end
 
   test "execute never runs invalid input" do
