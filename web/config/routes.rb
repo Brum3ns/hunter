@@ -7,6 +7,9 @@ Rails.application.routes.draw do
   get "stats", to: "stats#index"
   get "account", to: "account#show"
   get "settings", to: "settings#show"
+  namespace :settings do
+    resources :runners, only: %i[create destroy]
+  end
   get "notifications", to: "notifications#index"
 
   # Web "departments" — one per Hunter module. Each module owns its own
