@@ -1,3 +1,106 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Slim, mobile-style scrollbars — indicate the scroll exists without a heavy track. */
+@utility slim-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(113 113 122 / 0.4) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: rgb(113 113 122 / 0.35);
+    border-radius: 9999px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(113 113 122 / 0.6);
+  }
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* "Fit window" mode — wrap long request/response/curl lines instead of scrolling. */
+.code-fit {
+  overflow-x: hidden;
+}
+.code-fit code {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+/* Facet sidebar folds into a "Filters" drawer on small screens (native
+   <details>); on desktop it is always expanded, so hide the toggle and force
+   the body visible regardless of the element's open state. */
+@media (min-width: 1024px) {
+  details.facet-shell > summary {
+    display: none;
+  }
+  details.facet-shell > .facet-shell-body {
+    display: block;
+  }
+}
+
+/* Drop the default disclosure triangle; the chevron is drawn in the markup. */
+.facet-summary::-webkit-details-marker {
+  display: none;
+}
+.facet-summary {
+  list-style: none;
+}
+
+/* highlight.js theme, tuned for the zinc-950 code surface used in the drawer. */
+.hljs {
+  color: #e4e4e7;
+  background: transparent;
+}
+.hljs-comment,
+.hljs-quote {
+  color: #71717a;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-literal {
+  color: #93c5fd;
+}
+.hljs-string,
+.hljs-attr,
+.hljs-regexp,
+.hljs-addition {
+  color: #86efac;
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: #fca5a5;
+}
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: #fcd34d;
+}
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type,
+.hljs-meta {
+  color: #c4b5fd;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}

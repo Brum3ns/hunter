@@ -1,32 +1,74 @@
+<%# Search bar. Part of the single overview form (index.html.erb) — it does NOT
+    auto-submit; the user hits Enter or clicks Search. The "?" button opens a
+    dork cheatsheet on hover or keyboard focus (pure CSS, type=button so it
+    never submits). %>
 <%
-  input_classes = "rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100 dark:focus:border-zinc-300"
+  input_classes = "w-full rounded-md border border-zinc-300 bg-white py-2 pl-3 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100 dark:focus:border-zinc-300"
+  dork_groups = [
+    ["Text match", [
+      ["program:acme",            "program name"],
+      [%(name:"sql injection"),   "finding name (quotes for spaces)"],
+      ["asset:api",               "asset"],
+      ["host:example.com",        "target host"],
+      ["url:/login",              "target URL"],
+      ["cwe:CWE-79",              "CWE id"],
+      ["tag:xss",                 "exact tag"],
+      ["ip:10.0.0.1",             "target IP"]
+    ]],
+    ["Category (exact)", [
+      ["severity:critical",       "critical · high · medium · low · info"],
+      ["status:triage",           "new · triage · reported · close · false_positive"],
+      ["tool:nuclei",             "scanner"],
+      ["type:http",               "finding type"],
+      ["method:POST",             "HTTP method"],
+      ["port:443",                "target port"],
+      ["confidence:high",         "PoC confidence"],
+      ["submitted:yes",           "yes / no — reported upstream"]
+    ]],
+    ["Dates (>, >=, <, <=)", [
+      ["date:>=2026-06-01",       "on or after"],
+      ["date:<=2026-06-30",       "on or before"]
+    ]],
+    ["Combine", [
+      ["a AND b",                 "both match (implicit)"],
+      ["a OR b",                  "either matches"],
+      ["(a OR b) AND c",          "group with parentheses"],
+      ["severity:high AND tool:nuclei OR tool:nikto", "AND binds tighter than OR"]
+    ]]
+  ]
 %>
-<%= form_with url: vulnerabilities_root_path, method: :get,
-      data: { controller: "filter_form" },
-      class: "flex flex-wrap items-center gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800" do |f| %>
-  <div class="min-w-48 flex-1">
-    <%= f.search_field :q, value: filter_params[:q], placeholder: "Search — e.g. severity:high AND tool:nuclei",
-          autocomplete: "off",
-          data: { filter_form_target: "search", action: "input->filter_form#search" },
-          class: "w-full #{input_classes}" %>
+<div class="flex items-center gap-2 border-b border-zinc-200 p-4 dark:border-zinc-800">
+  <div class="relative min-w-48 flex-1">
+    <%= search_field_tag :q, filter_params[:q],
+          placeholder: "Search names & hosts — or dork: severity:high AND tool:nuclei",
+          autocomplete: "off", class: input_classes %>
+
+    <div class="group absolute right-1.5 top-1/2 -translate-y-1/2">
+      <button type="button" aria-label="Search syntax help"
+              class="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 outline-none hover:bg-zinc-100 hover:text-zinc-700 focus:bg-zinc-100 focus:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 dark:focus:bg-zinc-800">
+        <%= heroicon "question-mark-circle", classes: "h-4 w-4" %>
+      </button>
+      <%# Cheatsheet: shows on hover or keyboard focus within the group. The
+          panel is itself interactive so it can be scrolled when it overflows. %>
+      <div class="invisible absolute right-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-3rem)] max-h-[70vh] overflow-y-auto slim-scroll rounded-md border border-zinc-200 bg-white p-3 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-zinc-800 dark:bg-[#111315]">
+        <% dork_groups.each_with_index do |(title, rows), idx| %>
+          <p class="text-[10.5px] font-medium uppercase tracking-[0.12em] text-zinc-400 <%= idx.zero? ? "mb-2" : "mt-3 mb-2 border-t border-zinc-200 pt-2 dark:border-zinc-800" %>"><%= title %></p>
+          <dl class="space-y-1.5 font-mono">
+            <% rows.each do |dork, hint| %>
+              <div>
+                <dt class="break-all text-[11.5px] leading-snug text-zinc-800 dark:text-zinc-200"><%= dork %></dt>
+                <dd class="mt-0.5 pl-3 text-[10.5px] leading-snug text-zinc-500 dark:text-zinc-400"><%= hint %></dd>
+              </div>
+            <% end %>
+          </dl>
+        <% end %>
+        <p class="mt-3 border-t border-zinc-200 pt-2 text-[10.5px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+          Operators are case-insensitive · plain text matches names &amp; hosts.
+        </p>
+      </div>
+    </div>
   </div>
 
-  <%# Preserve active facet / date selections across a search or sort submit. %>
-  <% VulnerabilitiesHelper::FACET_DIMENSIONS.each do |dim| %>
-    <% Array(filter_params[dim]).reject(&:blank?).each do |value| %>
-      <%= hidden_field_tag "#{dim}[]", value %>
-    <% end %>
-  <% end %>
-  <% %i[date_from date_to].each do |k| %>
-    <%= hidden_field_tag k, filter_params[k] if filter_params[k].present? %>
-  <% end %>
-
-  <label class="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-    Sort
-    <%= f.select :sort,
-          options_for_select(Vulnerabilities::Sort::OPTIONS.map { |k, label| [label, k] }, sort_key),
-          {}, data: { action: "change->filter_form#submit" }, class: input_classes %>
-  </label>
-  <%= hidden_field_tag :dir, sort_dir %>
-  <noscript><%= f.submit "Apply", class: "rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-zinc-900" %></noscript>
-<% end %>
+  <%= submit_tag "Search",
+        class: "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-200 dark:hover:bg-zinc-800" %>
+</div>

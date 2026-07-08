@@ -1,13 +1,25 @@
+<%# Column headers for sortable columns (Severity/Status/Name/Date) are links
+    that re-query with that sort applied, toggling direction on the active one.
+    Target and Tool have no sort key, so they stay as plain labels. Sorting uses
+    the currently-applied filters (unapplied checkbox edits are ignored). %>
 <div class="hidden overflow-x-auto md:block">
   <table class="w-full text-left text-sm">
     <thead>
       <tr class="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        <th class="px-4 py-3 font-medium">Severity</th>
-        <th class="px-4 py-3 font-medium">Status</th>
-        <th class="px-4 py-3 font-medium">Name</th>
-        <th class="px-4 py-3 font-medium">Target</th>
-        <th class="px-4 py-3 font-medium">Tool</th>
-        <th class="px-4 py-3 font-medium">Date</th>
+        <% [["Severity", "severity"], ["Status", "status"], ["Name", "name"], ["Target", nil], ["Tool", nil], ["Date", "date"]].each do |label, key| %>
+          <th class="px-4 py-3 font-medium">
+            <% if key %>
+              <% active = key == sort_key.to_s %>
+              <%= link_to vulnerabilities_root_path(vuln_sort_params(filter_params, key, sort_key, sort_dir)),
+                    class: "inline-flex items-center gap-1 hover:text-zinc-800 dark:hover:text-zinc-200 #{'text-zinc-900 dark:text-zinc-100' if active}" do %>
+                <%= label %>
+                <span class="text-[10px] <%= active ? "text-zinc-500 dark:text-zinc-400" : "text-zinc-300 dark:text-zinc-600" %>"><%= vuln_sort_indicator(key, sort_key, sort_dir) %></span>
+              <% end %>
+            <% else %>
+              <%= label %>
+            <% end %>
+          </th>
+        <% end %>
       </tr>
     </thead>
     <tbody>
