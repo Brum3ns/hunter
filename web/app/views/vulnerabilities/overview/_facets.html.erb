@@ -1,0 +1,52 @@
+<%# Facet sidebar. A single GET form; changing any checkbox / date submits it
+    (filter_form controller, already used by the search bar). Free-text q and
+    sort are carried as hidden fields so a facet change preserves them. %>
+<%
+  wrap = "rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]"
+  heading = "mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+  vocab = { "severity" => VulnerabilitiesHelper::SEVERITIES, "status" => VulnerabilitiesHelper::STATUSES }
+%>
+<%= form_with url: vulnerabilities_root_path, method: :get,
+      data: { controller: "filter_form" }, class: "space-y-5 #{wrap}" do %>
+  <%= hidden_field_tag :q, filter_params[:q] if filter_params[:q].present? %>
+  <%= hidden_field_tag :sort, filter_params[:sort] if filter_params[:sort].present? %>
+  <%= hidden_field_tag :dir, filter_params[:dir] if filter_params[:dir].present? %>
+
+  <% VulnerabilitiesHelper::FACET_DIMENSIONS.each do |dim| %>
+    <% counts = result.facets[dim] || {} %>
+    <%# Fixed-vocab dimensions always show every option; discovered dimensions
+        (tool/type/program) show the values present in the data. %>
+    <% values = vocab[dim] || counts.keys.sort %>
+    <% next if values.empty? %>
+    <fieldset>
+      <legend class="<%= heading %>"><%= dim.humanize %></legend>
+      <div class="space-y-1">
+        <% selected = Array(filter_params[dim]).reject(&:blank?) %>
+        <% values.each do |value| %>
+          <label class="flex items-center justify-between gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <span class="flex items-center gap-2">
+              <%= check_box_tag "#{dim}[]", value, selected.include?(value),
+                    data: { action: "change->filter_form#submit" },
+                    class: "rounded border-zinc-300 text-zinc-900 focus:ring-0 dark:border-zinc-600 dark:bg-zinc-800" %>
+              <%= vuln_facet_label(dim, value) %>
+            </span>
+            <span class="text-xs tabular-nums text-zinc-400 dark:text-zinc-500"><%= counts[value] || 0 %></span>
+          </label>
+        <% end %>
+      </div>
+    </fieldset>
+  <% end %>
+
+  <fieldset>
+    <legend class="<%= heading %>">Date</legend>
+    <div class="flex items-center gap-2">
+      <%= date_field_tag :date_from, filter_params[:date_from],
+            data: { action: "change->filter_form#submit" },
+            class: "w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100" %>
+      <span class="text-xs text-zinc-400">–</span>
+      <%= date_field_tag :date_to, filter_params[:date_to],
+            data: { action: "change->filter_form#submit" },
+            class: "w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100" %>
+    </div>
+  </fieldset>
+<% end %>

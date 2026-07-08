@@ -1,0 +1,26 @@
+<% content_for :title, "hunter — Vulnerabilities" %>
+<% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
+
+<header class="flex items-center gap-3">
+  <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Vulnerabilities</h1>
+  <span class="rounded border border-zinc-300 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">beta</span>
+</header>
+<p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Findings across all programs.</p>
+
+<%= render "vulnerabilities/overview/stat_cards", stats: @stats %>
+
+<div class="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start">
+  <aside class="w-full shrink-0 lg:w-64">
+    <%= render "vulnerabilities/overview/facets", result: @result, filter_params: @filter_params %>
+  </aside>
+
+  <div class="min-w-0 flex-1 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
+    <%= render "vulnerabilities/overview/filters", filter_params: @filter_params, sort_key: @sort_key, sort_dir: @sort_dir %>
+    <%= render "vulnerabilities/overview/active_chips", filter_params: @filter_params %>
+    <%= render "vulnerabilities/overview/findings_table", findings: @findings %>
+    <%= render "shared/pagination", page: @result.page, limit: @result.per_page, total: @result.total %>
+  </div>
+</div>
+
+<%# Detail drawer mounts here — findings rows swap their detail into this frame. %>
+<%= turbo_frame_tag "vuln_panel" %>
