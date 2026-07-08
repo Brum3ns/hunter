@@ -12,17 +12,33 @@
 <%# The sidebar and search bar are separate GET forms (the findings table must
     stay OUTSIDE them — each row carries its own inline status form, and nesting
     forms is invalid HTML). Each form carries the other's state plus the current
-    sort in hidden fields, so Apply and Search each preserve everything else. %>
-<div class="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start">
-  <aside class="w-full shrink-0 lg:w-64">
+    sort in hidden fields, so Apply and Search each preserve everything else.
+    filter-panel collapses the sidebar on desktop; the cookie renders the
+    collapsed state up front so there is no flash. %>
+<% filters_hidden = cookies[:vuln_filters_hidden] == "1" %>
+<div data-controller="filter-panel" class="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start">
+  <aside data-filter-panel-target="panel"
+         class="w-full shrink-0 slim-scroll lg:sticky lg:top-0 lg:max-h-[calc(100dvh-1.5rem)] lg:w-64 lg:overflow-y-auto <%= 'lg:hidden' if filters_hidden %>">
     <%= render "vulnerabilities/overview/facets", result: @result, filter_params: @filter_params, sort_key: @sort_key, sort_dir: @sort_dir %>
   </aside>
 
-  <div class="min-w-0 flex-1 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
-    <%= render "vulnerabilities/overview/filters", filter_params: @filter_params, sort_key: @sort_key, sort_dir: @sort_dir %>
-    <%= render "vulnerabilities/overview/active_chips", filter_params: @filter_params %>
-    <%= render "vulnerabilities/overview/findings_table", findings: @findings, sort_key: @sort_key, sort_dir: @sort_dir, filter_params: @filter_params %>
-    <%= render "shared/pagination", page: @result.page, limit: @result.per_page, total: @result.total %>
+  <div class="min-w-0 flex-1 space-y-3">
+    <%# Sticky search bar: stays put while the findings list scrolls. On mobile
+        it sits just below the sticky top nav (top-12); on desktop at the top. %>
+    <div class="sticky top-12 z-20 flex items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 md:top-0 dark:border-zinc-800 dark:bg-[#111315]">
+      <button type="button" data-action="filter-panel#toggle"
+              class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 lg:inline-flex dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              aria-label="Show or hide filters" title="Show or hide filters">
+        <%= heroicon "adjustments-horizontal", classes: "h-4 w-4" %>
+      </button>
+      <%= render "vulnerabilities/overview/filters", filter_params: @filter_params, sort_key: @sort_key, sort_dir: @sort_dir %>
+    </div>
+
+    <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
+      <%= render "vulnerabilities/overview/active_chips", filter_params: @filter_params %>
+      <%= render "vulnerabilities/overview/findings_table", findings: @findings, sort_key: @sort_key, sort_dir: @sort_dir, filter_params: @filter_params %>
+      <%= render "shared/pagination", page: @result.page, limit: @result.per_page, total: @result.total %>
+    </div>
   </div>
 </div>
 

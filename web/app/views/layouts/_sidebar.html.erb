@@ -1,65 +1,77 @@
 <% folded = cookies[:sidebar_folded] == "1" %>
 
-<%# Mobile top bar with hamburger %>
-<div class="flex items-center gap-3 border-b border-zinc-200 bg-white px-4 py-3 md:hidden dark:border-zinc-800 dark:bg-zinc-900">
-  <button type="button" data-action="sidebar#open"
-          class="inline-flex h-11 w-11 items-center justify-center rounded-md text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          aria-label="Open navigation">
-    <%= heroicon "bars-3" %>
-  </button>
-  <span class="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-100">hunter</span>
+<%
+  brand_logo = content_tag(:svg, safe_join([
+    tag.circle(cx: "12", cy: "12", r: "9", stroke: "currentColor", "stroke-width": "1.5"),
+    tag.path(d: "M15.5 8.5a5 5 0 10-1 7.8", stroke: "currentColor", "stroke-width": "1.5", "stroke-linecap": "round")
+  ]), xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", class: "h-5 w-5", "aria-hidden": "true")
+%>
+
+<div data-controller="sidebar" class="contents">
+  <%# Mobile top bar with hamburger — sticks to the top while the page scrolls. %>
+  <div class="sticky top-0 z-30 flex items-center gap-2 border-b border-white/10 bg-[#0a0a0a] px-2.5 py-2 text-white md:hidden">
+    <button type="button" data-action="sidebar#open"
+            class="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-white/5 hover:text-white"
+            aria-label="Open navigation">
+      <%= heroicon "bars-3", classes: "h-4 w-4" %>
+    </button>
+    <span aria-label="hunter"><%= brand_logo %></span>
+  </div>
+
+  <%# Backdrop (mobile only, hidden until drawer opens) %>
+  <div data-sidebar-target="backdrop" data-action="sidebar#close"
+       class="fixed inset-0 z-30 hidden bg-black/60 md:hidden"></div>
+
+  <%# Off-canvas drawer on mobile; on desktop it sticks to the top and fills the
+      viewport height so the nav stays in place while the main content scrolls. %>
+  <aside data-sidebar-target="aside"
+         class="fixed inset-y-0 left-0 z-40 flex w-44 -translate-x-full flex-col border-r border-white/10 bg-[#0a0a0a] text-white transition-[width,transform] duration-200 ease-in-out md:sticky md:top-0 md:h-dvh md:translate-x-0 <%= folded ? 'md:w-12' : 'md:w-44' %>">
+
+    <%# Brand + fold toggle %>
+    <div class="flex items-center justify-between gap-2 px-2.5 py-2.5">
+      <span class="<%= 'md:hidden' if folded %>" data-sidebar-target="label" aria-label="hunter"><%= brand_logo %></span>
+      <button type="button" data-action="sidebar#toggle"
+              class="hidden h-7 w-7 items-center justify-center rounded text-zinc-400 hover:bg-white/5 hover:text-white md:inline-flex"
+              aria-label="Toggle sidebar">
+        <%= heroicon "sidebar-toggle", classes: "h-3.5 w-3.5" %>
+      </button>
+      <%# Close button (mobile drawer) %>
+      <button type="button" data-action="sidebar#close"
+              class="inline-flex h-7 w-7 items-center justify-center rounded text-zinc-400 hover:bg-white/5 hover:text-white md:hidden"
+              aria-label="Close navigation">
+        <%= heroicon "x-mark", classes: "h-3.5 w-3.5" %>
+      </button>
+    </div>
+
+    <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto px-1.5 py-1">
+      <% primary_nav_groups.each_with_index do |group, index| %>
+        <% if index.positive? %><hr class="my-1.5 border-white/10"><% end %>
+        <% group.each do |item| %>
+          <%= render "layouts/sidebar_link", path: item[:path], controllers: item[:controllers], icon: item[:icon], label: item[:label], folded: folded %>
+        <% end %>
+      <% end %>
+    </nav>
+
+    <%# Bottom cluster: app-level utilities %>
+    <div class="flex flex-col gap-0.5 border-t border-white/10 px-1.5 py-1">
+      <% utility_nav_items.each do |item| %>
+        <%= render "layouts/sidebar_link", path: item[:path], controllers: item[:controllers], icon: item[:icon], label: item[:label], folded: folded %>
+      <% end %>
+    </div>
+
+    <%# Footer: theme toggle + sign out %>
+    <div class="flex items-center gap-1 border-t border-white/10 px-1.5 py-1.5">
+      <button type="button" data-action="sidebar#toggleTheme"
+              class="inline-flex h-8 min-w-8 items-center justify-center rounded px-1.5 text-zinc-400 hover:bg-white/5 hover:text-white"
+              aria-label="Toggle theme">
+        <span class="hidden dark:inline"><%= heroicon "sun", classes: "h-3.5 w-3.5" %></span>
+        <span class="inline dark:hidden"><%= heroicon "moon", classes: "h-3.5 w-3.5" %></span>
+      </button>
+      <%= button_to session_path, method: :delete,
+            class: "inline-flex h-8 min-w-8 flex-1 items-center justify-center gap-1.5 rounded px-1.5 text-[11px] font-medium text-zinc-400 hover:bg-white/5 hover:text-white" do %>
+        <%= heroicon "user-circle", classes: "h-3.5 w-3.5" %>
+        <span class="<%= 'md:hidden' if folded %>" data-sidebar-target="label">Sign out</span>
+      <% end %>
+    </div>
+  </aside>
 </div>
-
-<%# Backdrop (mobile only, hidden until drawer opens) %>
-<div data-sidebar-target="backdrop" data-action="sidebar#close"
-     class="fixed inset-0 z-30 hidden bg-black/50 md:hidden"></div>
-
-<aside data-controller="sidebar"
-       data-sidebar-target="aside"
-       class="fixed inset-y-0 left-0 z-40 flex w-60 -translate-x-full flex-col border-r border-zinc-200 bg-white transition-[width,transform] duration-200 ease-in-out md:static md:translate-x-0 dark:border-zinc-800 dark:bg-zinc-900 <%= folded ? 'md:w-16' : 'md:w-60' %>">
-
-  <%# Brand + fold toggle %>
-  <div class="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-4 dark:border-zinc-800">
-    <span class="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-100 <%= 'md:hidden' if folded %>" data-sidebar-target="label">hunter</span>
-    <button type="button" data-action="sidebar#toggle"
-            class="hidden h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 md:inline-flex dark:text-zinc-400 dark:hover:bg-zinc-800"
-            aria-label="Toggle sidebar">
-      <%= heroicon "chevron-double-left", classes: "h-5 w-5 transition-transform #{'rotate-180' if folded}" %>
-    </button>
-    <%# Close button (mobile drawer) %>
-    <button type="button" data-action="sidebar#close"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 md:hidden dark:text-zinc-400 dark:hover:bg-zinc-800"
-            aria-label="Close navigation">
-      <%= heroicon "x-mark", classes: "h-5 w-5" %>
-    </button>
-  </div>
-
-  <nav class="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-4">
-    <%# Group 1: account / settings / notice %>
-    <%= render "layouts/sidebar_link", path: account_path, controllers: %w[account], icon: "user-circle", label: "Account", folded: folded %>
-    <%= render "layouts/sidebar_link", path: settings_path, controllers: %w[settings], icon: "cog", label: "Settings", folded: folded %>
-    <%= render "layouts/sidebar_link", path: notifications_path, controllers: %w[notifications], icon: "bell", label: "Notice", folded: folded %>
-
-    <hr class="my-3 border-zinc-200 dark:border-zinc-800">
-
-    <%# Group 2: main %>
-    <%= render "layouts/sidebar_link", path: root_path, controllers: %w[dashboard], icon: "home", label: "Dashboard", folded: folded %>
-    <%= render "layouts/sidebar_link", path: bugs_path, controllers: %w[bugs], icon: "bug-ant", label: "Bugs", folded: folded %>
-    <%= render "layouts/sidebar_link", path: stats_path, controllers: %w[stats], icon: "chart-bar", label: "Stats", folded: folded %>
-  </nav>
-
-  <%# Footer: theme toggle + sign out %>
-  <div class="flex items-center gap-1 border-t border-zinc-200 px-2 py-3 dark:border-zinc-800">
-    <button type="button" data-action="sidebar#toggleTheme"
-            class="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-md px-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            aria-label="Toggle theme">
-      <span class="hidden dark:inline"><%= heroicon "sun", classes: "h-5 w-5" %></span>
-      <span class="inline dark:hidden"><%= heroicon "moon", classes: "h-5 w-5" %></span>
-    </button>
-    <%= button_to session_path, method: :delete,
-          class: "inline-flex h-11 min-w-11 flex-1 items-center justify-center gap-2 rounded-md px-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800" do %>
-      <%= heroicon "user-circle", classes: "h-5 w-5" %>
-      <span class="<%= 'md:hidden' if folded %>" data-sidebar-target="label">Sign out</span>
-    <% end %>
-  </div>
-</aside>

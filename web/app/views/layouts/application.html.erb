@@ -33,14 +33,22 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="min-h-screen bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
+  <body class="min-h-screen bg-zinc-50 text-zinc-900 antialiased dark:bg-[#0b0d0e] dark:text-zinc-100">
     <div class="flex min-h-screen flex-col md:flex-row">
       <%= render "layouts/sidebar" if authenticated? %>
-      <main class="flex-1 overflow-x-hidden">
-        <div class="mx-auto max-w-6xl px-6 py-10">
+      <%# overflow-x-clip (not -hidden) contains horizontal overflow WITHOUT
+          making <main> a scroll container, so the page body stays the scroll
+          context and `position: sticky` (nav, search, filters) works. %>
+      <main class="flex-1 overflow-x-clip">
+        <%# Container width is opt-in: a data-dense department can widen it with
+            content_for(:container) without forking the layout. %>
+        <div class="<%= content_for?(:container) ? yield(:container).strip : "mx-auto max-w-6xl px-6 py-10" %>">
           <%= yield %>
         </div>
       </main>
     </div>
+
+    <div data-controller="toaster"
+         class="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-2"></div>
   </body>
 </html>

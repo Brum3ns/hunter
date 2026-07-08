@@ -39,7 +39,7 @@
   ]
 %>
 <%= form_with url: vulnerabilities_root_path, method: :get,
-      class: "flex items-center gap-2 border-b border-zinc-200 p-4 dark:border-zinc-800" do %>
+      class: "flex min-w-0 flex-1 items-center gap-2" do %>
   <%# Carry facet selections, date range, and sort so a search keeps them. %>
   <% VulnerabilitiesHelper::FACET_DIMENSIONS.each do |dim| %>
     <% Array(filter_params[dim]).reject(&:blank?).each do |value| %>
