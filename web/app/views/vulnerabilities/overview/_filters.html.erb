@@ -1,0 +1,32 @@
+<%
+  input_classes = "rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100 dark:focus:border-zinc-300"
+%>
+<%= form_with url: vulnerabilities_root_path, method: :get,
+      data: { controller: "filter_form" },
+      class: "flex flex-wrap items-center gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800" do |f| %>
+  <div class="min-w-48 flex-1">
+    <%= f.search_field :q, value: filter_params[:q], placeholder: "Search — e.g. severity:high AND tool:nuclei",
+          autocomplete: "off",
+          data: { filter_form_target: "search", action: "input->filter_form#search" },
+          class: "w-full #{input_classes}" %>
+  </div>
+
+  <%# Preserve active facet / date selections across a search or sort submit. %>
+  <% VulnerabilitiesHelper::FACET_DIMENSIONS.each do |dim| %>
+    <% Array(filter_params[dim]).reject(&:blank?).each do |value| %>
+      <%= hidden_field_tag "#{dim}[]", value %>
+    <% end %>
+  <% end %>
+  <% %i[date_from date_to].each do |k| %>
+    <%= hidden_field_tag k, filter_params[k] if filter_params[k].present? %>
+  <% end %>
+
+  <label class="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+    Sort
+    <%= f.select :sort,
+          options_for_select(Vulnerabilities::Sort::OPTIONS.map { |k, label| [label, k] }, sort_key),
+          {}, data: { action: "change->filter_form#submit" }, class: input_classes %>
+  </label>
+  <%= hidden_field_tag :dir, sort_dir %>
+  <noscript><%= f.submit "Apply", class: "rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-zinc-900" %></noscript>
+<% end %>

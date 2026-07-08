@@ -1,0 +1,14 @@
+<% chips = vuln_active_chips(filter_params) %>
+<% if chips.any? %>
+  <div class="flex flex-wrap items-center gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+    <% chips.each do |chip| %>
+      <%= link_to vulnerabilities_root_path(chip[:remove_params]),
+            class: "inline-flex items-center gap-1 rounded-full border border-zinc-300 bg-zinc-50 px-2 py-0.5 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800" do %>
+        <%= chip[:label] %>
+        <span aria-hidden="true">&times;</span>
+      <% end %>
+    <% end %>
+    <%= link_to "Clear all", vulnerabilities_root_path,
+          class: "text-xs font-medium text-zinc-500 underline hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100" %>
+  </div>
+<% end %>

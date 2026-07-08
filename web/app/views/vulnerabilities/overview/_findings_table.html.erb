@@ -1,0 +1,31 @@
+<div class="hidden overflow-x-auto md:block">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+        <th class="px-4 py-3 font-medium">Severity</th>
+        <th class="px-4 py-3 font-medium">Status</th>
+        <th class="px-4 py-3 font-medium">Name</th>
+        <th class="px-4 py-3 font-medium">Target</th>
+        <th class="px-4 py-3 font-medium">Tool</th>
+        <th class="px-4 py-3 font-medium">Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if findings.any? %>
+        <%= render partial: "vulnerabilities/overview/finding_row", collection: findings, as: :finding %>
+      <% else %>
+        <tr>
+          <td colspan="6" class="px-4 py-12 text-center text-zinc-500 dark:text-zinc-400">No findings match your filters.</td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<div class="md:hidden">
+  <% if findings.any? %>
+    <%= render partial: "vulnerabilities/overview/finding_card", collection: findings, as: :finding %>
+  <% else %>
+    <div class="px-4 py-12 text-center text-zinc-500 dark:text-zinc-400">No findings match your filters.</div>
+  <% end %>
+</div>

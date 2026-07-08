@@ -1,0 +1,5 @@
+<div class="mt-6 grid gap-4 sm:grid-cols-3">
+  <%= render "vulnerabilities/overview/stat_card", label: "Created", value: stats[:created] %>
+  <%= render "vulnerabilities/overview/stat_card", label: "Reported", value: stats[:reported] %>
+  <%= render "vulnerabilities/overview/stat_card", label: "False Positives", value: stats[:false_positives] %>
+</div>
