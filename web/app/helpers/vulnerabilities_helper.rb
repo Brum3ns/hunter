@@ -87,4 +87,29 @@ module VulnerabilitiesHelper
     end
     copy
   end
+
+  # Table columns that can be sorted, in table order: label => Sort key.
+  # Target and Tool have no Sort key, so they render as plain headers.
+  SORTABLE_COLUMNS = { "Severity" => "severity", "Status" => "status", "Name" => "name", "Date" => "date" }.freeze
+
+  # URL params that sort the findings list by `key`: toggles direction when the
+  # column is already active, otherwise uses that key's natural default. Keeps
+  # the current filters and drops pagination.
+  def vuln_sort_params(params, key, current_key, current_dir)
+    dir =
+      if key.to_s == current_key.to_s
+        current_dir.to_s == "asc" ? "desc" : "asc"
+      else
+        Vulnerabilities::Sort.resolve_dir(key, nil)
+      end
+    params.to_h.with_indifferent_access.merge("sort" => key, "dir" => dir).except("page")
+  end
+
+  # Arrow shown on a sortable header: a direction arrow for the active column,
+  # a faint two-way arrow for the rest.
+  def vuln_sort_indicator(key, current_key, current_dir)
+    return current_dir.to_s == "asc" ? "↑" : "↓" if key.to_s == current_key.to_s
+
+    "↕"
+  end
 end

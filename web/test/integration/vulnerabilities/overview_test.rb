@@ -70,9 +70,11 @@ class Vulnerabilities::OverviewTest < ActionDispatch::IntegrationTest
     end
     assert_response :success
     assert_select "input[type=checkbox][name='severity[]'][value=critical][checked=checked]"
-    assert_select "aside", text: /critical/
+    assert_select "aside", text: /critical/i
     assert_select "aside", text: /12/
     assert_select "a", text: /severity: Critical/i
-    assert_select "select[name=sort]"
+    # Sort is via clickable column headers now (no sort dropdown).
+    assert_select "th a", text: /Severity/
+    assert_select "input[type=hidden][name=sort]"
   end
 end
