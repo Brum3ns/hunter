@@ -1,14 +1,16 @@
-<%# Facet sidebar. NOT its own form — it lives inside the single overview form
-    (see index.html.erb), so its checkboxes and date range are submitted by the
-    Apply button below (or the Search button up top). On small screens the whole
-    panel folds into a "Filters" drawer; on desktop it is always open (see the
-    .facet-shell rules in application.css). Each group is independently foldable
-    via a native <details>. %>
+<%# Facet sidebar — its own GET form (the findings table stays outside it, so
+    rows keep their inline status forms without nesting). The Search bar carries
+    these facet values in hidden fields, and this form carries q + sort in hidden
+    fields, so Apply and Search each preserve the other's state. On small screens
+    the whole panel folds into a "Filters" drawer; on desktop it is always open
+    (see the .facet-shell rules in application.css). Each group folds via a
+    native <details>. %>
 <%
   wrap = "rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]"
   group = "border-b border-zinc-100 pb-3 last:border-0 dark:border-zinc-800/60"
   summary = "facet-summary flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 [&::-webkit-details-marker]:hidden"
   chevron = "h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180"
+  date_input = "min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100"
   vocab = { "severity" => VulnerabilitiesHelper::SEVERITIES, "status" => VulnerabilitiesHelper::STATUSES }
 %>
 <details class="facet-shell <%= wrap %>" open>
@@ -17,53 +19,65 @@
     <%= heroicon "adjustments-horizontal", classes: "h-4 w-4 text-zinc-400" %>
   </summary>
 
-  <div class="facet-shell-body space-y-4">
-    <% VulnerabilitiesHelper::FACET_DIMENSIONS.each do |dim| %>
-      <% counts = result.facets[dim] || {} %>
-      <%# Fixed-vocab dimensions always show every option; discovered dimensions
-          (tool/type/program) show the values present in the data. %>
-      <% values = vocab[dim] || counts.keys.sort %>
-      <% next if values.empty? %>
-      <% selected = Array(filter_params[dim]).reject(&:blank?) %>
+  <div class="facet-shell-body">
+    <%= form_with url: vulnerabilities_root_path, method: :get, class: "space-y-4" do %>
+      <%# Preserve the search query and current sort when applying facets. %>
+      <%= hidden_field_tag :q, filter_params[:q] if filter_params[:q].present? %>
+      <%= hidden_field_tag :sort, sort_key %>
+      <%= hidden_field_tag :dir, sort_dir %>
+
+      <% VulnerabilitiesHelper::FACET_DIMENSIONS.each do |dim| %>
+        <% counts = result.facets[dim] || {} %>
+        <%# Fixed-vocab dimensions always show every option; discovered dimensions
+            (tool/type/program) show the values present in the data. %>
+        <% values = vocab[dim] || counts.keys.sort %>
+        <% next if values.empty? %>
+        <% selected = Array(filter_params[dim]).reject(&:blank?) %>
+        <details class="group <%= group %>" open>
+          <summary class="<%= summary %>">
+            <%= dim.humanize %>
+            <%= heroicon "chevron-down", classes: chevron %>
+          </summary>
+          <div class="mt-2 max-h-60 space-y-1 overflow-y-auto slim-scroll">
+            <% values.each do |value| %>
+              <label class="flex items-center justify-between gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                <span class="flex min-w-0 items-center gap-2">
+                  <%= check_box_tag "#{dim}[]", value, selected.include?(value),
+                        class: "shrink-0 rounded border-zinc-300 text-zinc-900 focus:ring-0 dark:border-zinc-600 dark:bg-zinc-800" %>
+                  <span class="truncate"><%= vuln_facet_label(dim, value) %></span>
+                </span>
+                <span class="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500"><%= counts[value] || 0 %></span>
+              </label>
+            <% end %>
+          </div>
+        </details>
+      <% end %>
+
       <details class="group <%= group %>" open>
         <summary class="<%= summary %>">
-          <%= dim.humanize %>
+          Date
           <%= heroicon "chevron-down", classes: chevron %>
         </summary>
-        <div class="mt-2 max-h-60 space-y-1 overflow-y-auto slim-scroll">
-          <% values.each do |value| %>
-            <label class="flex items-center justify-between gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-              <span class="flex min-w-0 items-center gap-2">
-                <%= check_box_tag "#{dim}[]", value, selected.include?(value),
-                      class: "shrink-0 rounded border-zinc-300 text-zinc-900 focus:ring-0 dark:border-zinc-600 dark:bg-zinc-800" %>
-                <span class="truncate"><%= vuln_facet_label(dim, value) %></span>
-              </span>
-              <span class="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500"><%= counts[value] || 0 %></span>
-            </label>
-          <% end %>
+        <%# Stacked so the inputs never overflow the narrow sidebar; each input
+            shrinks (min-w-0) to fit desktop and mobile alike. %>
+        <div class="mt-2 space-y-2">
+          <label class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <span class="w-9 shrink-0">From</span>
+            <%= date_field_tag :date_from, filter_params[:date_from], "aria-label": "From date", class: date_input %>
+          </label>
+          <label class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <span class="w-9 shrink-0">To</span>
+            <%= date_field_tag :date_to, filter_params[:date_to], "aria-label": "To date", class: date_input %>
+          </label>
         </div>
       </details>
-    <% end %>
 
-    <details class="group <%= group %>" open>
-      <summary class="<%= summary %>">
-        Date
-        <%= heroicon "chevron-down", classes: chevron %>
-      </summary>
-      <div class="mt-2 flex items-center gap-2">
-        <%= date_field_tag :date_from, filter_params[:date_from], "aria-label": "From date",
-              class: "w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100" %>
-        <span class="text-xs text-zinc-400">–</span>
-        <%= date_field_tag :date_to, filter_params[:date_to], "aria-label": "To date",
-              class: "w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100" %>
+      <div class="flex items-center gap-2 pt-1">
+        <%= submit_tag "Apply filters",
+              class: "min-w-0 flex-1 cursor-pointer rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200" %>
+        <%= link_to "Reset", vulnerabilities_root_path,
+              class: "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100" %>
       </div>
-    </details>
-
-    <div class="flex items-center gap-2 pt-1">
-      <%= submit_tag "Apply filters",
-            class: "flex-1 cursor-pointer rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200" %>
-      <%= link_to "Reset", vulnerabilities_root_path,
-            class: "rounded-md px-3 py-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100" %>
-    </div>
+    <% end %>
   </div>
 </details>
