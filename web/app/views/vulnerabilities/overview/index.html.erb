@@ -9,25 +9,22 @@
 
 <%= render "vulnerabilities/overview/stat_cards", stats: @stats %>
 
-<%# One GET form spans the sidebar and the search bar, so the Search and Apply
-    buttons submit the same combined state. Sort is carried in hidden fields
-    (driven by the clickable column headers) so applying filters keeps the sort. %>
-<%= form_with url: vulnerabilities_root_path, method: :get,
-      class: "mt-8 flex flex-col gap-6 lg:flex-row lg:items-start" do %>
-  <%= hidden_field_tag :sort, @sort_key %>
-  <%= hidden_field_tag :dir, @sort_dir %>
-
+<%# The sidebar and search bar are separate GET forms (the findings table must
+    stay OUTSIDE them — each row carries its own inline status form, and nesting
+    forms is invalid HTML). Each form carries the other's state plus the current
+    sort in hidden fields, so Apply and Search each preserve everything else. %>
+<div class="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start">
   <aside class="w-full shrink-0 lg:w-64">
-    <%= render "vulnerabilities/overview/facets", result: @result, filter_params: @filter_params %>
+    <%= render "vulnerabilities/overview/facets", result: @result, filter_params: @filter_params, sort_key: @sort_key, sort_dir: @sort_dir %>
   </aside>
 
   <div class="min-w-0 flex-1 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
-    <%= render "vulnerabilities/overview/filters", filter_params: @filter_params %>
+    <%= render "vulnerabilities/overview/filters", filter_params: @filter_params, sort_key: @sort_key, sort_dir: @sort_dir %>
     <%= render "vulnerabilities/overview/active_chips", filter_params: @filter_params %>
     <%= render "vulnerabilities/overview/findings_table", findings: @findings, sort_key: @sort_key, sort_dir: @sort_dir, filter_params: @filter_params %>
     <%= render "shared/pagination", page: @result.page, limit: @result.per_page, total: @result.total %>
   </div>
-<% end %>
+</div>
 
 <%# Detail drawer mounts here — findings rows swap their detail into this frame. %>
 <%= turbo_frame_tag "vuln_panel" %>

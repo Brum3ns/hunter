@@ -1,7 +1,8 @@
-<%# Search bar. Part of the single overview form (index.html.erb) — it does NOT
-    auto-submit; the user hits Enter or clicks Search. The "?" button opens a
-    dork cheatsheet on hover or keyboard focus (pure CSS, type=button so it
-    never submits). %>
+<%# Search bar — its own GET form (sibling of the findings table, never wrapping
+    it). Does NOT auto-submit; the user hits Enter or clicks Search. Facet
+    selections, date range, and sort ride along as hidden fields so a search
+    preserves them. The "?" button opens a dork cheatsheet on hover or keyboard
+    focus (pure CSS, type=button so it never submits). %>
 <%
   input_classes = "w-full rounded-md border border-zinc-300 bg-white py-2 pl-3 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100 dark:focus:border-zinc-300"
   dork_groups = [
@@ -37,7 +38,20 @@
     ]]
   ]
 %>
-<div class="flex items-center gap-2 border-b border-zinc-200 p-4 dark:border-zinc-800">
+<%= form_with url: vulnerabilities_root_path, method: :get,
+      class: "flex items-center gap-2 border-b border-zinc-200 p-4 dark:border-zinc-800" do %>
+  <%# Carry facet selections, date range, and sort so a search keeps them. %>
+  <% VulnerabilitiesHelper::FACET_DIMENSIONS.each do |dim| %>
+    <% Array(filter_params[dim]).reject(&:blank?).each do |value| %>
+      <%= hidden_field_tag "#{dim}[]", value %>
+    <% end %>
+  <% end %>
+  <% %i[date_from date_to].each do |k| %>
+    <%= hidden_field_tag k, filter_params[k] if filter_params[k].present? %>
+  <% end %>
+  <%= hidden_field_tag :sort, sort_key %>
+  <%= hidden_field_tag :dir, sort_dir %>
+
   <div class="relative min-w-48 flex-1">
     <%= search_field_tag :q, filter_params[:q],
           placeholder: "Search names & hosts — or dork: severity:high AND tool:nuclei",
@@ -71,4 +85,4 @@
 
   <%= submit_tag "Search",
         class: "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-200 dark:hover:bg-zinc-800" %>
-</div>
+<% end %>
