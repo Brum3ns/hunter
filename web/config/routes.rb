@@ -14,7 +14,15 @@ Rails.application.routes.draw do
 
   # Web "departments" — one per Hunter module. Each module owns its own
   # controller + views; add a sibling line here when adding a module.
-  get "programs", to: "programs#index"
+  namespace :programs do
+    get "/",           to: "overview#index", as: :root
+    get "/:sid/modal", to: "overview#modal", as: :modal
+    post   "/:sid/favorite", to: "favorites#create"
+    delete "/:sid/favorite", to: "favorites#destroy"
+    post   "/:sid/trash",    to: "trashes#create"
+    delete "/:sid/trash",    to: "trashes#destroy"
+    post   "/:sid/view",     to: "views#create"
+  end
   namespace :vulnerabilities do
     get "/", to: "overview#index", as: :root
     patch "/:id/status", to: "statuses#update", as: :status
