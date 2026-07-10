@@ -1,0 +1,12 @@
+<%# Small icon copy button backed by Hunter's clipboard controller. The hidden
+    source span holds the text to copy; the button-target span flashes "Copied".
+    Args: text, label. %>
+<button type="button"
+        data-controller="clipboard"
+        data-action="click->clipboard#copy"
+        title="<%= label %>" aria-label="<%= label %>"
+        class="inline-flex h-6 shrink-0 items-center gap-1 rounded border border-zinc-200 px-1.5 text-[11px] text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-white">
+  <span data-clipboard-target="source" hidden><%= text %></span>
+  <%= heroicon "clipboard", classes: "h-3 w-3" %>
+  <span data-clipboard-target="button" class="text-[10px] uppercase tracking-[0.08em]"></span>
+</button>
