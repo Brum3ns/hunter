@@ -1,0 +1,16 @@
+<div>
+  <dt class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500"><%= label %></dt>
+  <% if value.present? %>
+    <dd data-controller="copyable"
+        data-copyable-text-value="<%= value %>"
+        data-copyable-label-value="<%= label %>"
+        data-action="click->copyable#copy"
+        title="Click to copy"
+        class="group mt-0.5 inline-flex cursor-pointer items-center gap-1 break-words text-sm text-zinc-800 hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white">
+      <%= value %>
+      <%= heroicon "clipboard-document-list", classes: "h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-60" %>
+    </dd>
+  <% else %>
+    <dd class="mt-0.5 text-sm text-zinc-400 dark:text-zinc-500">—</dd>
+  <% end %>
+</div>

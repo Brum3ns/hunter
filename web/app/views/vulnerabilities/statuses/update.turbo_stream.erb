@@ -1,0 +1,4 @@
+<%# Updates every representation of this finding's status — desktop row + mobile card. %>
+<%= turbo_stream.update_all ".status-cell-#{@finding.id}" do %>
+  <%= render "vulnerabilities/overview/status_badge", finding: @finding %>
+<% end %>
