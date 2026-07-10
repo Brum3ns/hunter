@@ -40,7 +40,7 @@
       <%= render "programs/logo", program: program,
             wrapper: "h-9 w-9 shrink-0 rounded-md", icon: "h-4 w-4" %>
       <div class="min-w-0">
-        <div class="truncate text-sm text-zinc-900 dark:text-zinc-100"><%= program.name %></div>
+        <div class="truncate text-sm text-zinc-900 transition group-hover:text-brand dark:text-zinc-100"><%= program.name %></div>
         <div class="truncate text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></div>
       </div>
     </div>
@@ -93,7 +93,7 @@
         <a href="<%= program.url %>" target="_blank" rel="noopener noreferrer"
            aria-label="Open program on <%= program.platform %>"
            title="Open on <%= program.platform %>"
-           class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-white">
+           class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 transition hover:border-brand/40 hover:text-brand dark:border-zinc-800 dark:text-zinc-400">
           <%= heroicon "arrow-top-right-on-square", classes: "h-3.5 w-3.5" %>
         </a>
       <% end %>

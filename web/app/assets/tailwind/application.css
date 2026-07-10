@@ -10,7 +10,9 @@
 @theme {
   --color-gold:        #f5c518;
   --color-money:       #85bb65;
-  --color-online:      #09ff63;
+  --color-online:      #10b981;
+  --color-brand:       #0891b2;
+  --color-brand-dim:   #06b6d4;
 
   --color-pf-hackerone:     #6d5cff;
   --color-pf-hackerone-2:   #ae00cd;
