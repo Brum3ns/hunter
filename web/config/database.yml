@@ -16,28 +16,28 @@ default: &default
 
 development:
   <<: *default
-  database: hunter_development
+  database: <%= ENV.fetch("DB_DATABASE", "hunter_development") %>
 
 # Warning: The database defined as "test" will be erased and
 # re-generated from your development database when you run "rake".
 # Do not set this db to the same as development or production.
 test:
   <<: *default
-  database: hunter_test
+  database: <%= ENV.fetch("DB_DATABASE_TEST", "hunter_test") %>
 
 production:
   primary: &primary_production
     <<: *default
-    database: hunter_production
+    database: <%= ENV.fetch("DB_DATABASE", "hunter_production") %>
   cache:
     <<: *primary_production
-    database: hunter_production_cache
+    database: <%= ENV.fetch("DB_DATABASE_CACHE", "hunter_production_cache") %>
     migrations_paths: db/cache_migrate
   queue:
     <<: *primary_production
-    database: hunter_production_queue
+    database: <%= ENV.fetch("DB_DATABASE_QUEUE", "hunter_production_queue") %>
     migrations_paths: db/queue_migrate
   cable:
     <<: *primary_production
-    database: hunter_production_cable
+    database: <%= ENV.fetch("DB_DATABASE_CABLE", "hunter_production_cable") %>
     migrations_paths: db/cable_migrate
