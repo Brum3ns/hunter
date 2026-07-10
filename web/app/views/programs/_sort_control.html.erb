@@ -1,0 +1,25 @@
+<%# Compact sort control: key dropdown + direction toggle. Sits in the topbar
+    next to the column slider. Auto-submits the enclosing filter form. %>
+<div class="hidden items-center gap-1.5 rounded-md border border-zinc-200 bg-white py-1 pl-2 pr-1 md:flex dark:border-zinc-800 dark:bg-[#111315]">
+  <span class="text-zinc-500 dark:text-zinc-400" title="Sort">
+    <%= heroicon "arrow-down", classes: "h-3 w-3" %>
+  </span>
+
+  <%= select_tag :sort,
+        options_for_select(
+          Programs::Sort::OPTIONS.map { |key, opt| [opt[:label], key] },
+          sort_key
+        ),
+        data: { action: "change->auto-submit#submit" },
+        class: "cursor-pointer appearance-none border-0 bg-transparent py-0.5 pr-5 text-[12px] text-zinc-900 focus:outline-none focus:ring-0 dark:text-zinc-100 [background-image:none]" %>
+
+  <div data-controller="sort-dir" class="contents">
+    <%= hidden_field_tag :dir, sort_dir, data: { sort_dir_target: "input" } %>
+    <button type="button"
+            data-action="click->sort-dir#toggle"
+            title="<%= sort_dir == "asc" ? "Ascending" : "Descending" %> — click to flip"
+            class="inline-flex h-6 w-6 items-center justify-center rounded text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white">
+      <%= heroicon(sort_dir == "asc" ? "arrow-up" : "arrow-down", classes: "h-3 w-3") %>
+    </button>
+  </div>
+</div>

@@ -1,0 +1,66 @@
+<%
+  chips = []
+  if filter_params[:sort].present? && filter_params[:sort] != Programs::Sort::DEFAULT_KEY
+    sort_label = Programs::Sort::OPTIONS.dig(filter_params[:sort], :label) || filter_params[:sort]
+    sort_dir   = Programs::Sort.resolve_dir(filter_params[:sort], filter_params[:dir])
+    arrow      = sort_dir == "asc" ? "↑" : "↓"
+    chips << ["sort", "sort: #{sort_label.downcase} #{arrow}"]
+  end
+  chips << ["q", "search: \"#{filter_params[:q]}\""] if filter_params[:q].present?
+  chips << ["favorites_only", "★ favorites only"] if filter_params[:favorites_only].to_s == "yes"
+  chips << ["trash_only", "trash only"] if filter_params[:trash_only].to_s == "yes"
+  Array(filter_params[:platforms]).reject(&:blank?).each { |p| chips << ["platforms[]=#{p}", "platform: #{p}"] }
+  chips << ["status", "status: #{filter_params[:status]}"] if filter_params[:status].present?
+  chips << ["bounty", "bounty: #{filter_params[:bounty]}"] if filter_params[:bounty].present?
+  chips << ["collaboration", "collab: #{filter_params[:collaboration]}"] if filter_params[:collaboration].present?
+  Array(filter_params[:scope_types]).reject(&:blank?).each { |t| chips << ["scope_types[]=#{t}", "type: #{Programs::ScopeType.label_for(t).downcase}"] }
+  {
+    bounty_min_gte:    "min bounty ≥ $",
+    bounty_max_gte:    "max bounty ≥ $",
+    reports_gte:       "reports ≥ ",
+    reports_24h_gte:   "24h reports ≥ ",
+    reports_7d_gte:    "7d reports ≥ ",
+    reports_month_gte: "month reports ≥ ",
+    response_lte:      "response ≤ "
+  }.each do |key, prefix|
+    val = filter_params[key]
+    next if val.blank? || val.to_i <= 0
+    suffix = key == :response_lte ? "h" : ""
+    chips << [key.to_s, "#{prefix}#{val}#{suffix}"]
+  end
+
+  scope_gte = filter_params[:scope_count_gte].to_i
+  scope_lte = filter_params[:scope_count_lte].to_i
+  if scope_gte > 0 && scope_lte > 0
+    chips << ["scope_count_range", "scope: #{scope_gte}–#{scope_lte}"]
+  elsif scope_gte > 0
+    chips << ["scope_count_gte", "scope ≥ #{scope_gte}"]
+  elsif scope_lte > 0
+    chips << ["scope_count_lte", "scope ≤ #{scope_lte}"]
+  end
+%>
+
+<% if chips.any? %>
+  <div class="mb-4 flex flex-wrap items-center gap-1.5">
+    <% chips.each do |key, label| %>
+      <span class="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-[11px] text-zinc-700 dark:border-zinc-700 dark:bg-white/10 dark:text-zinc-200">
+        <%= label %>
+        <%= link_to programs_root_path(filter_params.to_h.deep_dup.tap { |h|
+              if key.start_with?("platforms[]=")
+                value = key.sub("platforms[]=", "")
+                h["platforms"] = Array(h["platforms"]).reject { |v| v == value }
+              elsif key.start_with?("scope_types[]=")
+                value = key.sub("scope_types[]=", "")
+                h["scope_types"] = Array(h["scope_types"]).reject { |v| v == value }
+              elsif key == "sort"
+                h.delete("sort"); h.delete("dir")
+              elsif key == "scope_count_range"
+                h.delete("scope_count_gte"); h.delete("scope_count_lte")
+              else
+                h.delete(key)
+              end
+            }), class: "leading-none text-zinc-400 transition hover:text-zinc-900 dark:hover:text-white" do %>×<% end %>
+      </span>
+    <% end %>
+  </div>
+<% end %>

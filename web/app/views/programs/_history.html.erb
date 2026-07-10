@@ -1,0 +1,53 @@
+<%# Recent-views dropdown anchored to the History button. Visible on hover OR
+    keyboard focus of the parent .group. Each row links to
+    /programs?focus=<sid>, which the overview auto-opens as that program's
+    modal. Pointer-events stay on inside the panel so a long history scrolls. %>
+<div class="group relative">
+  <button type="button"
+          aria-label="View history"
+          title="Recent programs"
+          class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-2 text-sm font-medium text-zinc-700 outline-none transition hover:bg-zinc-50 focus:bg-zinc-50 dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-200 dark:hover:bg-zinc-800">
+    <%= heroicon "clock", classes: "h-4 w-4" %>
+    <span class="hidden sm:inline">History</span>
+  </button>
+
+  <div class="invisible absolute right-0 top-full z-40 mt-2 max-h-[80vh] w-[24rem] max-w-[calc(100vw-3rem)] overflow-y-auto overscroll-contain slim-scroll rounded-md border border-zinc-200 bg-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-zinc-800 dark:bg-[#111315]">
+    <div class="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-[#111315]">
+      <p class="text-[10.5px] font-medium uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
+        Recent · dwell ≥ 15s
+      </p>
+      <% if recent_views.any? %>
+        <span class="text-[10.5px] tabular-nums text-zinc-500 dark:text-zinc-400"><%= recent_views.size %></span>
+      <% end %>
+    </div>
+
+    <% if recent_views.empty? %>
+      <div class="px-4 py-6 text-center">
+        <p class="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+          Open a program and stay on it for 15 seconds — it'll show up here next time.
+        </p>
+      </div>
+    <% else %>
+      <ul class="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <% recent_views.each do |prog, viewed_at| %>
+          <li>
+            <%= link_to programs_root_path(focus: prog.sid),
+                  class: "flex items-center gap-3 px-3 py-2.5 transition hover:bg-zinc-50 dark:hover:bg-zinc-800/60" do %>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-xs text-zinc-900 dark:text-zinc-100"><%= prog.name %></p>
+                <p class="truncate text-[10.5px] text-zinc-500 dark:text-zinc-400">
+                  <span class="uppercase tracking-[0.06em]"><%= prog.platform %></span>
+                  <span class="text-zinc-400 dark:text-zinc-500"> · </span>
+                  <%= prog.slug %>
+                </p>
+              </div>
+              <span class="shrink-0 text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+                <%= time_ago_in_words(viewed_at) %> ago
+              </span>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+</div>
