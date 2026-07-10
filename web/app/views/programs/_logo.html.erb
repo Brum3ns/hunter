@@ -1,0 +1,29 @@
+<%# Program logo: its own image, else the bundled platform logo, else a
+    platform-colored building glyph. A sibling .skeleton shimmers until the
+    image resolves; logo-fallback swaps a broken program image to the platform
+    logo. Args: program, wrapper (size/shape classes), icon (glyph size). %>
+<div class="<%= wrapper %> relative overflow-hidden">
+  <% if program.logo? %>
+    <div class="relative h-full w-full" data-controller="image-loaded">
+      <img src="<%= program.logo %>" alt="" loading="lazy"
+           data-image-loaded-target="img"
+           <% if program.platform_logo? %>
+             data-controller="logo-fallback"
+             data-logo-fallback-src-value="<%= image_path(program.platform_logo) %>"
+           <% end %>
+           class="absolute inset-0 h-full w-full object-cover" />
+      <div class="skeleton pointer-events-none absolute inset-0"></div>
+    </div>
+  <% elsif program.platform_logo? %>
+    <div class="relative h-full w-full" data-controller="image-loaded">
+      <img src="<%= image_path(program.platform_logo) %>" alt="" loading="lazy"
+           data-image-loaded-target="img"
+           class="absolute inset-0 h-full w-full object-cover" />
+      <div class="skeleton pointer-events-none absolute inset-0"></div>
+    </div>
+  <% else %>
+    <div class="flex h-full w-full items-center justify-center <%= program.colors[:bg] %> <%= program.colors[:text] %>">
+      <%= heroicon "building-office-2", classes: icon %>
+    </div>
+  <% end %>
+</div>

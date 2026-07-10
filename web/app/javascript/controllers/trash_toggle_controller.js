@@ -55,8 +55,7 @@ export default class extends Controller {
     const trashed = this.trashedValue
     this.element.dataset.trashed = trashed ? "true" : "false"
 
-    this.element.classList.toggle("text-zinc-900", trashed)
-    this.element.classList.toggle("dark:text-white", trashed)
+    this.element.classList.toggle("text-red-500", trashed)
     this.element.classList.toggle("text-zinc-400", !trashed)
 
     const label = trashed ? "Restore from trash" : "Move to trash"

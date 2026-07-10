@@ -1,8 +1,7 @@
 <%# Program detail modal. Mounted inside a data-controller="modal" wrapper
     (card/row) which owns open/close; this <dialog> is that controller's
-    dialog target. Monochrome skin: no platform banner/logo images, and the
-    scraped policy/description HTML is sanitized server-side (Hunter drops
-    Scope's client-side DOMPurify). %>
+    dialog target. Platform-branded banner + logo; scraped policy/description
+    HTML is sanitized server-side (Hunter drops Scope's client-side DOMPurify). %>
 <%
   nav_items = [["description", "Description"], ["rewards", "Rewards"]]
   nav_items << ["grid",           "Reward Grid"]    if program.reward_grid?
@@ -13,9 +12,11 @@
   nav_items << ["testing",        "Testing"]        if program.required_user_agent? || program.account_access_html? || program.vpn_active?
   nav_items << ["rules",          "Rules & Policy"]
   export_asset_list = program.scope.map { |a| a["asset"].to_s.strip }.reject(&:empty?)
-  tile   = "rounded-md border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-[#111315]"
-  h3     = "flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400 mb-3"
-  badge  = "inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+  tile         = "rounded-md border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-[#111315]"
+  h3           = "flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400 mb-3"
+  badge        = "inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+  money_badge  = "inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] border-money/40 text-money"
+  online_badge = "inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] border-online/40 text-online"
 %>
 <dialog data-modal-target="dialog"
         data-action="click->modal#backdropClose"
@@ -26,13 +27,33 @@
 
     <%# Left identity + outline (lg+). Section links smooth-scroll the body. %>
     <aside class="hidden w-60 shrink-0 flex-col gap-3 lg:flex" data-controller="modal-nav">
-      <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
-        <span class="<%= badge %>"><%= program.platform %></span>
-        <h2 class="mt-2 break-words text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-100"><%= program.name %></h2>
-        <p class="mt-1 break-all text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></p>
-        <% if program.organization? && program.organization["name"].present? %>
-          <p class="mt-0.5 truncate text-[11px] text-zinc-600 dark:text-zinc-300"><%= program.organization["name"] %></p>
-        <% end %>
+      <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
+        <%# Banner: program image if present, else platform-colored gradient. %>
+        <div class="relative h-20 overflow-hidden <%= program.colors[:gradient] %>" data-controller="banner-fallback">
+          <div data-banner-fallback-target="fallback" class="<%= "hidden" if program.banner? %>">
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(255,255,255,0.35),transparent_55%)]"></div>
+          </div>
+          <% if program.banner? %>
+            <img src="<%= program.banner %>" alt="" loading="lazy"
+                 data-banner-fallback-target="image"
+                 data-action="error->banner-fallback#failed"
+                 class="absolute inset-0 h-full w-full object-cover" />
+            <div data-banner-fallback-target="vignette" class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+          <% end %>
+          <span class="absolute left-2 top-2 inline-flex items-center rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-white/90 ring-1 ring-white/20 backdrop-blur">
+            <%= program.platform %>
+          </span>
+        </div>
+        <div class="px-4 pb-4">
+          <%= render "programs/logo", program: program,
+                wrapper: "relative z-10 -mt-8 mb-2 h-16 w-16 rounded-full ring-2 ring-white shadow-md dark:ring-[#111315]",
+                icon: "h-7 w-7" %>
+          <h2 class="break-words text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-100"><%= program.name %></h2>
+          <p class="mt-1 break-all text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></p>
+          <% if program.organization? && program.organization["name"].present? %>
+            <p class="mt-0.5 truncate text-[11px] text-zinc-600 dark:text-zinc-300"><%= program.organization["name"] %></p>
+          <% end %>
+        </div>
       </div>
 
       <nav class="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-[#111315]">
@@ -57,9 +78,13 @@
 
       <%# Top bar — identity on narrow screens, chips + close everywhere. %>
       <div class="flex shrink-0 items-center gap-3 border-b border-zinc-200 px-4 py-3 md:px-5 dark:border-zinc-800">
-        <div class="min-w-0 flex-1 lg:hidden">
-          <h2 class="truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100"><%= program.name %></h2>
-          <p class="truncate text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></p>
+        <div class="flex min-w-0 flex-1 items-center gap-3 lg:hidden">
+          <%= render "programs/logo", program: program,
+                wrapper: "h-10 w-10 shrink-0 rounded-full", icon: "h-5 w-5" %>
+          <div class="min-w-0">
+            <h2 class="truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100"><%= program.name %></h2>
+            <p class="truncate text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></p>
+          </div>
         </div>
         <span class="<%= badge %> hidden shrink-0 lg:inline-flex"><%= program.platform %></span>
 
@@ -67,9 +92,11 @@
           <span class="<%= badge %>"><%= program.public? ? "Public" : "Private" %></span>
           <% if program.vdp? %><span class="<%= badge %>">VDP</span><% end %>
           <% if program.bounty? %>
-            <span class="<%= badge %> whitespace-nowrap"><%= program.bounty_range %></span>
+            <span class="<%= money_badge %> whitespace-nowrap"><%= program.bounty_range %></span>
           <% end %>
-          <% if program.collaboration? %><span class="<%= badge %>">Collab</span><% end %>
+          <% if program.collaboration? %>
+            <span class="<%= online_badge %>"><span class="h-1.5 w-1.5 rounded-full bg-online"></span>Collab</span>
+          <% end %>
           <% if program.hall_of_fame? %><span class="<%= badge %>">HOF</span><% end %>
         </div>
 
@@ -89,16 +116,16 @@
         <section class="grid grid-cols-2 gap-3 md:grid-cols-4">
           <%
             tiles = [
-              ["Bounty",   program.bounty_range],
-              ["Scope",    program.scope_count.to_s],
-              ["Reports",  number_with_delimiter(program.report_count)],
-              ["Response", "#{program.avg_response_hrs}h"]
+              ["Bounty",   program.bounty_range,                        program.bounty? ? "text-money" : "text-zinc-400 dark:text-zinc-500"],
+              ["Scope",    program.scope_count.to_s,                    "text-zinc-900 dark:text-zinc-100"],
+              ["Reports",  number_with_delimiter(program.report_count), "text-zinc-900 dark:text-zinc-100"],
+              ["Response", "#{program.avg_response_hrs}h",              "text-zinc-900 dark:text-zinc-100"]
             ]
           %>
-          <% tiles.each do |label, val| %>
+          <% tiles.each do |label, val, color| %>
             <div class="<%= tile %>">
               <dt class="text-[11px] uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400"><%= label %></dt>
-              <dd class="mt-1 text-base tabular-nums text-zinc-900 dark:text-zinc-100"><%= val %></dd>
+              <dd class="mt-1 text-base tabular-nums <%= color %>"><%= val %></dd>
             </div>
           <% end %>
         </section>

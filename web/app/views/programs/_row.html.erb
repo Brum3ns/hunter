@@ -9,6 +9,7 @@
        data-action="click->modal#open"
        class="group program-row-grid cursor-pointer items-center gap-3 border-b border-zinc-100 px-3 py-2.5 transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/40">
 
+    <%# Favorite + trash — first column. %>
     <div role="cell" class="flex items-center justify-center gap-1">
       <button type="button"
               data-controller="favorite-toggle"
@@ -18,27 +19,43 @@
               data-favorited="<%= fav %>"
               title="<%= fav ? "Remove from favorites" : "Add to favorites" %>"
               aria-label="<%= fav ? "Unfavorite" : "Favorite" %>"
-              class="inline-flex h-7 w-7 items-center justify-center rounded transition <%= fav ? "text-zinc-900 dark:text-white" : "text-zinc-400" %>">
-        <%= heroicon "star", classes: "h-4 w-4" %>
+              class="inline-flex h-7 w-7 items-center justify-center rounded transition <%= fav ? "text-gold" : "text-zinc-400" %>">
+        <%= heroicon "star", classes: "h-4 w-4", fill: fav ? "currentColor" : "none" %>
+      </button>
+      <button type="button"
+              data-controller="trash-toggle"
+              data-trash-toggle-sid-value="<%= program.sid %>"
+              data-trash-toggle-trashed-value="<%= trashed %>"
+              data-action="click->trash-toggle#toggle"
+              data-trashed="<%= trashed %>"
+              title="<%= trashed ? "Restore from trash" : "Move to trash" %>"
+              aria-label="<%= trashed ? "Restore from trash" : "Move to trash" %>"
+              class="inline-flex h-7 w-7 items-center justify-center rounded transition <%= trashed ? "text-red-500" : "text-zinc-400" %>">
+        <%= heroicon "trash", classes: "h-4 w-4" %>
       </button>
     </div>
 
-    <div role="cell" class="min-w-0">
-      <div class="truncate text-sm text-zinc-900 dark:text-zinc-100"><%= program.name %></div>
-      <div class="truncate text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></div>
+    <%# Logo + name + slug %>
+    <div role="cell" class="flex min-w-0 items-center gap-3">
+      <%= render "programs/logo", program: program,
+            wrapper: "h-9 w-9 shrink-0 rounded-md", icon: "h-4 w-4" %>
+      <div class="min-w-0">
+        <div class="truncate text-sm text-zinc-900 dark:text-zinc-100"><%= program.name %></div>
+        <div class="truncate text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></div>
+      </div>
     </div>
 
-    <div role="cell" class="truncate text-[11px] uppercase tracking-[0.08em] text-zinc-600 dark:text-zinc-400">
+    <div role="cell" class="truncate text-[11px] uppercase tracking-[0.08em] <%= program.colors[:text] %>">
       <%= program.platform %>
     </div>
 
     <div role="cell">
-      <span class="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] <%= program.public? ? "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" : "border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" %>">
+      <span class="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] <%= program.public? ? "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" : "border-amber-500/40 bg-amber-500/5 text-amber-600 dark:text-amber-300" %>">
         <%= program.public? ? "Public" : "Private" %>
       </span>
     </div>
 
-    <div role="cell" class="truncate text-xs tabular-nums <%= program.bounty? ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500" %>">
+    <div role="cell" class="truncate text-xs tabular-nums <%= program.bounty? ? "text-money" : "text-zinc-400 dark:text-zinc-500" %>">
       <%= program.bounty_range %>
     </div>
 
@@ -62,8 +79,8 @@
 
     <div role="cell" class="text-center">
       <% if program.collaboration? %>
-        <span class="inline-flex items-center gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-300">
-          <span class="h-1.5 w-1.5 rounded-full bg-zinc-500 dark:bg-zinc-300"></span>
+        <span class="inline-flex items-center gap-1.5 text-[10px] text-online">
+          <span class="h-1.5 w-1.5 rounded-full bg-online"></span>
           yes
         </span>
       <% else %>
