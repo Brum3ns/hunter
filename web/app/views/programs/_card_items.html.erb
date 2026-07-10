@@ -1,0 +1,6 @@
+<%# Cards-only loop for the initial server render of the cards grid. Forwards
+    the favorite/trash sets so each card renders its toggle state. %>
+<% programs.each do |program| %>
+  <%= render "programs/card", program: program,
+        favorited_sids: favorited_sids, trashed_sids: trashed_sids %>
+<% end %>

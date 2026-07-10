@@ -1,0 +1,40 @@
+<%# Dual-thumb range slider driving a min/max param pair under one UI.
+    Args: name_min, name_max, label, value_min, value_max, min, max, step, format
+    A thumb sitting at its extreme position (min at slider min, max at slider
+    max) is treated as "off" — the dual-range Stimulus controller strips that
+    input's `name` so the form never submits a no-op filter. %>
+<%
+  v_min = value_min.present? ? value_min.to_i : min
+  v_max = (value_max.present? && value_max.to_i > 0) ? value_max.to_i : max
+  v_min = [[v_min, min].max, max].min
+  v_max = [[v_max, min].max, max].min
+  fmt   = local_assigns.fetch(:format, "number")
+%>
+<div data-controller="dual-range"
+     data-dual-range-format-value="<%= fmt %>"
+     class="block">
+  <div class="mb-1.5 flex items-center justify-between">
+    <span class="text-[11px] font-medium uppercase tracking-[0.06em] text-zinc-600 dark:text-zinc-400"><%= label %></span>
+    <span class="text-[11px] tabular-nums text-zinc-900 dark:text-zinc-100" data-dual-range-target="display"></span>
+  </div>
+  <div class="relative flex h-6 items-center">
+    <div class="absolute inset-x-0 h-1.5 rounded-full border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800"></div>
+    <div data-dual-range-target="fill" class="absolute h-1.5 rounded-full bg-zinc-900 dark:bg-white"></div>
+    <input type="range"
+           name="<%= name_min %>" value="<%= v_min %>"
+           min="<%= min %>" max="<%= max %>" step="<%= step %>"
+           data-dual-range-target="minInput"
+           data-dual-range-name-param="<%= name_min %>"
+           data-action="input->dual-range#update"
+           aria-label="<%= label %> minimum"
+           class="dual-range-thumb absolute inset-x-0" />
+    <input type="range"
+           name="<%= name_max %>" value="<%= v_max %>"
+           min="<%= min %>" max="<%= max %>" step="<%= step %>"
+           data-dual-range-target="maxInput"
+           data-dual-range-name-param="<%= name_max %>"
+           data-action="input->dual-range#update"
+           aria-label="<%= label %> maximum"
+           class="dual-range-thumb absolute inset-x-0" />
+  </div>
+</div>

@@ -1,0 +1,244 @@
+<% content_for :title, "hunter — Programs" %>
+<% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
+
+<%# Auto-opened modal for the program referenced by ?focus=<sid>. Rendered once
+    outside the cards grid because the focused program may not be in the current
+    paginated window. The auto-open controller pops it and strips ?focus. %>
+<% if @focused_program %>
+  <div data-controller="modal auto-open">
+    <%= render "programs/modal", program: @focused_program %>
+  </div>
+<% end %>
+
+<header class="flex items-center gap-3">
+  <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Programs</h1>
+  <span class="rounded border border-zinc-300 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">beta</span>
+</header>
+<p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Bug-bounty programs across every platform.</p>
+
+<%
+  dork_groups = [
+    ["Text match", [
+      ["asset:example.com",  "scope / out-of-scope asset"],
+      ["program:test",       "match slug or name"],
+      [%(name:"acme corp"),  "name only (quotes for spaces)"],
+      ["slug:acme",          "slug only"],
+      ["org:google",         "organization name / slug"],
+      ["tag:web",            "exact tag match"],
+      ["lang:en",            "supported language"]
+    ]],
+    ["Category", [
+      ["platform:hackerone", "h1 · bc · intigriti · ywh · bbch"],
+      ["mode:public",        "public or private"],
+      ["bounty:yes",         "yes / no — paid bounties"],
+      ["vdp:yes",            "yes / no — VDP only"],
+      ["active:yes",         "collaboration enabled"],
+      ["hof:yes",            "hall of fame"]
+    ]],
+    ["Numbers (>, >=, <, <=)", [
+      ["reports:>=10",       "total report count"],
+      ["reports_24h:>5",     "last 24 hours"],
+      ["reports_7d:>=20",    "last 7 days"],
+      ["reports_30d:>=50",   "last 30 days"],
+      ["scope:>5  scope:<20", "min / max scope count"],
+      ["avg:>=500",          "avg paid bounty"],
+      ["max:>=10000",        "max paid bounty"],
+      ["min:>=100",          "min advertised bounty"],
+      ["response:<=48",      "avg response time (hrs)"]
+    ]],
+    ["Combine", [
+      ["a AND b",            "both must match (implicit)"],
+      ["a OR b",             "either matches"],
+      ["(a OR b) AND c",     "group with parentheses"],
+      ["asset:x AND program:y OR program:z", "AND binds tighter than OR"]
+    ]]
+  ]
+  input_classes = "w-full rounded-md border border-zinc-300 bg-white py-2 pl-3 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100 dark:focus:border-zinc-300"
+%>
+
+<%= form_with url: programs_root_path, method: :get,
+      data: { controller: "auto-submit", turbo_action: "replace" },
+      class: "mt-8 flex flex-col gap-6 lg:flex-row lg:items-start" do |f| %>
+
+  <aside class="w-full shrink-0 slim-scroll lg:sticky lg:top-0 lg:max-h-[calc(100dvh-1.5rem)] lg:w-64 lg:overflow-y-auto">
+    <%= render "programs/sidebar",
+          f: f,
+          filter_params: @filter_params,
+          platforms: @platforms,
+          scope_types: @scope_types,
+          bounty_ceiling: @bounty_ceiling %>
+  </aside>
+
+  <div class="min-w-0 flex-1 space-y-3">
+    <%# Sticky search bar: stays put while the catalog scrolls. Does NOT
+        auto-submit — the user hits Enter or clicks Search. %>
+    <div class="sticky top-12 z-20 flex items-center gap-2 md:top-0">
+      <div class="relative min-w-0 flex-1">
+        <%= f.search_field :q, value: @filter_params[:q],
+              placeholder: "Search slugs, assets — or dork: asset:example.com AND bounty:yes",
+              autocomplete: "off", class: input_classes %>
+
+        <div class="group absolute right-1.5 top-1/2 -translate-y-1/2">
+          <button type="button" aria-label="Search syntax help"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 outline-none transition hover:bg-zinc-100 hover:text-zinc-700 focus:bg-zinc-100 focus:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 dark:focus:bg-zinc-800">
+            <%= heroicon "question-mark-circle", classes: "h-4 w-4" %>
+          </button>
+          <div class="invisible absolute right-0 top-full z-40 mt-2 max-h-[70vh] w-[30rem] max-w-[calc(100vw-3rem)] overflow-y-auto slim-scroll rounded-md border border-zinc-200 bg-white p-3 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-zinc-800 dark:bg-[#111315]">
+            <% dork_groups.each_with_index do |(title, rows), idx| %>
+              <p class="text-[10.5px] font-medium uppercase tracking-[0.12em] text-zinc-400 <%= idx.zero? ? "mb-2" : "mt-3 mb-2 border-t border-zinc-200 pt-2 dark:border-zinc-800" %>"><%= title %></p>
+              <dl class="space-y-1.5 font-mono">
+                <% rows.each do |dork, hint| %>
+                  <div>
+                    <dt class="break-all text-[11.5px] leading-snug text-zinc-800 dark:text-zinc-200"><%= dork %></dt>
+                    <dd class="mt-0.5 pl-3 text-[10.5px] leading-snug text-zinc-500 dark:text-zinc-400"><%= hint %></dd>
+                  </div>
+                <% end %>
+              </dl>
+            <% end %>
+            <p class="mt-3 border-t border-zinc-200 pt-2 text-[10.5px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+              Operators are case-insensitive · plain text still matches names &amp; descriptions.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <%= f.submit "Search",
+            class: "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-200 dark:hover:bg-zinc-800" %>
+
+      <%= render "programs/history", recent_views: @recent_views %>
+    </div>
+
+    <%= render "programs/active_chips", filter_params: @filter_params %>
+
+    <div data-controller="view-mode grid-cols infinite-scroll"
+         data-infinite-scroll-url-value="<%= @has_next ? programs_root_path(@filter_params.to_h.merge(page: @page + 1)) : "" %>"
+         data-infinite-scroll-skeleton-count-value="6">
+      <div class="mb-3 flex items-center justify-between gap-4">
+        <span class="text-xs text-zinc-500 dark:text-zinc-400">
+          <span class="tabular-nums text-zinc-900 dark:text-zinc-100"><%= @total %></span> total
+        </span>
+
+        <div class="flex items-center gap-3">
+          <%= render "programs/sort_control", sort_key: @sort_key, sort_dir: @sort_dir %>
+
+          <%# View toggle — segmented control. data-active flips styling via the
+              view-mode controller to mark the current view. %>
+          <div class="hidden items-center rounded-md border border-zinc-200 bg-white p-0.5 md:inline-flex dark:border-zinc-800 dark:bg-[#111315]">
+            <button type="button"
+                    data-view-mode-target="cardsBtn"
+                    data-action="click->view-mode#showCards"
+                    data-active="true"
+                    title="Card view" aria-label="Card view"
+                    class="inline-flex h-7 w-7 items-center justify-center rounded text-zinc-500 transition hover:text-zinc-900 data-[active=true]:bg-zinc-100 data-[active=true]:text-zinc-900 dark:text-zinc-400 dark:hover:text-white dark:data-[active=true]:bg-white/10 dark:data-[active=true]:text-white">
+              <%= heroicon "squares-2x2", classes: "h-4 w-4" %>
+            </button>
+            <button type="button"
+                    data-view-mode-target="tableBtn"
+                    data-action="click->view-mode#showTable"
+                    data-active="false"
+                    title="Table view" aria-label="Table view"
+                    class="inline-flex h-7 w-7 items-center justify-center rounded text-zinc-500 transition hover:text-zinc-900 data-[active=true]:bg-zinc-100 data-[active=true]:text-zinc-900 dark:text-zinc-400 dark:hover:text-white dark:data-[active=true]:bg-white/10 dark:data-[active=true]:text-white">
+              <%= heroicon "list-bullet", classes: "h-4 w-4" %>
+            </button>
+          </div>
+
+          <div data-view-mode-target="cols"
+               class="hidden items-center gap-2 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 md:flex dark:border-zinc-800 dark:bg-[#111315]">
+            <span class="text-[10px] uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">Cols</span>
+            <input type="range" min="1" max="10" step="1" value="3"
+                   data-grid-cols-target="input"
+                   data-action="input->grid-cols#update"
+                   class="w-28 accent-zinc-900 dark:accent-white" />
+            <span class="w-4 text-right text-[11px] tabular-nums text-zinc-900 dark:text-zinc-100"
+                  data-grid-cols-target="display">3</span>
+          </div>
+        </div>
+      </div>
+
+      <% if @programs.any? %>
+        <%# Cards view — view-mode controller toggles `hidden`. %>
+        <div data-view-mode-target="cards">
+          <div data-grid-cols-target="grid"
+               style="--cols: 3;"
+               class="grid grid-cols-1 gap-4 md:[grid-template-columns:repeat(var(--cols),minmax(0,1fr))]">
+            <%= render partial: "programs/card_items", locals: { programs: @programs, favorited_sids: @favorited_sids, trashed_sids: @trashed_sids } %>
+            <div data-infinite-scroll-target="cardSentinel" class="col-span-full h-px" aria-hidden="true"></div>
+            <template data-infinite-scroll-target="skeleton">
+              <%= render "programs/skeleton_card" %>
+            </template>
+          </div>
+        </div>
+
+        <%# Table view — same data, denser. Hidden until the user picks it. %>
+        <div data-view-mode-target="table" hidden
+             class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
+          <%
+            sortable_header = ->(label, key, align: nil) {
+              active   = @sort_key == key
+              wrap_cls = { "right" => "text-right", "center" => "text-center" }[align].to_s
+              justify  = { "right" => "justify-end", "center" => "justify-center" }.fetch(align, "justify-start")
+              color    = active ? "text-zinc-900 dark:text-white" : "hover:text-zinc-700 dark:hover:text-zinc-200"
+              capture do
+                concat content_tag(:div, role: "columnheader", class: wrap_cls) {
+                  button_tag(type: "button", title: "Sort by #{label}",
+                             data: { action: "click->column-sort#sort", sort_key: key, default_dir: "desc" },
+                             class: "inline-flex w-full items-center gap-1 #{justify} uppercase tracking-[0.08em] transition #{color}") {
+                    out = label.dup
+                    out << heroicon(@sort_dir == "asc" ? "arrow-up" : "arrow-down", classes: "h-2.5 w-2.5") if active
+                    out.html_safe
+                  }
+                }
+              end
+            }
+            fav_active = @sort_key == "favorites"
+          %>
+          <div role="row"
+               data-controller="column-sort"
+               data-column-sort-key-value="<%= @sort_key %>"
+               data-column-sort-dir-value="<%= @sort_dir %>"
+               class="program-row-grid items-center gap-3 border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.08em] text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+            <div role="columnheader" class="text-center">
+              <button type="button" title="Sort by favorites"
+                      data-action="click->column-sort#sort" data-sort-key="favorites" data-default-dir="desc"
+                      class="inline-flex w-full items-center justify-center transition <%= fav_active ? "text-zinc-900 dark:text-white" : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" %>">
+                <%= heroicon "star", classes: "h-3 w-3" %>
+              </button>
+            </div>
+            <%= sortable_header.call("Program", "name") %>
+            <div role="columnheader">Platform</div>
+            <div role="columnheader">Mode</div>
+            <%= sortable_header.call("Bounty", "bounty_max") %>
+            <%= sortable_header.call("Avg", "reward_avg", align: "right") %>
+            <%= sortable_header.call("Scope", "scope_count", align: "right") %>
+            <%= sortable_header.call("Reports", "reports", align: "right") %>
+            <%= sortable_header.call("24h", "reports_24h", align: "right") %>
+            <%= sortable_header.call("7d", "reports_7d", align: "right") %>
+            <%= sortable_header.call("30d", "reports_month", align: "right") %>
+            <div role="columnheader" class="text-center">Active</div>
+            <div role="columnheader" class="text-right">Open</div>
+          </div>
+          <div role="rowgroup">
+            <%= render partial: "programs/row_items", locals: { programs: @programs, favorited_sids: @favorited_sids, trashed_sids: @trashed_sids } %>
+            <div data-infinite-scroll-target="rowSentinel" class="h-px" aria-hidden="true"></div>
+          </div>
+        </div>
+      <% else %>
+        <div class="rounded-lg border border-dashed border-zinc-300 p-16 text-center dark:border-zinc-700">
+          <p class="text-sm text-zinc-500 dark:text-zinc-400">No programs match the current filters.</p>
+          <%= link_to "Clear all filters", programs_root_path,
+                class: "mt-3 inline-block text-xs font-medium text-zinc-900 hover:underline dark:text-white" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<%# Jump-to-top — fixed (no layout cost), fades in on scroll past threshold. %>
+<button type="button"
+        data-controller="scroll-top"
+        data-action="click->scroll-top#scrollTop"
+        data-visible="false"
+        aria-label="Jump to top" title="Jump to top"
+        class="fixed bottom-6 right-6 z-30 flex h-11 w-11 translate-y-2 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-zinc-600 opacity-0 backdrop-blur-md transition-all duration-200 ease-out pointer-events-none hover:text-zinc-900 data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 data-[visible=true]:pointer-events-auto dark:border-zinc-800 dark:bg-[#111315]/90 dark:text-zinc-300 dark:hover:text-white">
+  <%= heroicon "arrow-up", classes: "h-5 w-5" %>
+</button>

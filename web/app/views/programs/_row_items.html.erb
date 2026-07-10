@@ -1,0 +1,6 @@
+<%# Rows-only loop for the initial server render of the table container.
+    Mirrors _card_items; forwards the favorite/trash sets. %>
+<% programs.each do |program| %>
+  <%= render "programs/row", program: program,
+        favorited_sids: favorited_sids, trashed_sids: trashed_sids %>
+<% end %>

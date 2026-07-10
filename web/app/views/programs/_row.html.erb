@@ -1,0 +1,86 @@
+<%# Table-view representation of a program. Same data as _card, laid out as a
+    single grid row (see .program-row-grid). Clicking opens the same modal.
+    Renders a <div role="row"> rather than a <tr> so the modal portal can live
+    inside without breaking table semantics. %>
+<% fav = favorited_sids.include?(program.sid) %>
+<% trashed = trashed_sids.include?(program.sid) %>
+<div data-controller="modal" data-program-row="true">
+  <div role="row"
+       data-action="click->modal#open"
+       class="group program-row-grid cursor-pointer items-center gap-3 border-b border-zinc-100 px-3 py-2.5 transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/40">
+
+    <div role="cell" class="flex items-center justify-center gap-1">
+      <button type="button"
+              data-controller="favorite-toggle"
+              data-favorite-toggle-sid-value="<%= program.sid %>"
+              data-favorite-toggle-favorited-value="<%= fav %>"
+              data-action="click->favorite-toggle#toggle"
+              data-favorited="<%= fav %>"
+              title="<%= fav ? "Remove from favorites" : "Add to favorites" %>"
+              aria-label="<%= fav ? "Unfavorite" : "Favorite" %>"
+              class="inline-flex h-7 w-7 items-center justify-center rounded transition <%= fav ? "text-zinc-900 dark:text-white" : "text-zinc-400" %>">
+        <%= heroicon "star", classes: "h-4 w-4" %>
+      </button>
+    </div>
+
+    <div role="cell" class="min-w-0">
+      <div class="truncate text-sm text-zinc-900 dark:text-zinc-100"><%= program.name %></div>
+      <div class="truncate text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></div>
+    </div>
+
+    <div role="cell" class="truncate text-[11px] uppercase tracking-[0.08em] text-zinc-600 dark:text-zinc-400">
+      <%= program.platform %>
+    </div>
+
+    <div role="cell">
+      <span class="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] <%= program.public? ? "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" : "border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" %>">
+        <%= program.public? ? "Public" : "Private" %>
+      </span>
+    </div>
+
+    <div role="cell" class="truncate text-xs tabular-nums <%= program.bounty? ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500" %>">
+      <%= program.bounty_range %>
+    </div>
+
+    <div role="cell" class="text-right text-xs tabular-nums <%= program.reward_avg.to_f > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-400 dark:text-zinc-500" %>">
+      <%= program.reward_avg.to_f > 0 ? "#{program.currency_symbol}#{number_with_delimiter(program.reward_avg.to_i)}" : "—" %>
+    </div>
+
+    <div role="cell" class="text-right text-xs tabular-nums text-zinc-900 dark:text-zinc-100">
+      <%= program.scope_count %>
+    </div>
+
+    <div role="cell" class="text-right text-xs tabular-nums text-zinc-900 dark:text-zinc-100">
+      <%= program.report_count %>
+    </div>
+
+    <% [program.reports_24h, program.reports_7d, program.reports_month].each do |val| %>
+      <div role="cell" class="text-right text-xs tabular-nums <%= val > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-400 dark:text-zinc-500" %>">
+        <%= val > 0 ? val : "—" %>
+      </div>
+    <% end %>
+
+    <div role="cell" class="text-center">
+      <% if program.collaboration? %>
+        <span class="inline-flex items-center gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-300">
+          <span class="h-1.5 w-1.5 rounded-full bg-zinc-500 dark:bg-zinc-300"></span>
+          yes
+        </span>
+      <% else %>
+        <span class="text-[10px] text-zinc-400 dark:text-zinc-500">—</span>
+      <% end %>
+    </div>
+
+    <div role="cell" class="text-right">
+      <% if program.url? %>
+        <a href="<%= program.url %>" target="_blank" rel="noopener noreferrer"
+           aria-label="Open program on <%= program.platform %>"
+           title="Open on <%= program.platform %>"
+           class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-white">
+          <%= heroicon "arrow-top-right-on-square", classes: "h-3.5 w-3.5" %>
+        </a>
+      <% end %>
+    </div>
+  </div>
+  <%= render "programs/modal", program: program %>
+</div>

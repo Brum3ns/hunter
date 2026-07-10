@@ -1,0 +1,15 @@
+<%# Range slider with live value display. Args: name, label, value, min, max, step, format ("money"|"hours"|"number") %>
+<div data-controller="range" class="block">
+  <div class="mb-1.5 flex items-center justify-between">
+    <span class="text-[11px] font-medium uppercase tracking-[0.06em] text-zinc-600 dark:text-zinc-400"><%= label %></span>
+    <span class="text-[11px] tabular-nums text-zinc-900 dark:text-zinc-100" data-range-target="display"></span>
+  </div>
+  <%= range_field_tag name, value.to_i,
+        min: min, max: max, step: step,
+        data: {
+          range_target: "input",
+          range_format_value: local_assigns.fetch(:format, "number"),
+          action: "input->range#update"
+        },
+        class: "w-full accent-zinc-900 dark:accent-white" %>
+</div>

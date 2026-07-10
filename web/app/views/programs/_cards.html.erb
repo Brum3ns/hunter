@@ -1,0 +1,14 @@
+<%# One-page partial returned bare (no layout) for the infinite-scroll XHR
+    fetch. Emits BOTH a card and a row per program — the JS routes each into
+    its container so toggling view mode never needs a refetch. The trailing
+    <span data-next-url> marker carries the next page URL; absent when done. %>
+<% programs.each do |program| %>
+  <%= render "programs/card", program: program,
+        favorited_sids: favorited_sids, trashed_sids: trashed_sids %>
+  <%= render "programs/row", program: program,
+        favorited_sids: favorited_sids, trashed_sids: trashed_sids %>
+<% end %>
+
+<% if has_next %>
+  <span data-next-url="<%= programs_root_path(filter_params.to_h.merge(page: page + 1)) %>" hidden></span>
+<% end %>
