@@ -1,4 +1,24 @@
 class Program
+  # Per-platform accent classes (banner gradient + badge text/bg/border) and the
+  # bundled fallback logo shown when a program has no logo of its own. The color
+  # tokens (pf-*) and .pf-banner-* gradients are defined in the Tailwind theme.
+  PLATFORM_COLORS = {
+    "hackerone"   => { bg: "bg-pf-hackerone/15",   text: "text-pf-hackerone",   border: "border-pf-hackerone/30",   gradient: "pf-banner-hackerone" },
+    "bugcrowd"    => { bg: "bg-pf-bugcrowd/15",    text: "text-pf-bugcrowd",    border: "border-pf-bugcrowd/30",    gradient: "pf-banner-bugcrowd" },
+    "intigriti"   => { bg: "bg-pf-intigriti/15",   text: "text-pf-intigriti",   border: "border-pf-intigriti/30",   gradient: "pf-banner-intigriti" },
+    "yeswehack"   => { bg: "bg-pf-yeswehack/15",   text: "text-pf-yeswehack",   border: "border-pf-yeswehack/30",   gradient: "pf-banner-yeswehack" },
+    "bugbountych" => { bg: "bg-pf-bugbountych/15", text: "text-pf-bugbountych", border: "border-pf-bugbountych/30", gradient: "pf-banner-bugbountych" }
+  }.freeze
+  DEFAULT_COLORS = { bg: "bg-zinc-500/15", text: "text-zinc-500 dark:text-zinc-300", border: "border-zinc-500/30", gradient: "pf-banner-default" }.freeze
+
+  PLATFORM_LOGOS = {
+    "hackerone"   => "hackerone.webp",
+    "bugcrowd"    => "bugcrowd.png",
+    "intigriti"   => "intigriti.jpg",
+    "yeswehack"   => "yeswehack.jpeg",
+    "bugbountych" => "bugbountych.jpeg"
+  }.freeze
+
   attr_reader :data
 
   def initialize(data)
@@ -84,6 +104,10 @@ class Program
     else "$"
     end
   end
+
+  def colors         = PLATFORM_COLORS.fetch(platform, DEFAULT_COLORS)
+  def platform_logo  = PLATFORM_LOGOS[platform]
+  def platform_logo? = platform_logo.present?
 
   def to_param = sid
 

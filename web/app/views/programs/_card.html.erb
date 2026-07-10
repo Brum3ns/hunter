@@ -1,18 +1,35 @@
 <%# One program as a card. Clicking opens the detail modal; the star/trash
     toggles and the external-link button stop propagation so they never open
-    it. Monochrome skin — no platform banner/logo images. %>
+    it. Platform-branded banner + logo up top; monochrome body with gold
+    (favorite), green (bounty/collab) and red (trash) accents. %>
 <% fav = favorited_sids.include?(program.sid) %>
 <% trashed = trashed_sids.include?(program.sid) %>
 <div data-controller="modal" data-program-card="true">
   <article data-action="click->modal#open"
            class="group relative cursor-pointer overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-[#111315] dark:hover:border-zinc-700">
 
-    <div class="flex items-start justify-between gap-3 border-b border-zinc-100 p-4 dark:border-zinc-800">
-      <div class="min-w-0">
-        <h2 class="truncate text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-100"><%= program.name %></h2>
-        <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400"><%= program.slug %></p>
+    <%# Banner: program image if present, else a platform-colored gradient. %>
+    <div class="relative h-28 overflow-hidden <%= program.colors[:gradient] %>" data-controller="banner-fallback">
+      <div data-banner-fallback-target="fallback" class="<%= "hidden" if program.banner? %>">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(255,255,255,0.35),transparent_55%)]"></div>
+        <div class="absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent_0,transparent_3px,rgba(255,255,255,0.4)_3px,rgba(255,255,255,0.4)_4px)] opacity-[0.07] mix-blend-overlay"></div>
       </div>
-      <div class="flex shrink-0 items-center gap-1">
+      <% if program.banner? %>
+        <div class="absolute inset-0" data-controller="image-loaded" data-banner-fallback-target="image">
+          <img src="<%= program.banner %>" alt="" loading="lazy"
+               data-image-loaded-target="img"
+               data-action="error->banner-fallback#failed"
+               class="absolute inset-0 h-full w-full object-cover" />
+          <div class="skeleton pointer-events-none absolute inset-0"></div>
+        </div>
+        <div data-banner-fallback-target="vignette" class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent"></div>
+      <% end %>
+
+      <span class="absolute right-3 top-3 inline-flex items-center rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-white/90 ring-1 ring-white/20 backdrop-blur">
+        <%= program.platform %>
+      </span>
+
+      <div class="absolute left-3 top-3 z-10 flex items-center gap-1.5">
         <button type="button"
                 data-controller="favorite-toggle"
                 data-favorite-toggle-sid-value="<%= program.sid %>"
@@ -21,8 +38,8 @@
                 data-favorited="<%= fav %>"
                 title="<%= fav ? "Remove from favorites" : "Add to favorites" %>"
                 aria-label="<%= fav ? "Unfavorite" : "Favorite" %>"
-                class="inline-flex h-7 w-7 items-center justify-center rounded-full transition <%= fav ? "text-zinc-900 dark:text-white" : "text-zinc-400" %>">
-          <%= heroicon "star", classes: "h-4 w-4" %>
+                class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/55 ring-1 ring-white/20 backdrop-blur transition hover:ring-white/40 <%= fav ? "text-gold" : "text-zinc-400" %>">
+          <%= heroicon "star", classes: "h-4 w-4", fill: fav ? "currentColor" : "none" %>
         </button>
         <button type="button"
                 data-controller="trash-toggle"
@@ -32,26 +49,32 @@
                 data-trashed="<%= trashed %>"
                 title="<%= trashed ? "Restore from trash" : "Move to trash" %>"
                 aria-label="<%= trashed ? "Restore from trash" : "Move to trash" %>"
-                class="inline-flex h-7 w-7 items-center justify-center rounded-full transition <%= trashed ? "text-zinc-900 dark:text-white" : "text-zinc-400" %>">
+                class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/55 ring-1 ring-white/20 backdrop-blur transition hover:ring-white/40 <%= trashed ? "text-red-500" : "text-zinc-400" %>">
           <%= heroicon "trash", classes: "h-4 w-4" %>
         </button>
       </div>
     </div>
 
     <div class="space-y-4 p-4">
-      <div class="flex items-center gap-2">
-        <span class="inline-flex items-center rounded border border-zinc-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
-          <%= program.platform %>
-        </span>
-        <span class="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] <%= program.public? ? "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" : "border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" %>">
-          <%= program.public? ? "Public" : "Private" %>
-        </span>
-      </div>
+      <header class="flex items-start gap-4">
+        <%= render "programs/logo", program: program,
+              wrapper: "relative z-10 -mt-12 h-20 w-20 shrink-0 rounded-full ring-2 ring-white shadow-md dark:ring-[#111315]",
+              icon: "h-8 w-8" %>
+        <div class="flex min-w-0 flex-1 items-start justify-between gap-2 pt-1">
+          <div class="min-w-0">
+            <h2 class="truncate text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-100"><%= program.name %></h2>
+            <p class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400"><%= program.slug %></p>
+          </div>
+          <span class="inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] <%= program.public? ? "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" : "border-amber-500/40 bg-amber-500/5 text-amber-600 dark:text-amber-300" %>">
+            <%= program.public? ? "Public" : "Private" %>
+          </span>
+        </div>
+      </header>
 
       <dl class="grid grid-cols-3 gap-2 text-center">
         <div class="rounded-md border border-zinc-200 py-2 dark:border-zinc-800">
           <dt class="text-[10px] uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">Bounty</dt>
-          <dd class="mt-0.5 text-xs text-zinc-900 dark:text-zinc-100"><%= program.bounty? ? "Yes" : "No" %></dd>
+          <dd class="mt-0.5 text-xs <%= program.bounty? ? "text-online" : "text-zinc-400 dark:text-zinc-500" %>"><%= program.bounty? ? "Yes" : "No" %></dd>
         </div>
         <div class="rounded-md border border-zinc-200 py-2 dark:border-zinc-800">
           <dt class="text-[10px] uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">Scope</dt>
@@ -82,15 +105,15 @@
 
       <footer class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 pt-1">
         <% if program.collaboration? %>
-          <span class="justify-self-start inline-flex items-center gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-300">
-            <span class="h-1.5 w-1.5 rounded-full bg-zinc-500 dark:bg-zinc-300"></span>
+          <span class="justify-self-start inline-flex items-center gap-1.5 text-[10px] text-online">
+            <span class="h-1.5 w-1.5 rounded-full bg-online"></span>
             collab
           </span>
         <% else %>
           <span class="justify-self-start"></span>
         <% end %>
 
-        <span class="justify-self-center whitespace-nowrap text-sm font-semibold tabular-nums <%= program.bounty? ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500" %>">
+        <span class="justify-self-center whitespace-nowrap text-sm font-semibold tabular-nums <%= program.bounty? ? "text-money" : "text-zinc-400 dark:text-zinc-500" %>">
           <%= program.bounty_range %>
         </span>
 

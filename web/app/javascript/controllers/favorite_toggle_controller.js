@@ -54,8 +54,7 @@ export default class extends Controller {
     const fav = this.favoritedValue
     this.element.dataset.favorited = fav ? "true" : "false"
 
-    this.element.classList.toggle("text-zinc-900", fav)
-    this.element.classList.toggle("dark:text-white", fav)
+    this.element.classList.toggle("text-gold", fav)
     this.element.classList.toggle("text-zinc-400", !fav)
 
     const svg = this.element.querySelector("svg")

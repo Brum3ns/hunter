@@ -200,8 +200,8 @@
             <div role="columnheader" class="text-center">
               <button type="button" title="Sort by favorites"
                       data-action="click->column-sort#sort" data-sort-key="favorites" data-default-dir="desc"
-                      class="inline-flex w-full items-center justify-center transition <%= fav_active ? "text-zinc-900 dark:text-white" : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" %>">
-                <%= heroicon "star", classes: "h-3 w-3" %>
+                      class="inline-flex w-full items-center justify-center transition <%= fav_active ? "text-gold" : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" %>">
+                <%= heroicon "star", classes: "h-3 w-3", fill: fav_active ? "currentColor" : "none" %>
               </button>
             </div>
             <%= sortable_header.call("Program", "name") %>

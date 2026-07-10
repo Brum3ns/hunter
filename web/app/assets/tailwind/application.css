@@ -2,6 +2,92 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Programs module accent palette — ported from Scope so favorites (gold),
+   bounty (money green), collaboration (online green) and per-platform badges
+   keep their meaning. These are the only chromatic accents in the otherwise
+   monochrome app; they generate text-/bg-/border- utilities (e.g. text-gold,
+   text-money, text-pf-hackerone, bg-pf-hackerone/15). */
+@theme {
+  --color-gold:        #f5c518;
+  --color-money:       #85bb65;
+  --color-online:      #09ff63;
+
+  --color-pf-hackerone:     #6d5cff;
+  --color-pf-hackerone-2:   #ae00cd;
+  --color-pf-bugcrowd:      #ff6200;
+  --color-pf-bugcrowd-2:    #ffffff;
+  --color-pf-intigriti:     #6366f1;
+  --color-pf-intigriti-2:   #ffffff;
+  --color-pf-yeswehack:     #ff2d2d;
+  --color-pf-yeswehack-2:   #000000;
+  --color-pf-bugbountych:   #ffb300;
+  --color-pf-bugbountych-2: #000000;
+}
+
+/* Per-platform card/modal banner gradients (primary → secondary brand fade). */
+.pf-banner-hackerone {
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-pf-hackerone)   60%, transparent) 0%,
+    color-mix(in srgb, var(--color-pf-hackerone)   28%, transparent) 50%,
+    color-mix(in srgb, var(--color-pf-hackerone-2) 55%, transparent) 100%);
+}
+.pf-banner-bugcrowd {
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-pf-bugcrowd)   60%, transparent) 0%,
+    color-mix(in srgb, var(--color-pf-bugcrowd)   28%, transparent) 50%,
+    color-mix(in srgb, var(--color-pf-bugcrowd-2) 22%, transparent) 100%);
+}
+.pf-banner-intigriti {
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-pf-intigriti)   60%, transparent) 0%,
+    color-mix(in srgb, var(--color-pf-intigriti)   28%, transparent) 50%,
+    color-mix(in srgb, var(--color-pf-intigriti-2) 22%, transparent) 100%);
+}
+.pf-banner-yeswehack {
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-pf-yeswehack)   55%, transparent) 0%,
+    color-mix(in srgb, var(--color-pf-yeswehack)   25%, transparent) 50%,
+    color-mix(in srgb, var(--color-pf-yeswehack-2) 40%, transparent) 100%);
+}
+.pf-banner-bugbountych {
+  background-image: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-pf-bugbountych)   60%, transparent) 0%,
+    color-mix(in srgb, var(--color-pf-bugbountych)   28%, transparent) 50%,
+    color-mix(in srgb, var(--color-pf-bugbountych-2) 45%, transparent) 100%);
+}
+.pf-banner-default {
+  background-image: linear-gradient(135deg,
+    rgba(113, 113, 122, 0.45) 0%,
+    rgba(82, 82, 91, 0.35) 100%);
+}
+
+/* Sibling `.skeleton` overlay fades out (via .img-loaded) once a banner/logo
+   image resolves; also the body of placeholder cards. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background-color: rgb(228 228 231);
+}
+.dark .skeleton { background-color: rgb(39 39 42); }
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.14) 50%, transparent 70%);
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes skeleton-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+.img-loaded .skeleton { opacity: 0; transition: opacity 250ms ease-out; }
+.img-loaded .skeleton::after { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+
 /* Slim, mobile-style scrollbars — indicate the scroll exists without a heavy track. */
 @utility slim-scroll {
   scrollbar-width: thin;
