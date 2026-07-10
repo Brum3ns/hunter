@@ -97,6 +97,15 @@ class Sandbox::CurlCommandTest < ActiveSupport::TestCase
       assert_includes seen, "--max-time"
       assert_includes seen, "7"
       assert_includes seen, "-sS"
+      assert_includes seen, "--include"
+    end
+  end
+
+  test "execute does not duplicate --include when the command already includes headers" do
+    seen = nil
+    stub_methods(Sandbox::CurlCommand, capture: ->(argv, **) { seen = argv; ["", "", 0] }) do
+      Sandbox::CurlCommand.execute("curl -i https://example.com", max_time: 5, max_output: 1000)
+      assert_equal 1, seen.count { |a| a == "-i" || a == "--include" }
     end
   end
 

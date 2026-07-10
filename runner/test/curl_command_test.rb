@@ -25,4 +25,18 @@ class RunnerCurlCommandTest < Minitest::Test
     refute called
     refute_nil r.error
   end
+
+  def test_execute_injects_include_so_response_headers_are_captured
+    seen = nil
+    Sandbox::CurlCommand.define_singleton_method(:capture) { |argv, **| seen = argv; ["", "", 0] }
+    Sandbox::CurlCommand.execute("curl https://example.com", max_time: 5, max_output: 100)
+    assert_includes seen, "--include"
+  end
+
+  def test_execute_does_not_duplicate_include
+    seen = nil
+    Sandbox::CurlCommand.define_singleton_method(:capture) { |argv, **| seen = argv; ["", "", 0] }
+    Sandbox::CurlCommand.execute("curl -i https://example.com", max_time: 5, max_output: 100)
+    assert_equal 1, seen.count { |a| a == "-i" || a == "--include" }
+  end
 end

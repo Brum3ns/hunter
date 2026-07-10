@@ -43,7 +43,7 @@
           </div>
         <% elsif job.terminal? %>
           <% if job.stdout.present? %>
-            <%= render "vulnerabilities/details/code_block", title: "response", content: job.stdout %>
+            <%= render "vulnerabilities/details/code_block", title: "Response", content: job.stdout, body_mime: true %>
           <% end %>
           <% if job.stderr.present? %>
             <div class="<%= "mt-3" if job.stdout.present? %>">

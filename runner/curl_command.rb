@@ -105,6 +105,13 @@ module Sandbox
     def with_safety_flags(argv, max_time:, max_output:)
       argv = argv.dup
       argv << "-sS" unless argv.include?("-sS") || argv.include?("--silent")
+      # Include the response status line and headers in the output so the result
+      # renders as a full HTTP message — matching the stored HTTP-transaction
+      # response and its header+body syntax highlighting. Skip if the command
+      # already controls header output (-i/-I already emit headers).
+      unless argv.include?("-i") || argv.include?("--include") || argv.include?("-I") || argv.include?("--head")
+        argv << "--include"
+      end
       argv.push("--max-time", max_time.to_s) unless argv.include?("--max-time")
       argv.push("--connect-timeout", "10") unless argv.include?("--connect-timeout")
       argv.push("--max-filesize", max_output.to_s) unless argv.include?("--max-filesize")
