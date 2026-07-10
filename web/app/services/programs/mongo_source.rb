@@ -1,11 +1,16 @@
 module Programs
-  # Read/index wiring for the `programs` MongoDB collection (populated by the
+  # Read/index wiring for the programs MongoDB collection (populated by the
   # Scope Go CLI, keyed on `_sid`). Thin wrapper over the collection-agnostic
   # HunterMongo so the ported Query/Source services only reference this module.
+  #
+  # The collection name is configurable via MONGO_PROGRAMS_COLLECTION (wired in
+  # docker-compose), mirroring how the vulnerabilities module reads
+  # MONGO_COLLECTION. It defaults to "scope" — the collection the Scope CLI
+  # writes programs into.
   module MongoSource
     module_function
 
-    COLLECTION = ENV.fetch("MONGO_PROGRAMS_COLLECTION", "programs")
+    COLLECTION = ENV.fetch("MONGO_PROGRAMS_COLLECTION", "scope")
 
     # Field names track the JSON keys scope emits (some TitleCase upstream, e.g.
     # the report-bucket counters — mirrored verbatim so sorts/filters hit them).
