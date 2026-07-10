@@ -45,4 +45,50 @@ class RunnerTest < ActiveSupport::TestCase
   test "kinds must be present" do
     assert_raises(ActiveRecord::RecordInvalid) { Runner.generate(name: "empty", kinds: []) }
   end
+
+  test "ensure_from_token! registers a runner that authenticates with the given token" do
+    token = SecureRandom.urlsafe_base64(32)
+    runner = Runner.ensure_from_token!(name: "env-runner", token: token, kinds: %w[curl])
+
+    assert runner.persisted?
+    assert_equal %w[curl], runner.kinds
+    assert_equal runner.id, Runner.authenticate(token).id
+    assert_not_equal token, runner.token_digest, "raw token must never be stored"
+  end
+
+  test "ensure_from_token! is idempotent on name and rotates the token in place" do
+    old_token = SecureRandom.urlsafe_base64(32)
+    new_token = SecureRandom.urlsafe_base64(32)
+
+    first = Runner.ensure_from_token!(name: "env-runner", token: old_token, kinds: %w[curl])
+    second = Runner.ensure_from_token!(name: "env-runner", token: new_token, kinds: %w[curl])
+
+    assert_equal first.id, second.id, "same name must update the same row, not orphan a new one"
+    assert_equal 1, Runner.where(name: "env-runner").count
+    assert_equal second.id, Runner.authenticate(new_token).id
+    assert_nil Runner.authenticate(old_token), "the rotated-out token must stop working"
+  end
+
+  test "ensure_from_token! normalizes surrounding quotes and whitespace" do
+    token = SecureRandom.urlsafe_base64(32)
+    runner = Runner.ensure_from_token!(name: "env-runner", token: %(  "#{token}"  ), kinds: %w[curl])
+
+    assert_equal runner.id, Runner.authenticate(token).id,
+                 "a quoted/padded env value must digest to the same token the runner sends"
+  end
+
+  test "ensure_from_token! skips a blank token without creating a runner" do
+    assert_nil Runner.ensure_from_token!(name: "env-runner", token: "", kinds: %w[curl])
+    assert_nil Runner.ensure_from_token!(name: "env-runner", token: nil, kinds: %w[curl])
+    assert_nil Runner.ensure_from_token!(name: "env-runner", token: %(  ), kinds: %w[curl])
+    assert_equal 0, Runner.where(name: "env-runner").count
+  end
+
+  test "ensure_from_token! rejects a weak token and creates nothing" do
+    weak = "a" * (Runner::MINIMUM_TOKEN_LENGTH - 1)
+    assert_raises(Runner::WeakTokenError) do
+      Runner.ensure_from_token!(name: "env-runner", token: weak, kinds: %w[curl])
+    end
+    assert_equal 0, Runner.where(name: "env-runner").count
+  end
 end

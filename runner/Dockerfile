@@ -5,7 +5,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY runner/curl_command.rb runner/agent.rb ./
+COPY runner/curl_command.rb runner/token.rb runner/agent.rb ./
 
 USER nobody
 CMD ["ruby", "agent.rb"]
