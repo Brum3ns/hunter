@@ -1,0 +1,396 @@
+<%# Program detail modal. Mounted inside a data-controller="modal" wrapper
+    (card/row) which owns open/close; this <dialog> is that controller's
+    dialog target. Monochrome skin: no platform banner/logo images, and the
+    scraped policy/description HTML is sanitized server-side (Hunter drops
+    Scope's client-side DOMPurify). %>
+<%
+  nav_items = [["description", "Description"], ["rewards", "Rewards"]]
+  nav_items << ["grid",           "Reward Grid"]    if program.reward_grid?
+  nav_items << ["scope",          "In Scope"]
+  nav_items << ["out",            "Out of Scope"]   if program.out_of_scope.any?
+  nav_items << ["qualifying",     "Qualifying"]     if program.qualifying_vulns.any?
+  nav_items << ["non-qualifying", "Non-Qualifying"] if program.non_qualifying_vulns.any?
+  nav_items << ["testing",        "Testing"]        if program.required_user_agent? || program.account_access_html? || program.vpn_active?
+  nav_items << ["rules",          "Rules & Policy"]
+  export_asset_list = program.scope.map { |a| a["asset"].to_s.strip }.reject(&:empty?)
+  tile   = "rounded-md border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-[#111315]"
+  h3     = "flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400 mb-3"
+  badge  = "inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+%>
+<dialog data-modal-target="dialog"
+        data-action="click->modal#backdropClose"
+        data-controller="view-tracker"
+        data-view-tracker-sid-value="<%= program.sid %>"
+        class="program-modal text-zinc-900 dark:text-zinc-100">
+  <div class="flex w-full items-start gap-5">
+
+    <%# Left identity + outline (lg+). Section links smooth-scroll the body. %>
+    <aside class="hidden w-60 shrink-0 flex-col gap-3 lg:flex" data-controller="modal-nav">
+      <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
+        <span class="<%= badge %>"><%= program.platform %></span>
+        <h2 class="mt-2 break-words text-base font-semibold leading-tight text-zinc-900 dark:text-zinc-100"><%= program.name %></h2>
+        <p class="mt-1 break-all text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></p>
+        <% if program.organization? && program.organization["name"].present? %>
+          <p class="mt-0.5 truncate text-[11px] text-zinc-600 dark:text-zinc-300"><%= program.organization["name"] %></p>
+        <% end %>
+      </div>
+
+      <nav class="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-[#111315]">
+        <p class="mb-3 pl-2.5 text-[10px] uppercase tracking-[0.14em] text-zinc-400">Outline</p>
+        <ul class="space-y-0.5 border-l border-zinc-200 dark:border-zinc-800">
+          <% nav_items.each do |key, label| %>
+            <li>
+              <a href="#"
+                 data-modal-nav-target="link"
+                 data-section="<%= key %>"
+                 data-action="click->modal-nav#jump"
+                 class="-ml-px block rounded-r-md border-l-2 border-transparent py-1.5 pl-3 pr-2 text-[11px] uppercase tracking-[0.1em] text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-800 data-[active=true]:border-zinc-900 data-[active=true]:bg-zinc-100 data-[active=true]:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:data-[active=true]:border-white dark:data-[active=true]:bg-white/10 dark:data-[active=true]:text-white">
+                <%= label %>
+              </a>
+            </li>
+          <% end %>
+        </ul>
+      </nav>
+    </aside>
+
+    <div class="flex max-h-[92vh] min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-[#0b0d0e]">
+
+      <%# Top bar — identity on narrow screens, chips + close everywhere. %>
+      <div class="flex shrink-0 items-center gap-3 border-b border-zinc-200 px-4 py-3 md:px-5 dark:border-zinc-800">
+        <div class="min-w-0 flex-1 lg:hidden">
+          <h2 class="truncate text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100"><%= program.name %></h2>
+          <p class="truncate text-[11px] text-zinc-500 dark:text-zinc-400"><%= program.slug %></p>
+        </div>
+        <span class="<%= badge %> hidden shrink-0 lg:inline-flex"><%= program.platform %></span>
+
+        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span class="<%= badge %>"><%= program.public? ? "Public" : "Private" %></span>
+          <% if program.vdp? %><span class="<%= badge %>">VDP</span><% end %>
+          <% if program.bounty? %>
+            <span class="<%= badge %> whitespace-nowrap"><%= program.bounty_range %></span>
+          <% end %>
+          <% if program.collaboration? %><span class="<%= badge %>">Collab</span><% end %>
+          <% if program.hall_of_fame? %><span class="<%= badge %>">HOF</span><% end %>
+        </div>
+
+        <div class="flex-1"></div>
+        <button type="button" data-action="click->modal#close"
+                aria-label="Close"
+                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-white">
+          <%= heroicon "x-mark", classes: "h-4 w-4" %>
+        </button>
+      </div>
+
+      <%# Scrollable body %>
+      <div data-modal-scroll
+           class="min-h-0 flex-1 space-y-7 overflow-y-auto slim-scroll px-5 pb-7 pt-5 scroll-pt-2 md:px-7">
+
+        <%# Top stat tiles %>
+        <section class="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <%
+            tiles = [
+              ["Bounty",   program.bounty_range],
+              ["Scope",    program.scope_count.to_s],
+              ["Reports",  number_with_delimiter(program.report_count)],
+              ["Response", "#{program.avg_response_hrs}h"]
+            ]
+          %>
+          <% tiles.each do |label, val| %>
+            <div class="<%= tile %>">
+              <dt class="text-[11px] uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400"><%= label %></dt>
+              <dd class="mt-1 text-base tabular-nums text-zinc-900 dark:text-zinc-100"><%= val %></dd>
+            </div>
+          <% end %>
+        </section>
+
+        <%# Activity + Rewards %>
+        <section data-section="rewards" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div class="rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
+            <h3 class="<%= h3 %>">Activity</h3>
+            <dl class="grid grid-cols-3 gap-2 text-sm">
+              <% [["24h", program.reports_24h], ["7d", program.reports_7d], ["30d", program.reports_month]].each do |label, val| %>
+                <div>
+                  <dt class="text-xs text-zinc-500 dark:text-zinc-400"><%= label %></dt>
+                  <dd class="mt-1 tabular-nums text-zinc-900 dark:text-zinc-100"><%= val %></dd>
+                </div>
+              <% end %>
+            </dl>
+          </div>
+
+          <div class="rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
+            <h3 class="<%= h3 %>">Rewards</h3>
+            <% if program.bounty? %>
+              <dl class="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <dt class="text-xs text-zinc-500 dark:text-zinc-400">Avg paid</dt>
+                  <dd class="mt-1 tabular-nums <%= program.reward_avg.to_f > 0 ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500" %>">
+                    <%= program.reward_avg.to_f > 0 ? "#{program.currency_symbol}#{number_with_delimiter(program.reward_avg.to_i)}" : "—" %>
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-xs text-zinc-500 dark:text-zinc-400">Max paid</dt>
+                  <dd class="mt-1 tabular-nums <%= program.reward_max.to_f > 0 ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500" %>">
+                    <%= program.reward_max.to_f > 0 ? "#{program.currency_symbol}#{number_with_delimiter(program.reward_max.to_i)}" : "—" %>
+                  </dd>
+                </div>
+              </dl>
+            <% else %>
+              <p class="text-sm text-zinc-500 dark:text-zinc-400">VDP — no monetary rewards</p>
+            <% end %>
+          </div>
+        </section>
+
+        <%# Reward grid %>
+        <% if program.reward_grid? %>
+          <section data-section="grid">
+            <h3 class="<%= h3 %>">Reward Grid</h3>
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <% [["Low", "low"], ["Medium", "medium"], ["High", "high"], ["Critical", "critical"]].each do |label, key| %>
+                <% amount = program.reward_grid[key] %>
+                <div class="<%= tile %>">
+                  <dt class="text-[11px] uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400"><%= label %></dt>
+                  <dd class="mt-1 text-base tabular-nums text-zinc-900 dark:text-zinc-100">
+                    <%= amount.to_f > 0 ? "#{program.currency_symbol}#{number_with_delimiter(amount.to_i)}" : "—" %>
+                  </dd>
+                </div>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <%# In-scope: click asset to copy; export toolbar dumps JSON / TXT / Burp. %>
+        <section data-section="scope"
+                 data-controller="asset-export"
+                 data-asset-export-assets-value="<%= export_asset_list.to_json %>"
+                 data-asset-export-slug-value="<%= program.slug %>">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="<%= h3 %> mb-0">
+              In Scope (<%= program.scope.size %>)
+              <span class="ml-1 font-normal normal-case tracking-normal text-zinc-400">— click asset to copy</span>
+            </h3>
+            <% if export_asset_list.any? %>
+              <% export_btn = "inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-[11px] text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:text-white" %>
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div class="flex items-center gap-1.5">
+                  <span class="mr-1 text-[10px] uppercase tracking-[0.1em] text-zinc-400">Download</span>
+                  <button type="button" data-action="click->asset-export#json" title="Download scope assets as JSON" class="<%= export_btn %>"><%= heroicon "arrow-down-tray", classes: "h-3 w-3" %> JSON</button>
+                  <button type="button" data-action="click->asset-export#text" title="Download scope assets as plain text" class="<%= export_btn %>"><%= heroicon "arrow-down-tray", classes: "h-3 w-3" %> TXT</button>
+                  <button type="button" data-action="click->asset-export#burp" title="Download as Burp Suite scope regexes" class="<%= export_btn %>"><%= heroicon "arrow-down-tray", classes: "h-3 w-3" %> Burp</button>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="mr-1 text-[10px] uppercase tracking-[0.1em] text-zinc-400">Copy</span>
+                  <button type="button" data-action="click->asset-export#copyJson" title="Copy scope assets as JSON" class="<%= export_btn %>"><%= heroicon "clipboard", classes: "h-3 w-3" %> JSON</button>
+                  <button type="button" data-action="click->asset-export#copyText" title="Copy scope assets as plain text" class="<%= export_btn %>"><%= heroicon "clipboard", classes: "h-3 w-3" %> TXT</button>
+                  <button type="button" data-action="click->asset-export#copyBurp" title="Copy as Burp Suite scope regexes" class="<%= export_btn %>"><%= heroicon "clipboard", classes: "h-3 w-3" %> Burp</button>
+                </div>
+              </div>
+            <% end %>
+          </div>
+          <div class="overflow-x-auto slim-scroll rounded-md border border-zinc-200 dark:border-zinc-800">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-zinc-50 text-xs uppercase tracking-[0.06em] text-zinc-500 dark:bg-zinc-900/40 dark:text-zinc-400">
+                  <th class="px-3 py-2.5 text-left font-normal">Asset</th>
+                  <th class="px-3 py-2.5 text-left font-normal">Type</th>
+                  <th class="px-3 py-2.5 text-right font-normal">In scope</th>
+                  <th class="px-3 py-2.5 text-right font-normal">Bounty</th>
+                  <th class="px-3 py-2.5 text-right font-normal">Reports</th>
+                  <th class="px-3 py-2.5 text-right font-normal">Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% program.scope.each do |asset| %>
+                  <% link = asset_link(asset) %>
+                  <tr class="border-t border-zinc-100 align-top dark:border-zinc-800">
+                    <td class="px-3 py-2.5">
+                      <button type="button"
+                              data-controller="clipboard"
+                              data-action="click->clipboard#copy"
+                              aria-label="Copy <%= asset["asset"] %>"
+                              class="inline-flex items-center gap-1.5 break-all text-left text-zinc-900 transition hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300">
+                        <span data-clipboard-target="source"><%= asset["asset"] %></span>
+                        <span data-clipboard-target="button" hidden></span>
+                      </button>
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-2.5 text-xs uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
+                      <%= asset["type"].to_s.tr("_", " ").downcase %>
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-2.5 text-right <%= asset["inscope"] ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500" %>"><%= asset["inscope"] ? "Yes" : "No" %></td>
+                    <td class="whitespace-nowrap px-3 py-2.5 text-right <%= asset["bounty"] ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500" %>"><%= asset["bounty"] ? "Yes" : "No" %></td>
+                    <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-zinc-600 dark:text-zinc-300"><%= asset["report_count"] || 0 %></td>
+                    <td class="whitespace-nowrap px-3 py-2.5 text-right">
+                      <% if link %>
+                        <a href="<%= link %>" target="_blank" rel="noopener noreferrer" title="Open <%= link %>"
+                           class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-[11px] text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:text-white">
+                          <%= heroicon "arrow-top-right-on-square", classes: "h-3 w-3" %> Open
+                        </a>
+                      <% else %>
+                        <span class="text-zinc-400 dark:text-zinc-600">—</span>
+                      <% end %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <%# Out-of-scope chips %>
+        <% if program.out_of_scope.any? %>
+          <section data-section="out">
+            <h3 class="<%= h3 %>">
+              Out of Scope (<%= program.out_of_scope.size %>)
+              <span class="ml-1 font-normal normal-case tracking-normal text-zinc-400">— click to copy</span>
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              <% program.out_of_scope.each do |asset| %>
+                <button type="button"
+                        data-controller="clipboard"
+                        data-action="click->clipboard#copy"
+                        aria-label="Copy <%= asset["asset"] %>"
+                        class="inline-flex items-center break-all rounded border border-zinc-200 px-2.5 py-1.5 text-left text-sm text-zinc-700 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:text-white">
+                  <span data-clipboard-target="source"><%= asset["asset"] %></span>
+                  <span data-clipboard-target="button" hidden></span>
+                </button>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <%# Qualifying vulnerabilities %>
+        <% if program.qualifying_vulns.any? %>
+          <section data-section="qualifying">
+            <h3 class="<%= h3 %>">Qualifying Vulnerabilities (<%= program.qualifying_vulns.size %>)</h3>
+            <ul class="grid grid-cols-1 gap-2 text-sm text-zinc-700 md:grid-cols-2 dark:text-zinc-300">
+              <% program.qualifying_vulns.each do |vuln| %>
+                <li class="flex items-start gap-2 rounded border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+                  <span class="mt-0.5 leading-none text-zinc-400">+</span>
+                  <span class="break-words"><%= vuln %></span>
+                </li>
+              <% end %>
+            </ul>
+          </section>
+        <% end %>
+
+        <%# Non-qualifying vulnerabilities %>
+        <% if program.non_qualifying_vulns.any? %>
+          <section data-section="non-qualifying">
+            <h3 class="<%= h3 %>">Non-Qualifying (<%= program.non_qualifying_vulns.size %>)</h3>
+            <ul class="grid grid-cols-1 gap-2 text-sm text-zinc-700 md:grid-cols-2 dark:text-zinc-300">
+              <% program.non_qualifying_vulns.each do |vuln| %>
+                <li class="flex items-start gap-2 rounded border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+                  <span class="mt-0.5 leading-none text-zinc-400">−</span>
+                  <span class="break-words"><%= vuln %></span>
+                </li>
+              <% end %>
+            </ul>
+          </section>
+        <% end %>
+
+        <%# Description — untrusted upstream text, sanitized server-side. %>
+        <section data-section="description">
+          <h3 class="<%= h3 %>">Description</h3>
+          <% if program.description.present? %>
+            <div class="program-prose text-zinc-700 dark:text-zinc-300">
+              <%= program_policy_html(program.description) %>
+            </div>
+          <% else %>
+            <p class="text-sm text-zinc-500 dark:text-zinc-400">No description provided.</p>
+          <% end %>
+        </section>
+
+        <%# Testing requirements %>
+        <% if program.required_user_agent? || program.account_access_html? || program.vpn_active? %>
+          <section data-section="testing">
+            <h3 class="<%= h3 %>">Testing Requirements</h3>
+            <div class="space-y-4 rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
+              <% if program.required_user_agent? %>
+                <div>
+                  <p class="mb-2 text-[11px] uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">Required User-Agent</p>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <code class="inline-block max-w-full break-all rounded border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[13px] text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"><%= program.required_user_agent %></code>
+                    <%= render "programs/copy_button", text: program.required_user_agent, label: "Copy user-agent" %>
+                  </div>
+                </div>
+              <% end %>
+              <% if program.account_access_html? %>
+                <div>
+                  <p class="mb-2 text-[11px] uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">Test account access</p>
+                  <div class="program-prose text-zinc-700 dark:text-zinc-300">
+                    <%= program_policy_html(program.account_access_html) %>
+                  </div>
+                </div>
+              <% end %>
+              <% if program.vpn_active? %>
+                <div>
+                  <p class="mb-2 text-[11px] uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">VPN required</p>
+                  <% if program.vpn_ips.any? %>
+                    <div class="flex flex-wrap gap-2">
+                      <% program.vpn_ips.each do |ip| %>
+                        <code class="rounded border border-zinc-200 bg-zinc-50 px-2 py-1 text-[13px] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"><%= ip %></code>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-300">Outbound traffic must route through a program-provided VPN.</p>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <%# Program rules — sanitized policy HTML. %>
+        <section data-section="rules">
+          <h3 class="<%= h3 %>">Rules &amp; Policy</h3>
+          <% if program.rules_html? %>
+            <div class="rounded-md border border-zinc-200 p-5 dark:border-zinc-800">
+              <div class="program-prose text-zinc-700 dark:text-zinc-300">
+                <%= program_policy_html(program.rules_html) %>
+              </div>
+              <% if program.url? %>
+                <a href="<%= program.url %>" target="_blank" rel="noopener noreferrer"
+                   class="mt-5 inline-flex items-center gap-1.5 text-sm text-zinc-900 hover:underline dark:text-white">
+                  View on <%= program.platform %> <%= heroicon "arrow-top-right-on-square", classes: "h-3.5 w-3.5" %>
+                </a>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="rounded-md border border-zinc-200 p-4 text-sm leading-relaxed text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+              <p>
+                Full disclosure rules, severity rubric, safe-harbor terms and submission requirements
+                are maintained on the <span class="text-zinc-900 dark:text-zinc-100"><%= program.platform %></span> program page.
+                Collaboration is <%= program.collaboration? ? "allowed" : "not allowed" %>.
+              </p>
+              <% if program.url? %>
+                <a href="<%= program.url %>" target="_blank" rel="noopener noreferrer"
+                   class="mt-3 inline-flex items-center gap-1.5 text-sm text-zinc-900 hover:underline dark:text-white">
+                  View full policy <%= heroicon "arrow-top-right-on-square", classes: "h-3.5 w-3.5" %>
+                </a>
+              <% end %>
+            </div>
+          <% end %>
+        </section>
+      </div>
+
+      <%# Footer %>
+      <div class="flex shrink-0 items-center justify-between gap-3 border-t border-zinc-200 px-5 py-3.5 md:px-7 dark:border-zinc-800">
+        <div class="hidden min-w-0 truncate text-xs text-zinc-400 sm:block">
+          sid <span class="text-zinc-600 dark:text-zinc-300"><%= program.sid.to_s[0..15] %>…</span>
+        </div>
+        <div class="ml-auto flex shrink-0 items-center gap-2">
+          <button type="button" data-action="click->modal#close"
+                  class="rounded-md border border-zinc-200 px-4 py-2 text-sm text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-300 dark:hover:text-white">
+            Close
+          </button>
+          <% if program.url? %>
+            <a href="<%= program.url %>" target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
+              Open on <%= program.platform %>
+              <%= heroicon "arrow-top-right-on-square", classes: "h-3.5 w-3.5" %>
+            </a>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
