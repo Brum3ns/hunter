@@ -9,6 +9,8 @@ Rails.application.routes.draw do
   get "settings", to: "settings#show"
   namespace :settings do
     resources :runners, only: %i[create destroy]
+    resource :schedule, only: :update
+    resource :monitor_config, only: :update
   end
   get "notifications", to: "notifications#index"
 
@@ -16,6 +18,8 @@ Rails.application.routes.draw do
   # controller + views; add a sibling line here when adding a module.
   namespace :programs do
     get "/",           to: "overview#index", as: :root
+    get "/monitor",    to: "monitor#index",  as: :monitor
+    get "/logs",       to: "logs#index",     as: :logs
     get "/:sid/modal", to: "overview#modal", as: :modal
     post   "/:sid/favorite", to: "favorites#create"
     delete "/:sid/favorite", to: "favorites#destroy"
@@ -25,6 +29,8 @@ Rails.application.routes.draw do
   end
   namespace :vulnerabilities do
     get "/", to: "overview#index", as: :root
+    # Must precede the "/:id" detail route so it isn't swallowed as an id.
+    get "/statistics", to: "statistics#index", as: :statistics
     patch "/:id/status", to: "statuses#update", as: :status
     post "/:id/runs",          to: "runs#create", as: :runs
     get  "/:id/runs/:job_id",  to: "runs#show",   as: :run
@@ -39,8 +45,24 @@ Rails.application.routes.draw do
   # Add new modules as sibling blocks here (programs, control_center, cves, ...).
   namespace :api do
     namespace :v1 do
+      # Programs module: Monitor change feed + Logs run feed.
+      namespace :programs do
+        get "changes",   to: "changes#index"
+        get "runs",      to: "runs#index"
+        get "runs/:id",  to: "runs#show", constraints: { id: /\d+/ }
+      end
+
       # Vulnerability management module.
       resources :vulnerabilities, only: %i[index show create update destroy]
+
+      # Control Center module: Whiterabbit template CRUD + job submission.
+      namespace :control_center do
+        resources :templates, only: %i[index show create update destroy] do
+          collection { post :validate }
+        end
+        resources :jobs, only: %i[index show create]
+        resource :health, only: :show, controller: "health"
+      end
 
       namespace :runner do
         post "jobs/claim",      to: "jobs#claim"
