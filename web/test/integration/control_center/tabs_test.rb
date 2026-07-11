@@ -37,4 +37,16 @@ class ControlCenter::TabsTest < ActionDispatch::IntegrationTest
     get control_center_jobs_path
     assert_select "[data-controller~=control-center-health]"
   end
+
+  test "templates page mounts the templates controller wired to its endpoints" do
+    sign_in_as(@user)
+    get control_center_root_path
+    assert_select "section[data-controller~=control-center-templates]" \
+                  "[data-control-center-templates-index-url-value=?]" \
+                  "[data-control-center-templates-validate-url-value=?]" \
+                  "[data-control-center-templates-jobs-url-value=?]",
+                  api_v1_control_center_templates_path,
+                  validate_api_v1_control_center_templates_path,
+                  api_v1_control_center_jobs_path
+  end
 end
