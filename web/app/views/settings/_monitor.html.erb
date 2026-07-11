@@ -1,0 +1,39 @@
+<%= render layout: "settings/section", locals: { id: "monitor", title: "Monitor",
+      subtitle: "Diff the enabled platforms' programs on an interval and record changes in the Programs → Monitor feed." } do %>
+  <%= form_with model: monitor_config, url: settings_monitor_config_path, method: :patch, scope: :monitor_config,
+        class: "max-w-xl space-y-5 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#111315]" do |f| %>
+
+    <label class="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+      <%= f.check_box :enabled, class: "rounded border-zinc-300 dark:border-zinc-700" %> Enabled
+    </label>
+
+    <div class="flex flex-col gap-1">
+      <%= f.label :interval_seconds, "Interval (seconds)", class: "text-xs font-medium text-zinc-600 dark:text-zinc-400" %>
+      <%= f.number_field :interval_seconds, min: MonitorConfig::MIN_INTERVAL, max: MonitorConfig::MAX_INTERVAL,
+            class: "w-40 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" %>
+      <span class="text-[11px] text-zinc-400">Between <%= MonitorConfig::MIN_INTERVAL %> and <%= MonitorConfig::MAX_INTERVAL %> (tick floor applies).</span>
+    </div>
+
+    <fieldset>
+      <legend class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Platforms</legend>
+      <input type="hidden" name="monitor_config[platforms][]" value="">
+      <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+        <% ScopePlatforms::ALL.each do |platform| %>
+          <label class="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <%= check_box_tag "monitor_config[platforms][]", platform, monitor_config.enabled_platforms.include?(platform),
+                  class: "rounded border-zinc-300 dark:border-zinc-700" %>
+            <%= platform.humanize %>
+          </label>
+        <% end %>
+      </div>
+    </fieldset>
+
+    <p class="text-xs text-zinc-400 dark:text-zinc-500">
+      Last tick: <%= monitor_config.last_tick_at ? "#{time_ago_in_words(monitor_config.last_tick_at)} ago" : "never" %> ·
+      Next tick: <%= monitor_config.next_tick_at ? l(monitor_config.next_tick_at, format: :short) : "—" %>
+    </p>
+
+    <%= f.submit "Save monitor settings",
+          class: "inline-flex items-center rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200" %>
+  <% end %>
+<% end %>
