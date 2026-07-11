@@ -1,0 +1,14 @@
+<%# RabbitMQ + Mongo reachability badge. Hydrates from the health API; the dots
+    start neutral (zinc) and turn emerald/rose on the first poll. %>
+<div class="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400"
+     data-controller="control-center-health"
+     data-control-center-health-url-value="<%= api_v1_control_center_health_path %>">
+  <span class="inline-flex items-center gap-1.5">
+    <span class="h-2 w-2 rounded-full bg-zinc-300 dark:bg-zinc-600"
+          data-control-center-health-target="rabbitmqDot"></span>RabbitMQ
+  </span>
+  <span class="inline-flex items-center gap-1.5">
+    <span class="h-2 w-2 rounded-full bg-zinc-300 dark:bg-zinc-600"
+          data-control-center-health-target="mongoDot"></span>Mongo
+  </span>
+</div>
