@@ -1,0 +1,12 @@
+<%# Card shell for a statistics panel. Used as a render layout:
+    `render layout: "vulnerabilities/statistics/panel", locals: { title: } do`.
+    `subtitle` is optional. %>
+<section class="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#111315]">
+  <div class="flex items-baseline justify-between gap-3">
+    <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100"><%= title %></h2>
+    <% if local_assigns[:subtitle].present? %>
+      <span class="text-xs text-zinc-400 dark:text-zinc-500"><%= subtitle %></span>
+    <% end %>
+  </div>
+  <div class="mt-4"><%= yield %></div>
+</section>
