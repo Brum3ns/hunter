@@ -45,7 +45,7 @@ export default class extends Controller {
       succeeded: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
       failed: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
       pending: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-    }[status] || "bg-zinc-100 text-zinc-600"
+    }[status] || "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
     badge.className = `rounded px-1.5 py-0.5 text-xs font-medium ${tone}`
     badge.textContent = status || "unknown"
     td.appendChild(badge)
@@ -63,7 +63,7 @@ export default class extends Controller {
     if (!ok || !data) return
     this.detailTarget.classList.remove("hidden")
     this.detailTarget.textContent =
-      `${data.template_name} — ${data.status} (exit ${data.exit_status})\n\n` +
+      `${data.template_name} — ${data.status} (exit ${data.exit_status ?? "—"})\n\n` +
       `$ stdout\n${data.stdout || ""}\n\n$ stderr\n${data.stderr || ""}`
   }
 }

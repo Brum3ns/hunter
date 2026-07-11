@@ -9,12 +9,16 @@ export async function apiFetch(url, { method = "GET", body } = {}) {
     const token = document.querySelector('meta[name="csrf-token"]')?.content
     if (token) headers["X-CSRF-Token"] = token
   }
-  const res = await fetch(url, {
-    method,
-    headers,
-    credentials: "same-origin",
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  const text = await res.text()
-  return { ok: res.ok, status: res.status, data: text ? JSON.parse(text) : null }
+  try {
+    const res = await fetch(url, {
+      method,
+      headers,
+      credentials: "same-origin",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    const text = await res.text()
+    return { ok: res.ok, status: res.status, data: text ? JSON.parse(text) : null }
+  } catch {
+    return { ok: false, status: 0, data: null }
+  }
 }
