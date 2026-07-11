@@ -10,6 +10,34 @@
 
 <%= render "layouts/department_tabs", label: "Control Center sections" %>
 
-<section class="mt-6">
-  <p class="text-sm text-zinc-400 dark:text-zinc-500">Jobs load here.</p>
+<section class="mt-6"
+         data-controller="control-center-jobs"
+         data-control-center-jobs-index-url-value="<%= api_v1_control_center_jobs_path %>">
+
+  <div class="mb-3 flex justify-end">
+    <button type="button" data-action="control-center-jobs#refresh"
+            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+      <%= heroicon "clock", classes: "h-4 w-4" %> Refresh
+    </button>
+  </div>
+
+  <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
+    <table class="w-full text-left text-sm">
+      <thead class="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+        <tr>
+          <th class="px-4 py-2 font-medium">Template</th>
+          <th class="px-4 py-2 font-medium">Queue</th>
+          <th class="px-4 py-2 font-medium">Targets</th>
+          <th class="px-4 py-2 font-medium">Status</th>
+          <th class="px-4 py-2 font-medium">When</th>
+        </tr>
+      </thead>
+      <tbody data-control-center-jobs-target="rows" class="divide-y divide-zinc-100 dark:divide-zinc-800/70"></tbody>
+    </table>
+    <div data-control-center-jobs-target="empty" class="hidden px-4 py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
+      No jobs submitted yet.
+    </div>
+  </div>
+
+  <pre data-control-center-jobs-target="detail" class="mt-4 hidden max-h-64 overflow-auto rounded-lg bg-zinc-950 p-4 font-mono text-xs text-zinc-100"></pre>
 </section>
