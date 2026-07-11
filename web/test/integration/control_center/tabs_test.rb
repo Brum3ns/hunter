@@ -49,4 +49,12 @@ class ControlCenter::TabsTest < ActionDispatch::IntegrationTest
                   validate_api_v1_control_center_templates_path,
                   api_v1_control_center_jobs_path
   end
+
+  test "jobs page mounts the jobs controller wired to its endpoint" do
+    sign_in_as(@user)
+    get control_center_jobs_path
+    assert_select "section[data-controller~=control-center-jobs]" \
+                  "[data-control-center-jobs-index-url-value=?]",
+                  api_v1_control_center_jobs_path
+  end
 end
