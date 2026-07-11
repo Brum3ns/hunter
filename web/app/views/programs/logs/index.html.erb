@@ -1,0 +1,77 @@
+<% content_for :title, "hunter — Program logs" %>
+<% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
+
+<header class="flex items-center gap-3">
+  <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Programs</h1>
+  <span class="rounded border border-zinc-300 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">beta</span>
+</header>
+<p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Every Scope fetch and CLI run, with its output.</p>
+
+<%= render "layouts/department_tabs", label: "Programs sections" %>
+
+<section class="mt-6"
+         data-controller="programs-logs"
+         data-programs-logs-url-value="<%= api_v1_programs_runs_path %>"
+         data-programs-logs-poll-value="3000">
+
+  <%# --- filter bar --- %>
+  <div class="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-[#111315]">
+    <select data-programs-logs-target="kind" data-action="programs-logs#filter"
+            class="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100">
+      <option value="">All kinds</option>
+      <% @kinds.each do |k| %><option value="<%= k %>"><%= k.humanize %></option><% end %>
+    </select>
+
+    <select data-programs-logs-target="platform" data-action="programs-logs#filter"
+            class="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100">
+      <option value="">All platforms</option>
+      <% @platforms.each do |p| %><option value="<%= p %>"><%= p.humanize %></option><% end %>
+    </select>
+
+    <select data-programs-logs-target="status" data-action="programs-logs#filter"
+            class="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100">
+      <option value="">Any status</option>
+      <option value="ok">Success</option>
+      <option value="fail">Failure</option>
+    </select>
+
+    <label class="inline-flex items-center gap-1.5 px-1 text-sm text-zinc-600 dark:text-zinc-300">
+      <input type="checkbox" data-programs-logs-target="mine" data-action="programs-logs#filter"
+             class="rounded border-zinc-300 dark:border-zinc-700"> Mine only
+    </label>
+
+    <label class="inline-flex items-center gap-1.5 px-1 text-sm text-zinc-600 dark:text-zinc-300">
+      <input type="checkbox" checked data-programs-logs-target="live" data-action="programs-logs#toggleLive"
+             class="rounded border-zinc-300 dark:border-zinc-700">
+      <span class="inline-flex items-center gap-1.5">
+        <span class="h-2 w-2 rounded-full bg-emerald-500" data-programs-logs-target="liveDot"></span>Live
+      </span>
+    </label>
+
+    <button type="button" data-action="programs-logs#refresh"
+            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+      <%= heroicon "clock", classes: "h-4 w-4" %> Refresh
+    </button>
+  </div>
+
+  <%# --- run table --- %>
+  <div class="mt-4 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
+    <div class="grid grid-cols-[150px_90px_110px_1fr_80px_90px] gap-2 border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+      <span>Started</span><span>Kind</span><span>Platform</span><span>Detail</span><span>Duration</span><span>Status</span>
+    </div>
+
+    <div data-programs-logs-target="rows" class="divide-y divide-zinc-100 dark:divide-zinc-800/70"></div>
+
+    <div data-programs-logs-target="empty" class="hidden px-4 py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
+      No runs recorded yet.
+    </div>
+
+    <div class="flex items-center justify-between border-t border-zinc-100 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+      <span data-programs-logs-target="counter">—</span>
+      <button type="button" data-programs-logs-target="loadMore" data-action="programs-logs#loadMore"
+              class="hidden font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100">
+        Load older
+      </button>
+    </div>
+  </div>
+</section>
