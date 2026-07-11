@@ -19,7 +19,7 @@ module NavigationHelper
       [
         { label: "Programs", path: programs_root_path, controllers: %w[programs], icon: "clipboard-document-list" },
         { label: "Vulnerabilities", path: vulnerabilities_root_path, controllers: %w[vulnerabilities], icon: "shield-exclamation" },
-        { label: "Control Center", path: control_center_path, controllers: %w[control_center], icon: "viewfinder-circle" },
+        { label: "Control Center", path: control_center_root_path, controllers: %w[control_center], icon: "viewfinder-circle" },
         { label: "CVEs", path: cves_path, controllers: %w[cves], icon: "bug-ant" }
       ]
     ]
