@@ -14,7 +14,7 @@ class SidebarShellTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", root_path
     assert_select "a[href=?]", programs_root_path
     assert_select "a[href=?]", vulnerabilities_root_path
-    assert_select "a[href=?]", control_center_path
+    assert_select "a[href=?]", control_center_root_path
     assert_select "a[href=?]", cves_path
     assert_select "a[href=?]", settings_path
     assert_select "a[href=?]", help_path

@@ -36,7 +36,12 @@ Rails.application.routes.draw do
     get  "/:id/runs/:job_id",  to: "runs#show",   as: :run
     get "/:id", to: "details#show", as: :detail
   end
-  get "control_center", to: "control_center#index"
+  # Control Center web department — Whiterabbit templates + jobs. Tabs are data
+  # (ControlCenter::BaseController::TABS); adding one is a one-line change there.
+  namespace :control_center do
+    get "/",     to: "templates#index", as: :root
+    get "/jobs", to: "jobs#index",      as: :jobs
+  end
   get "cves", to: "cves#index"
 
   get "help", to: "help#index"
