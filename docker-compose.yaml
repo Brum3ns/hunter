@@ -48,6 +48,12 @@ services:
              foreman start -f Procfile.dev"
     environment:
       RAILS_ENV: development
+      # Allow the runner (and any other in-network service) to reach this app by
+      # its compose hostname. Rails' development Host Authorization only permits
+      # *.localhost/*.test and literal IPs by default, so requests arriving with
+      # `Host: web:5000` are otherwise blocked with 403 before hitting a
+      # controller. Rails appends this (comma-separated) to config.hosts at boot.
+      RAILS_DEVELOPMENT_HOSTS: ${RAILS_DEVELOPMENT_HOSTS:-web}
       # PostgreSQL connection — every setting overridable from .env.
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
@@ -59,6 +65,8 @@ services:
       MONGO_PORT: ${MONGO_PORT:-27017}
       MONGO_DATABASE: ${MONGO_DATABASE:-bugbounty}
       MONGO_COLLECTION: ${MONGO_COLLECTION:-vulnerabilities}
+      # Programs module reads its own collection (the Scope CLI writes to "scope").
+      MONGO_PROGRAMS_COLLECTION: ${MONGO_PROGRAMS_COLLECTION:-scope}
       MONGO_USERNAME: ${MONGO_USERNAME:-}
       MONGO_PASSWORD: ${MONGO_PASSWORD:-}
       MONGO_AUTH_SOURCE: ${MONGO_AUTH_SOURCE:-admin}
@@ -66,11 +74,21 @@ services:
       MONGO_CONNECT_TIMEOUT: ${MONGO_CONNECT_TIMEOUT:-3}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      # Control Center — Whiterabbit standalone sender.
+      WHITERABBIT_BIN: ${WHITERABBIT_BIN:-/usr/local/bin/whiterabbit}
+      CMDSCRIPT_HASH_SALT: ${CMDSCRIPT_HASH_SALT:-}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_HTTP_PORT: ${RABBITMQ_HTTP_PORT:-15672}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-}
+      RABBITMQ_TOKEN: ${RABBITMQ_TOKEN:-}
+      CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
     volumes:
       # Mount source for live reload — code edits hot-reload in the container.
       - ./web:/app
     ports:
-      - "127.0.0.1:5000:5000"
+      - "0.0.0.0:5000:5000"
     depends_on:
       db:
         condition: service_healthy
@@ -88,6 +106,10 @@ services:
       HUNTER_API_URL: http://web:5000
       RUNNER_TOKEN: ${RUNNER_TOKEN}
       RUNNER_POLL_INTERVAL: ${RUNNER_POLL_INTERVAL:-2}
+      # How many curl jobs this runner executes at once. Each job is a blocking
+      # curl + result POST, so the pool overlaps them instead of queueing behind
+      # one slow request.
+      RUNNER_MAX_CONCURRENCY: ${RUNNER_MAX_CONCURRENCY:-30}
       CURL_MAX_TIME: ${CURL_MAX_TIME:-30}
       CURL_MAX_OUTPUT: ${CURL_MAX_OUTPUT:-262144}
     depends_on:
@@ -98,8 +120,11 @@ services:
     tmpfs: ["/tmp"]
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
-    mem_limit: 256m
-    pids_limit: 128
+    # Sized for the default 30-way pool: each worker is a thread and each curl a
+    # subprocess (both count toward pids_limit), and up to 30 responses buffer in
+    # memory at once. Raise these together with RUNNER_MAX_CONCURRENCY.
+    mem_limit: 512m
+    pids_limit: 256
     restart: unless-stopped
 
 volumes:
