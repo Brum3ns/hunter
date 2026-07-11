@@ -10,6 +10,145 @@
 
 <%= render "layouts/department_tabs", label: "Control Center sections" %>
 
-<section class="mt-6">
-  <p class="text-sm text-zinc-400 dark:text-zinc-500">Templates load here.</p>
+<section class="mt-6"
+         data-controller="control-center-templates"
+         data-control-center-templates-index-url-value="<%= api_v1_control_center_templates_path %>"
+         data-control-center-templates-validate-url-value="<%= validate_api_v1_control_center_templates_path %>"
+         data-control-center-templates-jobs-url-value="<%= api_v1_control_center_jobs_path %>">
+
+  <div class="mb-3 flex items-center justify-between">
+    <button type="button" data-action="control-center-templates#refresh"
+            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+      <%= heroicon "clock", classes: "h-4 w-4" %> Refresh
+    </button>
+    <button type="button" data-action="control-center-templates#newTemplate"
+            class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
+      New template
+    </button>
+  </div>
+
+  <%# --- list --- %>
+  <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
+    <table class="w-full text-left text-sm">
+      <thead class="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+        <tr>
+          <th class="px-4 py-2 font-medium">Name</th>
+          <th class="px-4 py-2 font-medium">Kind</th>
+          <th class="px-4 py-2 font-medium">Commands</th>
+          <th class="px-4 py-2 font-medium">Tags</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody data-control-center-templates-target="rows" class="divide-y divide-zinc-100 dark:divide-zinc-800/70"></tbody>
+    </table>
+    <div data-control-center-templates-target="empty" class="hidden px-4 py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
+      No templates yet. Create one to get started.
+    </div>
+  </div>
+
+  <%# --- editor panel (hidden until New/Edit) --- %>
+  <div data-control-center-templates-target="editor"
+       class="mt-4 hidden rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="text-sm">Name
+        <input data-control-center-templates-target="fName" data-action="input->control-center-templates#validate"
+               class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+      </label>
+      <label class="text-sm">Kind
+        <select data-control-center-templates-target="fKind"
+                class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <option value="cmdscript">cmdscript</option>
+          <option value="workflow">workflow</option>
+        </select>
+      </label>
+      <label class="text-sm">Output file (optional)
+        <input data-control-center-templates-target="fOutput"
+               class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+      </label>
+      <label class="text-sm">Tags (comma-separated)
+        <input data-control-center-templates-target="fTags"
+               class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+      </label>
+      <label class="text-sm sm:col-span-2">Description
+        <input data-control-center-templates-target="fDescription"
+               class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+      </label>
+    </div>
+
+    <div class="mt-3">
+      <div class="mb-1 flex items-center justify-between">
+        <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Commands</span>
+        <button type="button" data-action="control-center-templates#addCommand"
+                class="text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white">Add command</button>
+      </div>
+      <div data-control-center-templates-target="commands" class="space-y-2"></div>
+    </div>
+
+    <%# Row template cloned by addCommand(). args are whitespace-separated tokens
+        (the validator forbids spaces inside an arg, so this is lossless). %>
+    <template data-control-center-templates-target="commandRow">
+      <div class="flex flex-wrap items-center gap-2" data-row>
+        <input placeholder="command" data-field="command" data-action="input->control-center-templates#validate"
+               class="w-32 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <input placeholder="args (space-separated)" data-field="args" data-action="input->control-center-templates#validate"
+               class="min-w-[12rem] flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <select data-field="operator" data-action="change->control-center-templates#validate"
+                class="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <option value="">(none)</option>
+          <option value="|">|</option>
+          <option value="&&">&amp;&amp;</option>
+          <option value="||">||</option>
+        </select>
+        <button type="button" data-action="control-center-templates#removeCommand"
+                class="rounded p-1 text-zinc-400 hover:text-rose-600" aria-label="Remove command">
+          <%= heroicon "trash", classes: "h-4 w-4" %>
+        </button>
+      </div>
+    </template>
+
+    <ul data-control-center-templates-target="errors" class="mt-3 hidden list-disc space-y-1 rounded-md bg-rose-50 px-5 py-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"></ul>
+
+    <div class="mt-4 flex items-center gap-2">
+      <button type="button" data-control-center-templates-target="save" data-action="control-center-templates#save"
+              class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-40 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
+        <%= heroicon "check", classes: "h-4 w-4" %> Save
+      </button>
+      <button type="button" data-action="control-center-templates#closeEditor"
+              class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">Cancel</button>
+    </div>
+  </div>
+
+  <%# --- send-job dialog (hidden until Send) --- %>
+  <div data-control-center-templates-target="sendDialog"
+       class="mt-4 hidden rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
+    <p class="text-sm font-medium text-zinc-800 dark:text-zinc-100">Send job:
+      <span data-control-center-templates-target="sendName" class="font-mono"></span></p>
+    <div class="mt-3 grid gap-3 sm:grid-cols-3">
+      <label class="text-sm sm:col-span-3">Targets (one per line)
+        <textarea rows="4" data-control-center-templates-target="sendTargets"
+                  class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"></textarea>
+      </label>
+      <label class="text-sm">Queue
+        <input value="test" data-control-center-templates-target="sendQueue"
+               class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+      </label>
+      <label class="text-sm">Target chunk
+        <input type="number" value="0" min="0" data-control-center-templates-target="sendChunk"
+               class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+      </label>
+      <label class="text-sm">Delay (s)
+        <input type="number" value="0" min="0" data-control-center-templates-target="sendDelay"
+               class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+      </label>
+    </div>
+    <pre data-control-center-templates-target="sendResult" class="mt-3 hidden max-h-48 overflow-auto rounded-md bg-zinc-950 p-3 font-mono text-xs text-zinc-100"></pre>
+    <div class="mt-4 flex items-center gap-2">
+      <button type="button" data-action="control-center-templates#submitJob"
+              class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
+        <%= heroicon "play", classes: "h-4 w-4" %> Send
+      </button>
+      <button type="button" data-action="control-center-templates#closeSend"
+              class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">Close</button>
+    </div>
+  </div>
 </section>
