@@ -1,0 +1,9 @@
+<%# Titled settings section shell. Used as a render layout:
+    `render layout: "settings/section", locals: { id:, title:, subtitle? } do`. %>
+<section id="<%= id %>" class="scroll-mt-6">
+  <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"><%= title %></h2>
+  <% if local_assigns[:subtitle].present? %>
+    <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400"><%= subtitle %></p>
+  <% end %>
+  <div class="mt-4"><%= yield %></div>
+</section>

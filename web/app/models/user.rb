@@ -5,6 +5,10 @@ class User < ApplicationRecord
   has_many :favorites, dependent: :destroy
   has_many :trashes, dependent: :destroy
   has_many :program_views, dependent: :destroy
+  has_many :scope_runs, dependent: :nullify
+  has_many :program_changes, dependent: :destroy
+  has_one :scope_schedule, dependent: :destroy
+  has_one :monitor_config, dependent: :destroy
 
   normalizes :username, with: ->(u) { u.strip.downcase }
 

@@ -1,0 +1,51 @@
+<%= render layout: "settings/section", locals: { id: "schedule", title: "Fetch schedule",
+      subtitle: "Automatically fetch programs from the enabled platforms on a fixed interval." } do %>
+  <%= form_with model: schedule, url: settings_schedule_path, method: :patch, scope: :scope_schedule,
+        class: "max-w-xl space-y-5 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#111315]" do |f| %>
+
+    <label class="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+      <%= f.check_box :enabled, class: "rounded border-zinc-300 dark:border-zinc-700" %> Enabled
+    </label>
+
+    <div class="flex flex-wrap gap-4">
+      <div class="flex flex-col gap-1">
+        <%= f.label :interval_minutes, "Interval (minutes)", class: "text-xs font-medium text-zinc-600 dark:text-zinc-400" %>
+        <%= f.number_field :interval_minutes, min: ScopeSchedule::MIN_INTERVAL, max: ScopeSchedule::MAX_INTERVAL,
+              class: "w-40 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" %>
+        <span class="text-[11px] text-zinc-400">Between <%= ScopeSchedule::MIN_INTERVAL %> and <%= ScopeSchedule::MAX_INTERVAL %>.</span>
+      </div>
+      <div class="flex flex-col gap-1">
+        <%= f.label :mode, class: "text-xs font-medium text-zinc-600 dark:text-zinc-400" %>
+        <%= f.select :mode, ScopeSchedule::MODES.map { |m| [m.humanize, m] }, {},
+              class: "w-40 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" %>
+      </div>
+    </div>
+
+    <div class="flex gap-6">
+      <label class="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300"><%= f.check_box :bug_bounty, class: "rounded border-zinc-300 dark:border-zinc-700" %> Bug bounty</label>
+      <label class="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300"><%= f.check_box :vdp, class: "rounded border-zinc-300 dark:border-zinc-700" %> VDP</label>
+    </div>
+
+    <fieldset>
+      <legend class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Platforms</legend>
+      <input type="hidden" name="scope_schedule[platforms][]" value="">
+      <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+        <% ScopePlatforms::ALL.each do |platform| %>
+          <label class="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <%= check_box_tag "scope_schedule[platforms][]", platform, schedule.enabled_platforms.include?(platform),
+                  class: "rounded border-zinc-300 dark:border-zinc-700" %>
+            <%= platform.humanize %>
+          </label>
+        <% end %>
+      </div>
+    </fieldset>
+
+    <p class="text-xs text-zinc-400 dark:text-zinc-500">
+      Last run: <%= schedule.last_run_at ? "#{time_ago_in_words(schedule.last_run_at)} ago" : "never" %> ·
+      Next run: <%= schedule.next_run_at ? l(schedule.next_run_at, format: :short) : "—" %>
+    </p>
+
+    <%= f.submit "Save schedule",
+          class: "inline-flex items-center rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200" %>
+  <% end %>
+<% end %>
