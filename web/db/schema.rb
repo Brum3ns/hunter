@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_09_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_10_000006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -26,6 +26,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_000003) do
     t.index ["user_id"], name: "index_api_tokens_on_user_id"
   end
 
+  create_table "control_center_jobs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "created_by"
+    t.integer "exit_status"
+    t.string "queue_name", default: "test", null: false
+    t.string "status", default: "pending", null: false
+    t.text "stderr"
+    t.text "stdout"
+    t.integer "target_count", default: 0, null: false
+    t.string "template_name", null: false
+    t.jsonb "template_snapshot", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_control_center_jobs_on_created_at"
+  end
+
+  create_table "control_center_templates", force: :cascade do |t|
+    t.jsonb "commands", default: [], null: false
+    t.datetime "created_at", null: false
+    t.string "created_by"
+    t.text "description", default: "", null: false
+    t.string "kind", default: "cmdscript", null: false
+    t.string "name", null: false
+    t.string "output"
+    t.jsonb "tags", default: [], null: false
+    t.jsonb "target"
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_control_center_templates_on_name", unique: true
+  end
+
   create_table "favorites", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "program_sid", null: false
@@ -33,6 +62,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_000003) do
     t.bigint "user_id", null: false
     t.index ["user_id", "program_sid"], name: "index_favorites_on_user_id_and_program_sid", unique: true
     t.index ["user_id"], name: "index_favorites_on_user_id"
+  end
+
+  create_table "monitor_configs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: false, null: false
+    t.integer "interval_seconds", default: 300, null: false
+    t.datetime "last_tick_at"
+    t.datetime "next_tick_at"
+    t.jsonb "platforms", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id"], name: "index_monitor_configs_on_user_id", unique: true
+  end
+
+  create_table "program_changes", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "detected_at", null: false
+    t.string "kind", null: false
+    t.jsonb "new_value"
+    t.jsonb "old_value"
+    t.string "platform"
+    t.string "program_name"
+    t.string "program_sid"
+    t.bigint "scope_run_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["scope_run_id"], name: "index_program_changes_on_scope_run_id"
+    t.index ["user_id", "detected_at"], name: "index_program_changes_on_user_id_and_detected_at"
+    t.index ["user_id", "platform"], name: "index_program_changes_on_user_id_and_platform"
+    t.index ["user_id"], name: "index_program_changes_on_user_id"
   end
 
   create_table "program_views", force: :cascade do |t|
@@ -80,6 +139,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_000003) do
     t.index ["token_digest"], name: "index_runners_on_token_digest", unique: true
   end
 
+  create_table "scope_runs", force: :cascade do |t|
+    t.boolean "bug_bounty", default: false, null: false
+    t.datetime "created_at", null: false
+    t.integer "duration_ms"
+    t.string "error_class"
+    t.integer "exit_status"
+    t.datetime "finished_at"
+    t.string "kind", null: false
+    t.string "mode"
+    t.string "platform"
+    t.jsonb "programs", default: [], null: false
+    t.datetime "started_at"
+    t.text "stderr_excerpt"
+    t.integer "stdout_bytes"
+    t.text "stdout_excerpt"
+    t.boolean "success"
+    t.string "trigger", default: "manual", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.boolean "vdp", default: false, null: false
+    t.index ["kind", "platform"], name: "index_scope_runs_on_kind_and_platform"
+    t.index ["started_at"], name: "index_scope_runs_on_started_at"
+    t.index ["user_id"], name: "index_scope_runs_on_user_id"
+  end
+
+  create_table "scope_schedules", force: :cascade do |t|
+    t.boolean "bug_bounty", default: false, null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: false, null: false
+    t.integer "interval_minutes", default: 60, null: false
+    t.datetime "last_run_at"
+    t.string "mode", default: "all", null: false
+    t.datetime "next_run_at"
+    t.jsonb "platforms", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.boolean "vdp", default: false, null: false
+    t.index ["user_id"], name: "index_scope_schedules_on_user_id", unique: true
+  end
+
   create_table "sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "ip_address"
@@ -108,9 +207,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_000003) do
 
   add_foreign_key "api_tokens", "users"
   add_foreign_key "favorites", "users"
+  add_foreign_key "monitor_configs", "users"
+  add_foreign_key "program_changes", "scope_runs"
+  add_foreign_key "program_changes", "users"
   add_foreign_key "program_views", "users"
   add_foreign_key "runner_jobs", "runners"
   add_foreign_key "runner_jobs", "users", column: "requested_by_id"
+  add_foreign_key "scope_runs", "users"
+  add_foreign_key "scope_schedules", "users"
   add_foreign_key "sessions", "users"
   add_foreign_key "trashes", "users"
 end

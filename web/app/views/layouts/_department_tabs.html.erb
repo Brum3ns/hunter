@@ -1,0 +1,20 @@
+<%# Shared sub-navigation for a Hunter web "department". Driven by the
+    controller's TABS (exposed as department_tabs by the Department concern), so
+    adding a tab is a one-line change there. Underline style; the active tab is
+    resolved from the current path. Renders nothing when a department declares
+    no tabs. Optional local: `label` for the nav's aria-label. %>
+<% if department_tabs.any? %>
+  <nav class="mt-4 flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800"
+       aria-label="<%= local_assigns.fetch(:label, "Sections") %>">
+    <% department_tabs.each do |tab| %>
+      <% href = send(tab[:path]) %>
+      <% active = current_page?(href) %>
+      <%= link_to tab[:name], href,
+            "aria-current": (active ? "page" : nil),
+            class: "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors #{
+              active ?
+                'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' :
+                'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:text-zinc-200'}" %>
+    <% end %>
+  </nav>
+<% end %>

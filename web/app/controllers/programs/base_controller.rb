@@ -5,8 +5,13 @@ module Programs
   class BaseController < ApplicationController
     include Department
 
+    # Platforms the Scope tooling fetches from (single source: ScopePlatforms).
+    PLATFORMS = ScopePlatforms::ALL
+
     TABS = [
-      { name: "Programs", path: :programs_root_path }
+      { name: "Programs", path: :programs_root_path },
+      { name: "Monitor",  path: :programs_monitor_path },
+      { name: "Logs",     path: :programs_logs_path }
     ].freeze
   end
 end
