@@ -49,6 +49,34 @@ module VulnerabilitiesHelper
     STATUS_CLASSES.fetch(display_status(status), STATUS_CLASSES["new"])
   end
 
+  # Solid chart hues for the Statistics tab, applied via `bg-current` (bars,
+  # legend swatches) or `stroke="currentColor"` (donut). Distinct from the badge
+  # ramps above: a chart wants one saturated fill per bucket, not a tinted pill.
+  # Tailwind v4 auto-scans this .rb, so these literal classes survive purging.
+  SEVERITY_CHART_COLORS = {
+    "critical" => "text-red-500",
+    "high"     => "text-orange-500",
+    "medium"   => "text-amber-500",
+    "low"      => "text-blue-500",
+    "info"     => "text-zinc-400"
+  }.freeze
+
+  def severity_chart_color(severity)
+    SEVERITY_CHART_COLORS.fetch(severity.to_s.downcase, "text-zinc-400")
+  end
+
+  STATUS_CHART_COLORS = {
+    "new"            => "text-sky-500",
+    "triage"         => "text-amber-500",
+    "reported"       => "text-emerald-500",
+    "close"          => "text-zinc-400",
+    "false_positive" => "text-rose-500"
+  }.freeze
+
+  def status_chart_color(status)
+    STATUS_CHART_COLORS.fetch(display_status(status), "text-zinc-400")
+  end
+
   # Facet dimensions that render as multi-select checkbox groups, in order.
   FACET_DIMENSIONS = %w[severity status tool type program].freeze
 

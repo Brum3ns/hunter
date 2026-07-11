@@ -1,0 +1,91 @@
+<% content_for :title, "hunter — Vulnerability statistics" %>
+<% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
+
+<header class="flex items-center gap-3">
+  <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Vulnerabilities</h1>
+  <span class="rounded border border-zinc-300 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">beta</span>
+</header>
+<p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Aggregate statistics across all findings.</p>
+
+<%= render "layouts/department_tabs", label: "Vulnerabilities sections" %>
+
+<%
+  severity_counts = @stats[:severity].to_h { |bucket| [bucket[:key], bucket[:count]] }
+  critical_high = severity_counts["critical"].to_i + severity_counts["high"].to_i
+%>
+
+<%# ---- headline metrics -------------------------------------------------- %>
+<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+  <%= render "vulnerabilities/overview/stat_card", label: "Total findings", value: @stats[:total] %>
+  <%= render "vulnerabilities/overview/stat_card", label: "New this week", value: @stats[:new_7d] %>
+  <%= render "vulnerabilities/overview/stat_card", label: "New this month", value: @stats[:new_30d] %>
+  <%= render "vulnerabilities/overview/stat_card", label: "Critical & high", value: critical_high %>
+  <%= render "vulnerabilities/overview/stat_card", label: "Reported", value: @stats[:summary][:reported] %>
+</div>
+
+<%# ---- severity + status ------------------------------------------------- %>
+<div class="mt-4 grid gap-4 lg:grid-cols-2">
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "By severity", subtitle: "Share of all findings" } do %>
+    <%= render "vulnerabilities/statistics/donut",
+          total: @stats[:total],
+          segments: donut_segments(@stats[:severity].map { |bucket|
+            { label: bucket[:label], count: bucket[:count], color: severity_chart_color(bucket[:key]) } }) %>
+  <% end %>
+
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "By status", subtitle: "Workflow stage" } do %>
+    <%= render "vulnerabilities/statistics/bar_list",
+          rows: @stats[:status].map { |bucket|
+            { label: bucket[:label], count: bucket[:count], color: status_chart_color(bucket[:key]) } } %>
+  <% end %>
+</div>
+
+<%# ---- new findings over time -------------------------------------------- %>
+<div class="mt-4 grid gap-4 lg:grid-cols-3">
+  <div class="lg:col-span-2">
+    <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "Findings over time", subtitle: "Last 12 months" } do %>
+      <%= render "vulnerabilities/statistics/timeline", series: @stats[:timeline] %>
+    <% end %>
+  </div>
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "New findings", subtitle: "Last 30 days" } do %>
+    <%= render "vulnerabilities/statistics/daily", series: @stats[:daily] %>
+  <% end %>
+</div>
+
+<%# ---- kind of vulnerability --------------------------------------------- %>
+<div class="mt-4 grid gap-4 lg:grid-cols-3">
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "Top types", subtitle: "finding.type" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:types] %>
+  <% end %>
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "Top CWEs", subtitle: "finding.cwe" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:cwes] %>
+  <% end %>
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "Top tags", subtitle: "finding.tags" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:tags] %>
+  <% end %>
+</div>
+
+<%# ---- where the findings live ------------------------------------------- %>
+<div class="mt-4 grid gap-4 lg:grid-cols-3">
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "Top tools", subtitle: "metadata.tool" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:tools] %>
+  <% end %>
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "Top hosts", subtitle: "target.host" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:hosts] %>
+  <% end %>
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "Top programs", subtitle: "metadata.program" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:programs] %>
+  <% end %>
+</div>
+
+<%# ---- request + triage detail ------------------------------------------- %>
+<div class="mt-4 grid gap-4 lg:grid-cols-3">
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "HTTP methods", subtitle: "target.method" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:methods] %>
+  <% end %>
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "PoC confidence", subtitle: "poc.confidence" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:confidence] %>
+  <% end %>
+  <%= render layout: "vulnerabilities/statistics/panel", locals: { title: "Submission", subtitle: "report.submitted" } do %>
+    <%= render "vulnerabilities/statistics/bar_list", rows: @stats[:submitted] %>
+  <% end %>
+</div>

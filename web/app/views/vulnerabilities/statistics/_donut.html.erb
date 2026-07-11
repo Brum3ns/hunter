@@ -1,0 +1,36 @@
+<%# Donut chart + legend. locals: `segments` (from donut_segments) and `total`
+    (shown in the hole). Each segment carries a Tailwind text-* color class that
+    both the arc (stroke=currentColor) and the legend swatch (bg-current) read. %>
+<% if segments.blank? %>
+  <%= render "vulnerabilities/statistics/empty", message: "No findings yet." %>
+<% else %>
+  <div class="flex flex-col items-center gap-6 sm:flex-row">
+    <div class="relative h-36 w-36 shrink-0">
+      <svg viewBox="0 0 42 42" class="h-full w-full" aria-hidden="true">
+        <circle cx="21" cy="21" r="15.915" fill="none" stroke="currentColor" stroke-width="4"
+                class="text-zinc-100 dark:text-zinc-800"></circle>
+        <% segments.each do |segment| %>
+          <circle cx="21" cy="21" r="15.915" fill="none" stroke="currentColor" stroke-width="4"
+                  stroke-dasharray="<%= segment[:dasharray] %>"
+                  stroke-dashoffset="<%= segment[:dashoffset] %>"
+                  class="<%= segment[:color] %>"></circle>
+        <% end %>
+      </svg>
+      <div class="absolute inset-0 flex flex-col items-center justify-center">
+        <span class="text-2xl font-semibold text-zinc-900 dark:text-zinc-100"><%= number_with_delimiter(total) %></span>
+        <span class="text-[10px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Total</span>
+      </div>
+    </div>
+
+    <ul class="w-full flex-1 space-y-1.5">
+      <% segments.each do |segment| %>
+        <li class="flex items-center gap-2 text-sm">
+          <span class="h-2.5 w-2.5 shrink-0 rounded-sm bg-current <%= segment[:color] %>"></span>
+          <span class="text-zinc-600 dark:text-zinc-300"><%= segment[:label] %></span>
+          <span class="ml-auto font-medium tabular-nums text-zinc-900 dark:text-zinc-100"><%= number_with_delimiter(segment[:count]) %></span>
+          <span class="w-10 text-right text-xs tabular-nums text-zinc-400 dark:text-zinc-500"><%= segment[:percent].round %>%</span>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>

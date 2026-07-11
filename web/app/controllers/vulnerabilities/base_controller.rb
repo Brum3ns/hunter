@@ -5,7 +5,8 @@ module Vulnerabilities
     include Department
 
     TABS = [
-      { name: "Vulnerabilities", path: :vulnerabilities_root_path }
+      { name: "Vulnerabilities", path: :vulnerabilities_root_path },
+      { name: "Statistics", path: :vulnerabilities_statistics_path }
     ].freeze
   end
 end

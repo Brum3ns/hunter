@@ -1,0 +1,20 @@
+<%# Compact daily column chart for the trailing 30 days. locals: `series`
+    [{ label:, count: }] chronological. Thin bars, per-day tooltip, endpoints
+    labelled — a denser companion to the monthly chart. %>
+<% max = series.map { |p| p[:count] }.max || 0 %>
+<% if max.zero? %>
+  <%= render "vulnerabilities/statistics/empty", message: "No dated findings in the last 30 days." %>
+<% else %>
+  <div class="flex items-end gap-px" style="height: 96px">
+    <% series.each do |point| %>
+      <% height = point[:count].positive? ? [(point[:count].to_f / max * 84).round, 3].max : 1 %>
+      <div class="flex-1 rounded-sm bg-current text-zinc-300 transition-colors hover:text-zinc-900 dark:text-zinc-600 dark:hover:text-white"
+           style="height: <%= height %>px"
+           title="<%= point[:count] %> on <%= point[:label] %>"></div>
+    <% end %>
+  </div>
+  <div class="mt-2 flex justify-between text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+    <span><%= series.first[:label] %></span>
+    <span>Today</span>
+  </div>
+<% end %>

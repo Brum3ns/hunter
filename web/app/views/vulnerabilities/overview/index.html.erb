@@ -7,6 +7,8 @@
 </header>
 <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Findings across all programs.</p>
 
+<%= render "layouts/department_tabs", label: "Vulnerabilities sections" %>
+
 <%= render "vulnerabilities/overview/stat_cards", stats: @stats %>
 
 <%# The sidebar and search bar are separate GET forms (the findings table must
