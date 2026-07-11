@@ -1,0 +1,53 @@
+name: Build and push images
+
+on:
+  push:
+    branches: [main]
+
+env:
+  # Override per-instance by setting a repo/org variable named REGISTRY_HOST.
+  REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
+  WEB_IMAGE: ${{ gitea.repository }}-web
+  RUNNER_IMAGE: ${{ gitea.repository }}-runner
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."${{ vars.REGISTRY_HOST }}"]
+              http = true
+
+      - name: Write registry auth (HTTP registry, bypass docker login HTTPS probe)
+        env:
+          REGISTRY_USER: gadmin
+          REGISTRY_PASS: ${{ secrets.REGISTRY_TOKEN }}
+          REGISTRY_HOST: ${{ env.REGISTRY_HOST }}
+        run: |
+          mkdir -p ~/.docker
+          AUTH=$(printf '%s:%s' "$REGISTRY_USER" "$REGISTRY_PASS" | base64 -w0)
+          printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$REGISTRY_HOST" "$AUTH" > ~/.docker/config.json
+
+      - name: Build and push web
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_HOST }}/${{ env.WEB_IMAGE }}:latest
+            ${{ env.REGISTRY_HOST }}/${{ env.WEB_IMAGE }}:${{ gitea.sha }}
+
+      - name: Build and push runner
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: runner/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_HOST }}/${{ env.RUNNER_IMAGE }}:latest
+            ${{ env.REGISTRY_HOST }}/${{ env.RUNNER_IMAGE }}:${{ gitea.sha }}
