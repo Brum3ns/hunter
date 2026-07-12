@@ -98,8 +98,9 @@
                 class="text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white">Add command</button>
       </div>
       <p class="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-        Commands run without a shell (argv), so don't wrap args in quotes — enter each token separately
-        (<code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">-u __TARGET_FILE__ -t 2</code>). Any command is
+        Args are split on spaces into argv tokens; quote a value to keep its spaces in one token
+        (<code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">-u __TARGET_FILE__ -H 'X-Api: a b'</code>).
+        Each flag and its values are grouped in the rendered YAML. Any command is
         allowed. Placeholders the worker substitutes at run time:
         <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">__TARGET_FILE__</code> (the target file path),
         <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">__TARGET_STDIN__</code>,
@@ -108,8 +109,9 @@
       <div data-control-center-templates-target="commands" class="space-y-2"></div>
     </div>
 
-    <%# Row template cloned by addCommand(). args are whitespace-separated tokens;
-        each becomes one argv element (no shell), so spaces separate tokens. %>
+    <%# Row template cloned by addCommand(). args are whitespace-separated tokens
+        (single/double quotes group a value with spaces); each becomes one argv
+        element (no shell). See splitArgs in the Stimulus controller. %>
     <template data-control-center-templates-target="commandRow">
       <div class="flex flex-wrap items-center gap-2" data-row>
         <input placeholder="command" data-field="command" data-action="input->control-center-templates#validateDebounced"

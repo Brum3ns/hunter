@@ -33,6 +33,28 @@ class ControlCenter::TemplateYamlTest < ActiveSupport::TestCase
     assert_equal "file", attrs["target"]["type"]
   end
 
+  test "flattens grouped (nested) args into a flat argv list" do
+    attrs, errors = Y.parse(<<~YAML)
+      name: probe
+      commands:
+        - command: httpx
+          args:
+            - ['-u', 'https://ginandjuice.shop/']
+            - ['-t', '10']
+            - ['-H', 'X-One: 1', 'X-Twi: 2']
+    YAML
+    assert_empty errors
+    assert_equal(
+      ["-u", "https://ginandjuice.shop/", "-t", "10", "-H", "X-One: 1", "X-Twi: 2"],
+      attrs["commands"][0]["args"]
+    )
+  end
+
+  test "rejects a mapping inside args" do
+    _attrs, errors = Y.parse("name: x\ncommands:\n  - command: httpx\n    args:\n      - {a: 1}\n")
+    assert(errors.any? { |e| e.include?("args must be a list of strings or string groups") })
+  end
+
   test "rejects a non-mapping root" do
     attrs, errors = Y.parse("- a\n- b")
     assert_nil attrs
