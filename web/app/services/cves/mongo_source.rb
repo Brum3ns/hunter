@@ -52,11 +52,20 @@ module Cves
       nil
     end
 
-    def new_since(since: nil, limit: 50)
+    def new_since(since: nil, since_id: nil, limit: 50)
       ensure_indexes!
-      filter = {}
-      filter["first_seen_at"] = { "$gt" => since } if since
-      collection.find(filter).sort("first_seen_at" => 1).limit(limit)
+      filter =
+        if since && since_id
+          { "$or" => [
+              { "first_seen_at" => { "$gt" => since } },
+              { "first_seen_at" => since, "id" => { "$gt" => since_id } }
+            ] }
+        elsif since
+          { "first_seen_at" => { "$gt" => since } }
+        else
+          {}
+        end
+      collection.find(filter).sort("first_seen_at" => 1, "id" => 1).limit(limit)
                 .to_a.map { |doc| normalize(doc) }
     rescue Mongo::Error => e
       Rails.logger.warn("Cves::MongoSource#new_since failed (#{e.class}: #{e.message})")
