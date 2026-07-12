@@ -63,7 +63,10 @@ Rails.application.routes.draw do
       # Control Center module: Whiterabbit template CRUD + job submission.
       namespace :control_center do
         resources :templates, only: %i[index show create update destroy] do
-          collection { post :validate }
+          collection do
+            post :validate
+            post :validate_yaml
+          end
         end
         resources :jobs, only: %i[index show create]
         resource :health, only: :show, controller: "health"
