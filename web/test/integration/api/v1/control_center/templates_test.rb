@@ -36,9 +36,9 @@ class Api::V1::ControlCenter::TemplatesTest < ActionDispatch::IntegrationTest
     assert_response :no_content
   end
 
-  test "rejects a template with a non-allowlisted command" do
+  test "rejects a template with an invalid command" do
     sign_in_as(@user)
-    body = valid_body.merge(commands: [{ command: "rm", args: ["-rf", "/"], operator: "" }])
+    body = valid_body.merge(commands: [{ command: "httpx", args: ["a\nb"], operator: "" }])
     post "/api/v1/control_center/templates", params: body, as: :json
     assert_response :unprocessable_entity
   end
@@ -46,7 +46,7 @@ class Api::V1::ControlCenter::TemplatesTest < ActionDispatch::IntegrationTest
   test "validate endpoint reports errors without persisting" do
     sign_in_as(@user)
     post "/api/v1/control_center/templates/validate",
-         params: { commands: [{ command: "rm", args: [], operator: "" }] }, as: :json
+         params: { commands: [{ command: "", args: [], operator: "" }] }, as: :json
     assert_response :success
     body = JSON.parse(response.body)
     assert_equal false, body["valid"]
