@@ -30,15 +30,17 @@ module Api
         render json: Cve.new(doc).as_json
       end
 
-      # GET /api/v1/cves/new?since=<ISO-8601>&limit=<n>
+      # GET /api/v1/cves/new?since=<ISO-8601>&since_id=<id>&limit=<n>
       def new
-        since = parse_since(params[:since])
-        limit = clamped_limit
-        docs  = Cves::MongoSource.new_since(since: since, limit: limit)
+        since    = parse_since(params[:since])
+        since_id = params[:since_id].presence
+        limit    = clamped_limit
+        docs     = Cves::MongoSource.new_since(since: since, since_id: since_id, limit: limit)
         render json: {
           limit: limit,
           cves: docs.map { |doc| Cve.new(doc).as_json },
-          next_since: docs.last && docs.last["first_seen_at"]
+          next_since: docs.last && docs.last["first_seen_at"],
+          next_since_id: docs.last && docs.last["id"]
         }
       end
 

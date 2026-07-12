@@ -127,8 +127,63 @@ class Cves::MongoSourceTest < ActiveSupport::TestCase
     with_collection(collection) do
       Cves::MongoSource.new_since(since: t, limit: 5)
       assert_equal({ "first_seen_at" => { "$gt" => t } }, collection.last_filter)
-      assert_equal({ "first_seen_at" => 1 }, collection.query.last_sort)
+      assert_equal({ "first_seen_at" => 1, "id" => 1 }, collection.query.last_sort)
       assert_equal 5, collection.query.last_limit
+    end
+  end
+
+  test "new_since sorts by (first_seen_at, id) even without a cursor" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.new_since(limit: 5)
+      assert_equal({}, collection.last_filter)
+      assert_equal({ "first_seen_at" => 1, "id" => 1 }, collection.query.last_sort)
+    end
+  end
+
+  test "new_since with since and since_id builds the $or keyset filter" do
+    t = Time.utc(2026, 7, 1)
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.new_since(since: t, since_id: "CVE-A", limit: 5)
+      assert_equal(
+        { "$or" => [
+            { "first_seen_at" => { "$gt" => t } },
+            { "first_seen_at" => t, "id" => { "$gt" => "CVE-A" } }
+          ] },
+        collection.last_filter
+      )
+    end
+  end
+
+  test "new_since with since only (no since_id) uses a plain $gt filter" do
+    t = Time.utc(2026, 7, 1)
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.new_since(since: t, limit: 5)
+      assert_equal({ "first_seen_at" => { "$gt" => t } }, collection.last_filter)
+    end
+  end
+
+  test "new_since keyset is lossless across a same-millisecond group" do
+    t = Time.utc(2026, 7, 1, 0, 0, 0, 500_000)
+    docs = [
+      { "id" => "CVE-A", "first_seen_at" => t },
+      { "id" => "CVE-B", "first_seen_at" => t },
+      { "id" => "CVE-C", "first_seen_at" => t }
+    ]
+    collection = FakeCollection.new(docs)
+    with_collection(collection) do
+      # A cursor positioned right after CVE-A (same first_seen_at) must still
+      # surface CVE-B and CVE-C via the $or second branch (id > "CVE-A").
+      Cves::MongoSource.new_since(since: t, since_id: "CVE-A", limit: 5)
+      or_clauses = collection.last_filter["$or"]
+      tie_break = or_clauses.find { |clause| clause.key?("id") }
+      assert_equal({ "first_seen_at" => t, "id" => { "$gt" => "CVE-A" } }, tie_break)
+      # "CVE-B" and "CVE-C" both sort after "CVE-A" lexically, so the $gt
+      # comparison the driver would perform on `id` includes both.
+      assert_operator "CVE-B", :>, "CVE-A"
+      assert_operator "CVE-C", :>, "CVE-A"
     end
   end
 

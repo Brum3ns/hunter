@@ -56,13 +56,13 @@ class Api::V1::CvesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "new feed parses since, returns records and a next_since cursor" do
+  test "new feed parses since, returns records and next_since/next_since_id cursors" do
     sign_in_as(@user)
     t1 = "2026-07-10T00:00:00Z"
     t2 = "2026-07-11T00:00:00Z"
     captured = nil
-    capture = ->(since:, limit:) {
-      captured = { since:, limit: }
+    capture = ->(since:, since_id:, limit:) {
+      captured = { since:, since_id:, limit: }
       [{ "id" => "CVE-A", "first_seen_at" => t1 }, { "id" => "CVE-B", "first_seen_at" => t2 }]
     }
     stub_methods(Source, new_since: capture) do
@@ -71,6 +71,7 @@ class Api::V1::CvesTest < ActionDispatch::IntegrationTest
       body = JSON.parse(response.body)
       assert_equal %w[CVE-A CVE-B], body["cves"].map { |c| c["id"] }
       assert_equal t2, body["next_since"]
+      assert_equal "CVE-B", body["next_since_id"]
     end
     assert_equal Time.iso8601("2026-07-09T00:00:00Z"), captured[:since]
     assert_equal 10, captured[:limit]
@@ -79,12 +80,28 @@ class Api::V1::CvesTest < ActionDispatch::IntegrationTest
   test "new feed tolerates a missing/blank since" do
     sign_in_as(@user)
     captured = nil
-    capture = ->(since:, limit:) { captured = { since:, limit: }; [] }
+    capture = ->(since:, since_id:, limit:) { captured = { since:, since_id:, limit: }; [] }
     stub_methods(Source, new_since: capture) do
       get "/api/v1/cves/new"
       assert_response :success
-      assert_nil JSON.parse(response.body)["next_since"]
+      body = JSON.parse(response.body)
+      assert_nil body["next_since"]
+      assert_nil body["next_since_id"]
     end
     assert_nil captured[:since]
+    assert_nil captured[:since_id]
+  end
+
+  test "new feed passes since and since_id through to new_since" do
+    sign_in_as(@user)
+    captured = nil
+    capture = ->(since:, since_id:, limit:) { captured = { since:, since_id:, limit: }; [] }
+    stub_methods(Source, new_since: capture) do
+      get "/api/v1/cves/new", params: { since: "2026-07-09T00:00:00Z", since_id: "CVE-A", limit: "5" }
+      assert_response :success
+    end
+    assert_equal Time.iso8601("2026-07-09T00:00:00Z"), captured[:since]
+    assert_equal "CVE-A", captured[:since_id]
+    assert_equal 5, captured[:limit]
   end
 end
