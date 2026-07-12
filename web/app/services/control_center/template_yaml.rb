@@ -114,17 +114,32 @@ module ControlCenter
         errors << "commands[#{i}].command must be a string"
         name = ""
       end
-      args = c.fetch("args", [])
-      unless args.is_a?(Array)
-        errors << "commands[#{i}].args must be a list"
-        args = []
-      end
+      args = flatten_args(c.fetch("args", []), i, errors)
       operator = c.fetch("operator", "")
       unless operator.is_a?(String)
         errors << "commands[#{i}].operator must be a string"
         operator = ""
       end
-      { "command" => name, "args" => args.map(&:to_s), "operator" => operator }
+      { "command" => name, "args" => args, "operator" => operator }
+    end
+
+    # Flatten cmdscript args into a flat [String]. Each element may be a scalar or
+    # a sub-array grouping a flag with its values (see TemplateRenderer); both
+    # flatten to argv "in correct order", mirroring Whiterabbit's makeArguments.
+    def flatten_args(raw, i, errors)
+      unless raw.is_a?(Array)
+        errors << "commands[#{i}].args must be a list"
+        return []
+      end
+      raw.flat_map do |el|
+        case el
+        when Array then el.map(&:to_s)
+        when Hash
+          errors << "commands[#{i}].args must be a list of strings or string groups"
+          []
+        else [el.to_s]
+        end
+      end
     end
 
     def target_field(d, errors)
