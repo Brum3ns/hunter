@@ -11,6 +11,7 @@ module Cves
     INDEXES = [
       { key: { "id": 1 },                 name: "cve_id",       unique: true },
       { key: { "first_seen_at": 1 },      name: "first_seen_at" },
+      { key: { "first_seen_at": 1, "id": 1 }, name: "first_seen_at_id" },
       { key: { "modified": -1 },          name: "modified" },
       { key: { "published": -1 },         name: "published" },
       { key: { "aliases": 1 },            name: "aliases" },
