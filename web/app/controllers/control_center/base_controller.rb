@@ -5,8 +5,9 @@ module ControlCenter
     include Department
 
     TABS = [
-      { name: "Templates", path: :control_center_root_path },
-      { name: "Jobs",      path: :control_center_jobs_path }
+      { name: "Templates",  path: :control_center_root_path },
+      { name: "Jobs",       path: :control_center_jobs_path },
+      { name: "Statistics", path: :control_center_statistics_path }
     ].freeze
   end
 end

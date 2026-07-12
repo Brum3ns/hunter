@@ -41,6 +41,7 @@ Rails.application.routes.draw do
   namespace :control_center do
     get "/",     to: "templates#index", as: :root
     get "/jobs", to: "jobs#index",      as: :jobs
+    get "/statistics", to: "statistics#index", as: :statistics
   end
   get "cves", to: "cves#index"
 
