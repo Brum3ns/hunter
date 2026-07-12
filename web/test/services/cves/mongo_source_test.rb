@@ -12,8 +12,8 @@ class Cves::MongoSourceTest < ActiveSupport::TestCase
   end
 
   class FakeCollection
-    attr_reader :last_filter, :query, :upserts
-    def initialize(docs = []) = (@docs = docs; @upserts = [])
+    attr_reader :last_filter, :query, :upserts, :count_result
+    def initialize(docs = [], count_result: 0) = (@docs = docs; @upserts = []; @count_result = count_result)
     def find(filter = {})
       @last_filter = filter
       @query = FakeQuery.new(@docs)
@@ -21,6 +21,10 @@ class Cves::MongoSourceTest < ActiveSupport::TestCase
     def update_one(filter, update, opts = {})
       @upserts << { filter:, update:, opts: }
       Struct.new(:matched_count).new(0)
+    end
+    def count_documents(filter = {})
+      @last_filter = filter
+      @count_result
     end
   end
 
@@ -64,6 +68,56 @@ class Cves::MongoSourceTest < ActiveSupport::TestCase
     with_collection(collection) do
       Cves::MongoSource.all(filters: { "has_fix" => "true" }, limit: 10)
       assert_equal true, collection.last_filter["has_fix"]
+    end
+  end
+
+  test "has_fix filter keeps a literal boolean false" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.all(filters: { "has_fix" => false }, limit: 10)
+      assert_equal({ "has_fix" => false }, collection.last_filter)
+    end
+  end
+
+  test "has_fix filter casts string false and true" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.all(filters: { "has_fix" => "false" }, limit: 10)
+      assert_equal false, collection.last_filter["has_fix"]
+
+      Cves::MongoSource.all(filters: { "has_fix" => "true" }, limit: 10)
+      assert_equal true, collection.last_filter["has_fix"]
+    end
+  end
+
+  test "published_after and modified_after build $gte filters from ISO-8601 strings" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.all(filters: { "published_after" => "2026-01-01T00:00:00Z" }, limit: 10)
+      assert_equal({ "published" => { "$gte" => Time.iso8601("2026-01-01T00:00:00Z").utc } }, collection.last_filter)
+
+      Cves::MongoSource.all(filters: { "modified_after" => "2026-02-15T12:30:00Z" }, limit: 10)
+      assert_equal({ "modified" => { "$gte" => Time.iso8601("2026-02-15T12:30:00Z").utc } }, collection.last_filter)
+    end
+  end
+
+  test "published_after and modified_after drop unparseable values" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.all(filters: { "published_after" => "not-a-date" }, limit: 10)
+      assert_equal({}, collection.last_filter)
+
+      Cves::MongoSource.all(filters: { "modified_after" => "also-not-a-date" }, limit: 10)
+      assert_equal({}, collection.last_filter)
+    end
+  end
+
+  test "count delegates to count_documents with the built filter" do
+    collection = FakeCollection.new([], count_result: 7)
+    with_collection(collection) do
+      result = Cves::MongoSource.count(filters: { "ecosystem" => "npm" })
+      assert_equal 7, result
+      assert_equal({ "affected.ecosystem" => "npm" }, collection.last_filter)
     end
   end
 
