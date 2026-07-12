@@ -31,4 +31,20 @@ class ChartsHelperTest < ActionView::TestCase
     result = donut_segments([{ label: "a", count: 1, color: "text-red-500" }])
     assert_equal "text-red-500", result[0][:color]
   end
+
+  test "bar_list_rows scales width to the max count" do
+    rows = bar_list_rows([{ label: "a", count: 4 }, { label: "b", count: 1 }])
+    assert_equal 100.0, rows[0][:percent]
+    assert_equal 25.0, rows[1][:percent]
+  end
+
+  test "bar_list_rows handles all-zero without dividing by zero" do
+    assert_equal 0, bar_list_rows([{ label: "a", count: 0 }])[0][:percent]
+  end
+
+  test "daily_bars scales height to the max count" do
+    bars = daily_bars([{ date: "2026-07-01", count: 2 }, { date: "2026-07-02", count: 4 }])
+    assert_equal 50.0, bars[0][:height_pct]
+    assert_equal 100.0, bars[1][:height_pct]
+  end
 end
