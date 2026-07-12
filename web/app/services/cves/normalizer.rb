@@ -65,7 +65,7 @@ module Cves
 
     def cwe_ids(raw, affected_raw:)
       top = Array(raw.dig("database_specific", "cwe_ids"))
-      nested = Array(affected_raw).flat_map { |a| Array(a.to_h.dig("database_specific", "cwe_ids")) }
+      nested = Array(affected_raw).flat_map { |a| Array(a.to_h.transform_keys(&:to_s).dig("database_specific", "cwe_ids")) }
       (top + nested).uniq
     end
     private_class_method :cwe_ids
