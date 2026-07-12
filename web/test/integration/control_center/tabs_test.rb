@@ -57,4 +57,14 @@ class ControlCenter::TabsTest < ActionDispatch::IntegrationTest
                   "[data-control-center-jobs-index-url-value=?]",
                   api_v1_control_center_jobs_path
   end
+
+  test "templates page wires the YAML editor and file upload" do
+    sign_in_as(@user)
+    get control_center_root_path
+    assert_select "section[data-controller~=control-center-templates]" \
+                  "[data-control-center-templates-validate-yaml-url-value=?]",
+                  validate_yaml_api_v1_control_center_templates_path
+    assert_select "textarea[data-control-center-templates-target=yamlText]"
+    assert_select "input[type=file][data-control-center-templates-target=fileInput]"
+  end
 end
