@@ -42,8 +42,10 @@ module Api
         end
 
         def validate
-          errors = ::ControlCenter::TemplateValidator.call(commands_param)
-          render json: { valid: errors.empty?, errors: errors }
+          attrs = template_params
+          errors = ::ControlCenter::TemplateValidator.call(attrs["commands"])
+          yaml = ::ControlCenter::TemplateRenderer.to_yaml(::ControlCenter::Template.new(attrs))
+          render json: { valid: errors.empty?, errors: errors, yaml: yaml }
         end
 
         def validate_yaml
@@ -71,10 +73,6 @@ module Api
                         tags: [],
                         commands: [:command, :operator, { args: [] }],
                         target: [:type, :separator, :output]).to_h
-        end
-
-        def commands_param
-          params.permit(commands: [:command, :operator, { args: [] }]).to_h["commands"]
         end
 
         def serialize(t)
