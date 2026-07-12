@@ -56,6 +56,8 @@
                 class="px-3 py-1 text-sm font-medium bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">Structured</button>
         <button type="button" data-control-center-templates-target="modeYaml" data-action="control-center-templates#showYaml"
                 class="px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800">YAML</button>
+        <button type="button" data-control-center-templates-target="modeSplit" data-action="control-center-templates#showSplit"
+                class="px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800">Split</button>
       </div>
       <label class="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
         Upload .yaml
@@ -64,6 +66,7 @@
       </label>
     </div>
 
+    <div data-control-center-templates-target="splitWrap" class="grid gap-4">
     <div data-control-center-templates-target="structuredPanel">
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="text-sm">Name
@@ -136,14 +139,13 @@
     </div>
 
     <div data-control-center-templates-target="yamlPanel" class="hidden">
-      <textarea data-control-center-templates-target="yamlText" data-action="input->control-center-templates#validateYaml"
-                rows="16" spellcheck="false"
-                class="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
-                placeholder="name: 'test-nuclei-cve'&#10;desc: 'Example of Nuclei scanning for CVEs'&#10;output: '/Data/nuclei-__UUID__.json'&#10;tags:&#10;    - 'active'&#10;    - 'cve'&#10;    - 'scan'&#10;&#10;# target file handling&#10;target:&#10;  type: 'file'&#10;  separator: '\n'&#10;  output: '/Data/nuclei-__UUID__.json'&#10;&#10;commands:&#10;  # Main command&#10;  - command: 'nuclei'&#10;    args:&#10;      - ''&#10;      - ['-tags', 'cve']&#10;      - ['-o', '/Data/nuclei-__UUID__.json']&#10;    operator: '&&'&#10;  &#10;  # Dummy test&#10;  - command: 'echo'&#10;    args:&#10;      - 'done!'"></textarea>
+      <div data-control-center-templates-target="yamlEditor"
+           class="overflow-hidden rounded-md border border-zinc-300 dark:border-zinc-700"></div>
       <div class="mt-2 flex items-center gap-2">
         <span data-control-center-templates-target="yamlValid" class="hidden rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">valid</span>
       </div>
       <ul data-control-center-templates-target="yamlErrors" class="mt-2 hidden list-disc space-y-1 rounded-md bg-rose-50 px-5 py-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"></ul>
+    </div>
     </div>
 
     <div class="mt-4 flex items-center gap-2">
@@ -151,8 +153,14 @@
               class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-40 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
         <%= heroicon "check", classes: "h-4 w-4" %> Save
       </button>
+      <button type="button" data-control-center-templates-target="saveClose" data-action="control-center-templates#saveAndClose"
+              class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-40 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
+        <%= heroicon "check", classes: "h-4 w-4" %> Save &amp; close
+      </button>
       <button type="button" data-action="control-center-templates#closeEditor"
               class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">Cancel</button>
+      <span data-control-center-templates-target="savedFlash"
+            class="hidden rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">Saved</span>
     </div>
   </div>
 

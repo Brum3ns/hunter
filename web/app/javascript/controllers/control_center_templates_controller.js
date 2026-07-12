@@ -1,5 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
 import { apiFetch } from "lib/api_fetch"
+import {
+  EditorView, EditorState, basicSetup, yaml, oneDark,
+  keymap, indentWithTab, placeholder, Compartment,
+} from "codemirror"
 
 // Templates tab: list/create/edit/delete templates and dispatch jobs. All rows
 // and cells are built with createElement/textContent so template-supplied
@@ -7,22 +11,73 @@ import { apiFetch } from "lib/api_fetch"
 export default class extends Controller {
   static values = { indexUrl: String, validateUrl: String, jobsUrl: String, validateYamlUrl: String }
   static targets = [
-    "rows", "empty", "editor", "commands", "commandRow", "errors", "save",
+    "rows", "empty", "editor", "commands", "commandRow", "errors", "save", "saveClose", "savedFlash",
     "fName", "fKind", "fOutput", "fTags", "fDescription",
     "sendDialog", "sendName", "sendTargets", "sendQueue", "sendChunk", "sendDelay", "sendResult",
-    "modeStructured", "modeYaml", "structuredPanel", "yamlPanel", "yamlText", "yamlErrors", "yamlValid", "fileInput",
+    "modeStructured", "modeYaml", "modeSplit", "splitWrap", "structuredPanel", "yamlPanel", "yamlEditor", "yamlErrors", "yamlValid", "fileInput",
   ]
 
   connect() {
     this.editingId = null
     this.sendTemplate = null
     this.mode = "structured"
+    this.lastEdited = "structured"
+    this._syncing = false
+    this._mountEditor()
     this.refresh()
   }
 
   disconnect() {
     clearTimeout(this._valTimer)
     clearTimeout(this._yamlTimer)
+    clearTimeout(this._flashTimer)
+    this._themeObserver?.disconnect()
+    this.editorView?.destroy()
+  }
+
+  // --- CodeMirror YAML editor ----------------------------------------------
+
+  _mountEditor() {
+    this._themeCompartment = new Compartment()
+    this.editorView = new EditorView({
+      parent: this.yamlEditorTarget,
+      state: EditorState.create({
+        doc: "",
+        extensions: [
+          basicSetup, // includes line numbers, history, bracket matching, default keymaps
+          yaml(),
+          keymap.of([indentWithTab]),
+          placeholder("name: 'nuclei-cve'\ncommands:\n  - command: 'nuclei'\n    args:\n      - ['-tags', 'cve']"),
+          this._themeCompartment.of(this._darkMode() ? oneDark : []),
+          EditorView.theme({
+            "&": { fontSize: "0.8125rem" },
+            ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", minHeight: "16rem", maxHeight: "26rem", overflow: "auto" },
+          }),
+          EditorView.updateListener.of((u) => {
+            if (u.docChanged && !this._syncing) { this.lastEdited = "yaml"; this.validateYaml() }
+          }),
+        ],
+      }),
+    })
+    // Follow the app's light/dark toggle (a `.dark` class on <html>).
+    this._themeObserver = new MutationObserver(() => {
+      this.editorView.dispatch({ effects: this._themeCompartment.reconfigure(this._darkMode() ? oneDark : []) })
+    })
+    this._themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+  }
+
+  _darkMode() { return document.documentElement.classList.contains("dark") }
+
+  _yamlValue() { return this.editorView ? this.editorView.state.doc.toString() : "" }
+
+  // Replace the whole document without the change being treated as a user edit
+  // (so structured->YAML sync and programmatic loads don't echo back).
+  _setYamlValue(str) {
+    if (!this.editorView) return
+    const prev = this._syncing
+    this._syncing = true
+    this.editorView.dispatch({ changes: { from: 0, to: this.editorView.state.doc.length, insert: str || "" } })
+    this._syncing = prev
   }
 
   // --- list ----------------------------------------------------------------
@@ -87,8 +142,9 @@ export default class extends Controller {
     this.editorTarget.classList.remove("hidden")
     this.sendDialogTarget.classList.add("hidden")
     this.validate()
-    this.yamlTextTarget.value = ""
-    this.showStructured()
+    this._setYamlValue("")
+    this.lastEdited = "structured"
+    this.applyStoredMode()
   }
 
   openEditor(t) {
@@ -104,33 +160,44 @@ export default class extends Controller {
     this.editorTarget.classList.remove("hidden")
     this.sendDialogTarget.classList.add("hidden")
     this.validate()
-    this.yamlTextTarget.value = t.yaml || ""
-    this.showStructured()
+    this._setYamlValue(t.yaml || "")
+    this.lastEdited = "structured"
+    this.applyStoredMode()
   }
 
   closeEditor() { this.editorTarget.classList.add("hidden") }
 
   // --- editor mode + yaml ---------------------------------------------------
 
-  showStructured() {
-    this.mode = "structured"
-    this.structuredPanelTarget.classList.remove("hidden")
-    this.yamlPanelTarget.classList.add("hidden")
-    this._activate(this.modeStructuredTarget, this.modeYamlTarget)
+  showStructured() { this.mode = "structured"; this._applyMode(); this.validate() }
+  showYaml() { this.mode = "yaml"; this._applyMode(); this.validateYaml() }
+  showSplit() { this.mode = "split"; this._applyMode(); this.validate(); this.validateYaml() }
+
+  applyStoredMode() {
+    const stored = localStorage.getItem("hunter.cc.editorMode")
+    this.mode = ["structured", "yaml", "split"].includes(stored) ? stored : "structured"
+    this._applyMode()
     this.validate()
+    if (this.mode !== "structured") this.validateYaml()
   }
 
-  showYaml() {
-    this.mode = "yaml"
-    this.yamlPanelTarget.classList.remove("hidden")
-    this.structuredPanelTarget.classList.add("hidden")
-    this._activate(this.modeYamlTarget, this.modeStructuredTarget)
-    this.validateYaml()
-  }
-
-  _activate(on, off) {
-    on.classList.add("bg-zinc-900", "text-white", "dark:bg-white", "dark:text-zinc-900")
-    off.classList.remove("bg-zinc-900", "text-white", "dark:bg-white", "dark:text-zinc-900")
+  _applyMode() {
+    const showStruct = this.mode === "structured" || this.mode === "split"
+    const showYaml = this.mode === "yaml" || this.mode === "split"
+    this.structuredPanelTarget.classList.toggle("hidden", !showStruct)
+    this.yamlPanelTarget.classList.toggle("hidden", !showYaml)
+    this.splitWrapTarget.classList.toggle("lg:grid-cols-2", this.mode === "split")
+    const btns = { structured: this.modeStructuredTarget, yaml: this.modeYamlTarget, split: this.modeSplitTarget }
+    Object.entries(btns).forEach(([m, btn]) => {
+      const on = m === this.mode
+      btn.classList.toggle("bg-zinc-900", on)
+      btn.classList.toggle("text-white", on)
+      btn.classList.toggle("dark:bg-white", on)
+      btn.classList.toggle("dark:text-zinc-900", on)
+    })
+    localStorage.setItem("hunter.cc.editorMode", this.mode)
+    // CodeMirror mounts in a hidden container; re-measure once its pane is shown.
+    if (showYaml && this.editorView) this.editorView.requestMeasure()
   }
 
   onFile(event) {
@@ -139,7 +206,8 @@ export default class extends Controller {
     if (file.size > 64000) { window.alert("File is too large (max 64 KB)."); event.target.value = ""; return }
     const reader = new FileReader()
     reader.onload = () => {
-      this.yamlTextTarget.value = String(reader.result || "")
+      this._setYamlValue(String(reader.result || ""))
+      this.lastEdited = "yaml"
       this.showYaml()
     }
     reader.readAsText(file)
@@ -150,12 +218,40 @@ export default class extends Controller {
   validateYaml() { clearTimeout(this._yamlTimer); this._yamlTimer = setTimeout(() => this._doValidateYaml(), 300) }
 
   async _doValidateYaml() {
-    const { ok, data } = await apiFetch(this.validateYamlUrlValue, { method: "POST", body: { yaml: this.yamlTextTarget.value } })
+    if (!this._syncing) this.lastEdited = "yaml"
+    const { ok, data } = await apiFetch(this.validateYamlUrlValue, { method: "POST", body: { yaml: this._yamlValue() } })
     const valid = ok && data && data.valid
     const errors = ok && data ? data.errors : ["validation request failed"]
     this.yamlValidTarget.classList.toggle("hidden", !valid)
     this._renderYamlErrors(valid ? [] : errors)
     this.saveTarget.disabled = !valid
+    this.saveCloseTarget.disabled = !valid
+    // Mirror YAML -> structured while both panes are visible. Only when the YAML
+    // parsed (template present), so an in-progress invalid doc never wipes the form.
+    if (this.mode === "split" && ok && data && data.template && !this._syncing) {
+      this._populateStructured(data.template)
+    }
+  }
+
+  // Fill the structured form from parsed YAML attrs (validate_yaml). Wrapped in
+  // _syncGuard so the input-driven validate() it triggers does not echo back into
+  // the YAML pane the user is typing in.
+  _populateStructured(attrs) {
+    this._syncGuard(() => {
+      this.fNameTarget.value = attrs.name || ""
+      this.fKindTarget.value = attrs.kind || "cmdscript"
+      this.fOutputTarget.value = attrs.output || ""
+      this.fTagsTarget.value = (attrs.tags || []).join(", ")
+      this.fDescriptionTarget.value = attrs.description || ""
+      this.commandsTarget.replaceChildren()
+      ;(attrs.commands || []).forEach((c) => this.addCommand(c))
+      if (!(attrs.commands || []).length) this.addCommand()
+    })
+  }
+
+  _syncGuard(fn) {
+    this._syncing = true
+    try { fn() } finally { this._syncing = false }
   }
 
   _renderYamlErrors(errors) {
@@ -243,14 +339,28 @@ export default class extends Controller {
   }
 
   async validate() {
+    if (!this._syncing) this.lastEdited = "structured"
     const { ok, data } = await apiFetch(this.validateUrlValue, {
       method: "POST",
-      body: { commands: this.collectCommands() },
+      body: {
+        name: this.fNameTarget.value.trim(),
+        kind: this.fKindTarget.value,
+        output: this.fOutputTarget.value.trim(),
+        description: this.fDescriptionTarget.value,
+        tags: this.fTagsTarget.value.split(",").map((s) => s.trim()).filter(Boolean),
+        commands: this.collectCommands(),
+      },
     })
     const errors = ok && data ? data.errors : ["validation request failed"]
     const valid = ok && data && data.valid && this.fNameTarget.value.trim().length > 0
     this.showErrors(valid ? [] : errors)
     this.saveTarget.disabled = !valid
+    this.saveCloseTarget.disabled = !valid
+    // Mirror structured -> YAML when the YAML pane is visible. _setYamlValue marks
+    // the change as programmatic, so the editor's update listener does not echo it.
+    if (this.mode !== "structured" && ok && data && typeof data.yaml === "string" && !this._syncing) {
+      this._setYamlValue(data.yaml)
+    }
   }
 
   showErrors(errors) {
@@ -263,10 +373,14 @@ export default class extends Controller {
     })
   }
 
-  async save() {
+  save() { this._save({ close: false }) }
+  saveAndClose() { this._save({ close: true }) }
+
+  async _save({ close }) {
     let body
-    if (this.mode === "yaml") {
-      body = { yaml: this.yamlTextTarget.value }
+    const source = this.lastEdited === "yaml" ? "yaml" : "structured"
+    if (source === "yaml") {
+      body = { yaml: this._yamlValue() }
     } else {
       body = {
         name: this.fNameTarget.value.trim(),
@@ -281,13 +395,21 @@ export default class extends Controller {
     const method = this.editingId ? "PATCH" : "POST"
     const { ok, data } = await apiFetch(url, { method, body })
     if (ok) {
-      this.closeEditor()
+      if (data && data.id) this.editingId = data.id
       this.refresh()
-    } else if (this.mode === "yaml") {
+      if (close) this.closeEditor()
+      else this._flashSaved()
+    } else if (source === "yaml") {
       this._renderYamlErrors((data && data.detail) || ["save failed"])
     } else {
       this.showErrors((data && data.detail) || ["save failed"])
     }
+  }
+
+  _flashSaved() {
+    this.savedFlashTarget.classList.remove("hidden")
+    clearTimeout(this._flashTimer)
+    this._flashTimer = setTimeout(() => this.savedFlashTarget.classList.add("hidden"), 1500)
   }
 
   async destroy(t) {
