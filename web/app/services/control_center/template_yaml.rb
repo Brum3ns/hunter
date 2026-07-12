@@ -24,7 +24,7 @@ module ControlCenter
         doc = YAML.safe_load(str, permitted_classes: [], permitted_symbols: [], aliases: false)
       rescue Psych::SyntaxError => e
         return [nil, ["YAML syntax error: #{e.message}"]]
-      rescue StandardError => e
+      rescue StandardError, SystemStackError => e
         return [nil, ["disallowed or invalid YAML: #{e.class}"]]
       end
 

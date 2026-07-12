@@ -97,11 +97,19 @@
         <button type="button" data-action="control-center-templates#addCommand"
                 class="text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white">Add command</button>
       </div>
+      <p class="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+        Commands run without a shell (argv), so don't wrap args in quotes — enter each token separately
+        (<code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">-u __TARGET_FILE__ -t 2</code>). Any command is
+        allowed. Placeholders the worker substitutes at run time:
+        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">__TARGET_FILE__</code> (the target file path),
+        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">__TARGET_STDIN__</code>,
+        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">__UUID__</code> — set a <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">target</code> to use the file placeholder.
+      </p>
       <div data-control-center-templates-target="commands" class="space-y-2"></div>
     </div>
 
-    <%# Row template cloned by addCommand(). args are whitespace-separated tokens
-        (the validator forbids spaces inside an arg, so this is lossless). %>
+    <%# Row template cloned by addCommand(). args are whitespace-separated tokens;
+        each becomes one argv element (no shell), so spaces separate tokens. %>
     <template data-control-center-templates-target="commandRow">
       <div class="flex flex-wrap items-center gap-2" data-row>
         <input placeholder="command" data-field="command" data-action="input->control-center-templates#validateDebounced"
@@ -129,7 +137,7 @@
       <textarea data-control-center-templates-target="yamlText" data-action="input->control-center-templates#validateYaml"
                 rows="16" spellcheck="false"
                 class="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
-                placeholder="name: probe&#10;commands:&#10;  - command: httpx&#10;    args: [-silent]"></textarea>
+                placeholder="name: 'test-nuclei-cve'&#10;desc: 'Example of Nuclei scanning for CVEs'&#10;output: '/Data/nuclei-__UUID__.json'&#10;tags:&#10;    - 'active'&#10;    - 'cve'&#10;    - 'scan'&#10;&#10;# target file handling&#10;target:&#10;  type: 'file'&#10;  separator: '\n'&#10;  output: '/Data/nuclei-__UUID__.json'&#10;&#10;commands:&#10;  # Main command&#10;  - command: 'nuclei'&#10;    args:&#10;      - ''&#10;      - ['-tags', 'cve']&#10;      - ['-o', '/Data/nuclei-__UUID__.json']&#10;    operator: '&&'&#10;  &#10;  # Dummy test&#10;  - command: 'echo'&#10;    args:&#10;      - 'done!'"></textarea>
       <div class="mt-2 flex items-center gap-2">
         <span data-control-center-templates-target="yamlValid" class="hidden rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">valid</span>
       </div>

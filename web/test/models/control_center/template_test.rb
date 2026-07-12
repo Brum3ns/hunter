@@ -22,8 +22,8 @@ class ControlCenter::TemplateTest < ActiveSupport::TestCase
   end
 
   test "commands are validated through TemplateValidator" do
-    t = ControlCenter::Template.new(valid_attrs(commands: [{ "command" => "rm", "args" => [], "operator" => "" }]))
+    t = ControlCenter::Template.new(valid_attrs(commands: [{ "command" => "httpx", "args" => ["a\nb"], "operator" => "" }]))
     assert_not t.valid?
-    assert(t.errors[:commands].any? { |m| m.include?("is not allowed") })
+    assert(t.errors[:commands].any? { |m| m.include?("forbidden character") })
   end
 end
