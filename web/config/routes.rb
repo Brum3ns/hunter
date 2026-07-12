@@ -70,6 +70,7 @@ Rails.application.routes.draw do
         end
         resources :jobs, only: %i[index show create]
         resource :health, only: :show, controller: "health"
+        resource :stats, only: :show, controller: "stats"
       end
 
       namespace :runner do
