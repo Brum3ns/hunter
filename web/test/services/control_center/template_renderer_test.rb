@@ -77,6 +77,20 @@ class ControlCenter::TemplateRendererTest < ActiveSupport::TestCase
     assert_equal ["-silent", "-json"], args
   end
 
+  test "renders a standalone (non-grouped) arg as a plain string item, not a one-element array" do
+    t = ControlCenter::Template.new(
+      name: "probe",
+      commands: [{ "command" => "sh", "args" => ["__TARGET_FILE__ :: __TARGET_STDIN__ :: __UUID__"], "operator" => "" }]
+    )
+    yaml = ControlCenter::TemplateRenderer.to_yaml(t)
+
+    # A plain block string item, not a flow array wrapping a single value.
+    assert_includes yaml, "- '__TARGET_FILE__ :: __TARGET_STDIN__ :: __UUID__'"
+    assert_not_includes yaml, "['__TARGET_FILE__"
+    assert_equal ["__TARGET_FILE__ :: __TARGET_STDIN__ :: __UUID__"],
+                 YAML.safe_load(yaml)["commands"][0]["args"]
+  end
+
   test "omits output and target when blank" do
     t = ControlCenter::Template.new(name: "x", commands: [{ "command" => "httpx", "args" => [], "operator" => "" }])
     parsed = YAML.safe_load(ControlCenter::TemplateRenderer.to_yaml(t))
