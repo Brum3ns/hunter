@@ -43,6 +43,10 @@ Rails.application.routes.draw do
     get "/jobs", to: "jobs#index",      as: :jobs
     get "/statistics", to: "statistics#index", as: :statistics
   end
+  # Target web department — configurable table of "alive" assets (MongoDB).
+  get "targets", to: "targets#index"
+  # Detail loaded into the docked side-panel Turbo Frame (must follow the index).
+  get "targets/:id", to: "targets#show", as: :target
   get "cves", to: "cves#index"
 
   get "help", to: "help#index"
@@ -60,6 +64,15 @@ Rails.application.routes.draw do
 
       # Vulnerability management module.
       resources :vulnerabilities, only: %i[index show create update destroy]
+
+      # Target module: read-only list + detail over the alive collection.
+      resources :targets, only: %i[index show]
+
+      # CVE tracking module: browse list, single CVE, and an LLM-facing
+      # "new since" feed. `cves/new` precedes the :show route so it isn't
+      # swallowed as an id.
+      get "cves/new", to: "cves#new"
+      resources :cves, only: %i[index show]
 
       # Control Center module: Whiterabbit template CRUD + job submission.
       namespace :control_center do
