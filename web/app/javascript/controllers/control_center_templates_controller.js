@@ -5,17 +5,24 @@ import { apiFetch } from "lib/api_fetch"
 // and cells are built with createElement/textContent so template-supplied
 // strings can never inject HTML.
 export default class extends Controller {
-  static values = { indexUrl: String, validateUrl: String, jobsUrl: String }
+  static values = { indexUrl: String, validateUrl: String, jobsUrl: String, validateYamlUrl: String }
   static targets = [
     "rows", "empty", "editor", "commands", "commandRow", "errors", "save",
     "fName", "fKind", "fOutput", "fTags", "fDescription",
     "sendDialog", "sendName", "sendTargets", "sendQueue", "sendChunk", "sendDelay", "sendResult",
+    "modeStructured", "modeYaml", "structuredPanel", "yamlPanel", "yamlText", "yamlErrors", "yamlValid", "fileInput",
   ]
 
   connect() {
     this.editingId = null
     this.sendTemplate = null
+    this.mode = "structured"
     this.refresh()
+  }
+
+  disconnect() {
+    clearTimeout(this._valTimer)
+    clearTimeout(this._yamlTimer)
   }
 
   // --- list ----------------------------------------------------------------
@@ -80,6 +87,8 @@ export default class extends Controller {
     this.editorTarget.classList.remove("hidden")
     this.sendDialogTarget.classList.add("hidden")
     this.validate()
+    this.yamlTextTarget.value = ""
+    this.showStructured()
   }
 
   openEditor(t) {
@@ -95,9 +104,69 @@ export default class extends Controller {
     this.editorTarget.classList.remove("hidden")
     this.sendDialogTarget.classList.add("hidden")
     this.validate()
+    this.yamlTextTarget.value = t.yaml || ""
+    this.showStructured()
   }
 
   closeEditor() { this.editorTarget.classList.add("hidden") }
+
+  // --- editor mode + yaml ---------------------------------------------------
+
+  showStructured() {
+    this.mode = "structured"
+    this.structuredPanelTarget.classList.remove("hidden")
+    this.yamlPanelTarget.classList.add("hidden")
+    this._activate(this.modeStructuredTarget, this.modeYamlTarget)
+    this.validate()
+  }
+
+  showYaml() {
+    this.mode = "yaml"
+    this.yamlPanelTarget.classList.remove("hidden")
+    this.structuredPanelTarget.classList.add("hidden")
+    this._activate(this.modeYamlTarget, this.modeStructuredTarget)
+    this.validateYaml()
+  }
+
+  _activate(on, off) {
+    on.classList.add("bg-zinc-900", "text-white", "dark:bg-white", "dark:text-zinc-900")
+    off.classList.remove("bg-zinc-900", "text-white", "dark:bg-white", "dark:text-zinc-900")
+  }
+
+  onFile(event) {
+    const file = event.target.files && event.target.files[0]
+    if (!file) return
+    if (file.size > 64000) { window.alert("File is too large (max 64 KB)."); event.target.value = ""; return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      this.yamlTextTarget.value = String(reader.result || "")
+      this.showYaml()
+    }
+    reader.readAsText(file)
+    event.target.value = ""
+  }
+
+  validateDebounced() { clearTimeout(this._valTimer); this._valTimer = setTimeout(() => this.validate(), 300) }
+  validateYaml() { clearTimeout(this._yamlTimer); this._yamlTimer = setTimeout(() => this._doValidateYaml(), 300) }
+
+  async _doValidateYaml() {
+    const { ok, data } = await apiFetch(this.validateYamlUrlValue, { method: "POST", body: { yaml: this.yamlTextTarget.value } })
+    const valid = ok && data && data.valid
+    const errors = ok && data ? data.errors : ["validation request failed"]
+    this.yamlValidTarget.classList.toggle("hidden", !valid)
+    this._renderYamlErrors(valid ? [] : errors)
+    this.saveTarget.disabled = !valid
+  }
+
+  _renderYamlErrors(errors) {
+    this.yamlErrorsTarget.replaceChildren()
+    this.yamlErrorsTarget.classList.toggle("hidden", errors.length === 0)
+    errors.forEach((msg) => {
+      const li = document.createElement("li")
+      li.textContent = msg
+      this.yamlErrorsTarget.appendChild(li)
+    })
+  }
 
   addCommand(command = null) {
     const row = this.commandRowTarget.content.firstElementChild.cloneNode(true)
@@ -144,13 +213,18 @@ export default class extends Controller {
   }
 
   async save() {
-    const body = {
-      name: this.fNameTarget.value.trim(),
-      kind: this.fKindTarget.value,
-      output: this.fOutputTarget.value.trim(),
-      description: this.fDescriptionTarget.value,
-      tags: this.fTagsTarget.value.split(",").map((s) => s.trim()).filter(Boolean),
-      commands: this.collectCommands(),
+    let body
+    if (this.mode === "yaml") {
+      body = { yaml: this.yamlTextTarget.value }
+    } else {
+      body = {
+        name: this.fNameTarget.value.trim(),
+        kind: this.fKindTarget.value,
+        output: this.fOutputTarget.value.trim(),
+        description: this.fDescriptionTarget.value,
+        tags: this.fTagsTarget.value.split(",").map((s) => s.trim()).filter(Boolean),
+        commands: this.collectCommands(),
+      }
     }
     const url = this.editingId ? `${this.indexUrlValue}/${this.editingId}` : this.indexUrlValue
     const method = this.editingId ? "PATCH" : "POST"
@@ -158,6 +232,8 @@ export default class extends Controller {
     if (ok) {
       this.closeEditor()
       this.refresh()
+    } else if (this.mode === "yaml") {
+      this._renderYamlErrors((data && data.detail) || ["save failed"])
     } else {
       this.showErrors((data && data.detail) || ["save failed"])
     }

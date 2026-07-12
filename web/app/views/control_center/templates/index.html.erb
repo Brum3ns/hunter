@@ -14,7 +14,8 @@
          data-controller="control-center-templates"
          data-control-center-templates-index-url-value="<%= api_v1_control_center_templates_path %>"
          data-control-center-templates-validate-url-value="<%= validate_api_v1_control_center_templates_path %>"
-         data-control-center-templates-jobs-url-value="<%= api_v1_control_center_jobs_path %>">
+         data-control-center-templates-jobs-url-value="<%= api_v1_control_center_jobs_path %>"
+         data-control-center-templates-validate-yaml-url-value="<%= validate_yaml_api_v1_control_center_templates_path %>">
 
   <div class="mb-3 flex items-center justify-between">
     <button type="button" data-action="control-center-templates#refresh"
@@ -49,9 +50,24 @@
   <%# --- editor panel (hidden until New/Edit) --- %>
   <div data-control-center-templates-target="editor"
        class="mt-4 hidden rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
+    <div class="mb-3 flex items-center gap-2">
+      <div class="inline-flex overflow-hidden rounded-md border border-zinc-300 dark:border-zinc-700">
+        <button type="button" data-control-center-templates-target="modeStructured" data-action="control-center-templates#showStructured"
+                class="px-3 py-1 text-sm font-medium bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">Structured</button>
+        <button type="button" data-control-center-templates-target="modeYaml" data-action="control-center-templates#showYaml"
+                class="px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800">YAML</button>
+      </div>
+      <label class="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+        Upload .yaml
+        <input type="file" accept=".yaml,.yml,text/yaml" class="hidden"
+               data-control-center-templates-target="fileInput" data-action="control-center-templates#onFile">
+      </label>
+    </div>
+
+    <div data-control-center-templates-target="structuredPanel">
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="text-sm">Name
-        <input data-control-center-templates-target="fName" data-action="input->control-center-templates#validate"
+        <input data-control-center-templates-target="fName" data-action="input->control-center-templates#validateDebounced"
                class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
       </label>
       <label class="text-sm">Kind
@@ -88,11 +104,11 @@
         (the validator forbids spaces inside an arg, so this is lossless). %>
     <template data-control-center-templates-target="commandRow">
       <div class="flex flex-wrap items-center gap-2" data-row>
-        <input placeholder="command" data-field="command" data-action="input->control-center-templates#validate"
+        <input placeholder="command" data-field="command" data-action="input->control-center-templates#validateDebounced"
                class="w-32 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <input placeholder="args (space-separated)" data-field="args" data-action="input->control-center-templates#validate"
+        <input placeholder="args (space-separated)" data-field="args" data-action="input->control-center-templates#validateDebounced"
                class="min-w-[12rem] flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <select data-field="operator" data-action="change->control-center-templates#validate"
+        <select data-field="operator" data-action="change->control-center-templates#validateDebounced"
                 class="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">(none)</option>
           <option value="|">|</option>
@@ -107,6 +123,18 @@
     </template>
 
     <ul data-control-center-templates-target="errors" class="mt-3 hidden list-disc space-y-1 rounded-md bg-rose-50 px-5 py-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"></ul>
+    </div>
+
+    <div data-control-center-templates-target="yamlPanel" class="hidden">
+      <textarea data-control-center-templates-target="yamlText" data-action="input->control-center-templates#validateYaml"
+                rows="16" spellcheck="false"
+                class="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                placeholder="name: probe&#10;commands:&#10;  - command: httpx&#10;    args: [-silent]"></textarea>
+      <div class="mt-2 flex items-center gap-2">
+        <span data-control-center-templates-target="yamlValid" class="hidden rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">valid</span>
+      </div>
+      <ul data-control-center-templates-target="yamlErrors" class="mt-2 hidden list-disc space-y-1 rounded-md bg-rose-50 px-5 py-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"></ul>
+    </div>
 
     <div class="mt-4 flex items-center gap-2">
       <button type="button" data-control-center-templates-target="save" data-action="control-center-templates#save"
