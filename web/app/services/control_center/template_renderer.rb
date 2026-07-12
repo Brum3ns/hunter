@@ -83,20 +83,19 @@ module ControlCenter
       end
     end
 
-    # An all-scalar args list (only value-less flags) renders flow; otherwise the
-    # list stays block and each group sub-sequence renders flow. Every scalar leaf
-    # is then forced single-quoted so a numeric- or boolean-looking value (10, y)
-    # stays a string — Psych's automatic quoting leaves plain-looking tokens (x,
-    # scan) bare, which Whiterabbit's per-element string assert would reject.
+    # The top-level args list always renders block, so a standalone token is a
+    # plain string item (`- 'x'`) rather than a one-element flow array (`['x']`).
+    # Only flag-group sub-sequences render flow (`['-u', 'x']`), so flow style
+    # reads as "a flag with its values" and a block item as "a standalone token".
+    # Every scalar leaf is then forced single-quoted so a numeric- or
+    # boolean-looking value (10, y) stays a string — Psych's automatic quoting
+    # leaves plain tokens (x, scan) bare, which Whiterabbit's per-element string
+    # assert would reject.
     def flowify_args!(seq)
       return unless seq.is_a?(Psych::Nodes::Sequence) && seq.children.any?
 
-      if seq.children.all? { |c| c.is_a?(Psych::Nodes::Scalar) }
-        seq.style = Psych::Nodes::Sequence::FLOW
-      else
-        seq.children.each do |child|
-          child.style = Psych::Nodes::Sequence::FLOW if child.is_a?(Psych::Nodes::Sequence) && child.children.any?
-        end
+      seq.children.each do |child|
+        child.style = Psych::Nodes::Sequence::FLOW if child.is_a?(Psych::Nodes::Sequence) && child.children.any?
       end
       quote_scalars!(seq)
     end
