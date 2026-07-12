@@ -30,6 +30,27 @@ module ChartsHelper
     end
   end
 
+  # [{label:, count:}] -> rows with a width percentage relative to the largest
+  # count, so a horizontal bar list renders without per-view math.
+  def bar_list_rows(data)
+    rows = Array(data)
+    max = rows.map { |r| r[:count].to_i }.max.to_i
+    rows.map do |r|
+      { label: r[:label], count: r[:count].to_i,
+        percent: max.zero? ? 0 : round3(r[:count].to_i * 100.0 / max) }
+    end
+  end
+
+  # [{date:, count:}] -> bars scaled to a fixed height for the daily chart.
+  def daily_bars(series)
+    rows = Array(series)
+    max = rows.map { |r| r[:count].to_i }.max.to_i
+    rows.map do |r|
+      { date: r[:date], count: r[:count].to_i,
+        height_pct: max.zero? ? 0 : round3(r[:count].to_i * 100.0 / max) }
+    end
+  end
+
   private
 
   def round3(number) = number.round(3)
