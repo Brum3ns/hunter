@@ -66,10 +66,11 @@ module Cves
     # Upsert by CVE id. first_seen_at is stamped once (insert only); every sync
     # refreshes last_synced_at and the normalized body. Write errors propagate.
     def upsert(doc)
-      id = doc.to_h.transform_keys(&:to_s).fetch("id")
+      normalized = doc.to_h.transform_keys(&:to_s)
+      id = normalized.fetch("id")
       raise ArgumentError, "cve doc requires a non-blank id" if id.to_s.empty?
       now = Time.now.utc
-      set = doc.to_h.transform_keys(&:to_s).except("first_seen_at").merge("last_synced_at" => now)
+      set = normalized.except("first_seen_at").merge("last_synced_at" => now)
       collection.update_one(
         { "id" => id },
         { "$set" => set, "$setOnInsert" => { "first_seen_at" => now } },
@@ -87,16 +88,22 @@ module Cves
     end
 
     def build_filter(filters, search = nil)
-      base = filters.to_h.each_with_object({}) do |(key, value), mongo|
-        next if value.blank?
-        if key.to_s == "has_fix"
-          mongo["has_fix"] = ActiveModel::Type::Boolean.new.cast(value)
-        elsif key.to_s == "published_after"
-          (t = parse_time(value)) && (mongo["published"] = { "$gte" => t })
-        elsif key.to_s == "modified_after"
-          (t = parse_time(value)) && (mongo["modified"] = { "$gte" => t })
-        elsif (mongo_key = FILTER_KEYS[key.to_s])
-          mongo[mongo_key] = value
+      base = {}
+      filters.to_h.each do |key, value|
+        case key.to_s
+        when "has_fix"
+          next if value.nil? || value == ""
+          base["has_fix"] = ActiveModel::Type::Boolean.new.cast(value)
+        when "published_after"
+          next if value.blank?
+          (t = parse_time(value)) && (base["published"] = { "$gte" => t })
+        when "modified_after"
+          next if value.blank?
+          (t = parse_time(value)) && (base["modified"] = { "$gte" => t })
+        else
+          next if value.blank?
+          mongo_key = FILTER_KEYS[key.to_s]
+          base[mongo_key] = value if mongo_key
         end
       end
       if search.present?
