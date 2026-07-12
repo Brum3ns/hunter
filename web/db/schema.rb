@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_10_000006) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_12_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -39,6 +39,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_10_000006) do
     t.jsonb "template_snapshot", default: {}, null: false
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_control_center_jobs_on_created_at"
+    t.index ["status"], name: "index_control_center_jobs_on_status"
+    t.index ["template_name"], name: "index_control_center_jobs_on_template_name"
   end
 
   create_table "control_center_templates", force: :cascade do |t|
