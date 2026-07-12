@@ -172,7 +172,7 @@ export default class extends Controller {
     const row = this.commandRowTarget.content.firstElementChild.cloneNode(true)
     if (command) {
       row.querySelector('[data-field=command]').value = command.command || ""
-      row.querySelector('[data-field=args]').value = (command.args || []).join(" ")
+      row.querySelector('[data-field=args]').value = this.joinArgs(command.args || [])
       row.querySelector('[data-field=operator]').value = command.operator || ""
     }
     this.commandsTarget.appendChild(row)
@@ -186,9 +186,60 @@ export default class extends Controller {
   collectCommands() {
     return Array.from(this.commandsTarget.querySelectorAll("[data-row]")).map((row) => ({
       command: row.querySelector('[data-field=command]').value.trim(),
-      args: row.querySelector('[data-field=args]').value.trim().split(/\s+/).filter(Boolean),
+      args: this.splitArgs(row.querySelector('[data-field=args]').value),
       operator: row.querySelector('[data-field=operator]').value,
     }))
+  }
+
+  // Split the args field into argv tokens, shell-style: whitespace separates,
+  // but single quotes, double quotes, and backslash escapes group a run into one
+  // token so a value with spaces (e.g. -H 'User-Agent: a b') stays a single arg.
+  // Single quotes are literal; double quotes and unquoted text honor \\ escapes.
+  // The exact inverse of joinArgs, so args round-trip through the editor.
+  splitArgs(input) {
+    const s = String(input || "")
+    const tokens = []
+    let cur = ""
+    let started = false
+    let i = 0
+    while (i < s.length) {
+      const ch = s[i]
+      if (ch === "'") {
+        started = true; i++
+        while (i < s.length && s[i] !== "'") { cur += s[i]; i++ }
+        i++
+      } else if (ch === '"') {
+        started = true; i++
+        while (i < s.length && s[i] !== '"') {
+          if (s[i] === "\\" && (s[i + 1] === '"' || s[i + 1] === "\\")) { cur += s[i + 1]; i += 2 }
+          else { cur += s[i]; i++ }
+        }
+        i++
+      } else if (ch === "\\" && i + 1 < s.length) {
+        cur += s[i + 1]; i += 2; started = true
+      } else if (/\s/.test(ch)) {
+        if (started) { tokens.push(cur); cur = ""; started = false }
+        i++
+      } else {
+        cur += ch; started = true; i++
+      }
+    }
+    if (started) tokens.push(cur)
+    return tokens
+  }
+
+  // Render an args array back into a single field, quoting any token that would
+  // otherwise re-split (contains whitespace or a quote) or is empty. Inverse of
+  // splitArgs.
+  joinArgs(args) {
+    return (args || []).map((a) => this.quoteArg(String(a))).join(" ")
+  }
+
+  quoteArg(arg) {
+    if (arg === "") return "''"
+    if (!/[\s'"\\]/.test(arg)) return arg
+    if (!arg.includes("'")) return `'${arg}'`
+    return `"${arg.replace(/(["\\])/g, "\\$1")}"`
   }
 
   async validate() {
