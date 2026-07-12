@@ -10,8 +10,8 @@ module ControlCenter
   # makeArguments (pkg/cmdscript/utils.go) flattens either shape back to the same
   # argv "in correct order", so grouping is a readability convention that mirrors
   # how a command line reads. Groups render in flow style (['-u', 'a']); every
-  # scalar is quoted so a numeric-looking value stays a string (Whiterabbit
-  # asserts each sub-array element is a string).
+  # scalar is force single-quoted so a numeric- or boolean-looking value ('10',
+  # 'y') stays a string (Whiterabbit asserts each sub-array element is a string).
   module TemplateRenderer
     module_function
 
@@ -84,7 +84,10 @@ module ControlCenter
     end
 
     # An all-scalar args list (only value-less flags) renders flow; otherwise the
-    # list stays block and each group sub-sequence renders flow.
+    # list stays block and each group sub-sequence renders flow. Every scalar leaf
+    # is then forced single-quoted so a numeric- or boolean-looking value (10, y)
+    # stays a string — Psych's automatic quoting leaves plain-looking tokens (x,
+    # scan) bare, which Whiterabbit's per-element string assert would reject.
     def flowify_args!(seq)
       return unless seq.is_a?(Psych::Nodes::Sequence) && seq.children.any?
 
@@ -94,6 +97,17 @@ module ControlCenter
         seq.children.each do |child|
           child.style = Psych::Nodes::Sequence::FLOW if child.is_a?(Psych::Nodes::Sequence) && child.children.any?
         end
+      end
+      quote_scalars!(seq)
+    end
+
+    def quote_scalars!(node)
+      if node.is_a?(Psych::Nodes::Scalar)
+        node.plain = false
+        node.quoted = true
+        node.style = Psych::Nodes::Scalar::SINGLE_QUOTED
+      elsif node.respond_to?(:children)
+        node.children&.each { |child| quote_scalars!(child) }
       end
     end
   end

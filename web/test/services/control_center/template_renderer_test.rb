@@ -42,8 +42,31 @@ class ControlCenter::TemplateRendererTest < ActiveSupport::TestCase
       ["-u", "https://ginandjuice.shop/", "-t", "10", "-rl", "10", "-H", "X-One: 1", "X-Twi: 2"],
       args.flatten
     )
-    # Groups render compactly, not as block sub-sequences.
-    assert_includes yaml, "[\"-H\", 'X-One: 1', 'X-Twi: 2']"
+    # Groups render compactly, not as block sub-sequences, with every scalar quoted.
+    assert_includes yaml, "['-H', 'X-One: 1', 'X-Twi: 2']"
+  end
+
+  test "quotes every scalar in a group so plain and boolean-looking values stay strings" do
+    t = ControlCenter::Template.new(
+      name: "probe", commands: [{ "command" => "tool", "args" => ["-a", "x", "-b", "y"], "operator" => "" }]
+    )
+    yaml = ControlCenter::TemplateRenderer.to_yaml(t)
+
+    # Both values quoted the same way — no "-a", x (plain) vs "-b", "y" (quoted) split.
+    assert_includes yaml, "['-a', 'x']"
+    assert_includes yaml, "['-b', 'y']"
+    assert_equal [["-a", "x"], ["-b", "y"]], YAML.safe_load(yaml)["commands"][0]["args"]
+  end
+
+  test "quotes a bare (non-flag) leading arg token" do
+    t = ControlCenter::Template.new(
+      name: "probe", commands: [{ "command" => "run", "args" => ["scan", "-u", "x.com"], "operator" => "" }]
+    )
+    yaml = ControlCenter::TemplateRenderer.to_yaml(t)
+
+    assert_includes yaml, "- 'scan'"
+    assert_includes yaml, "['-u', 'x.com']"
+    assert_equal ["scan", ["-u", "x.com"]], YAML.safe_load(yaml)["commands"][0]["args"]
   end
 
   test "leaves value-less flags as a flat args list" do
