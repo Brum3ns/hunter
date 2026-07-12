@@ -1,0 +1,17 @@
+<% if rows.empty? %>
+  <p class="py-8 text-center text-sm text-zinc-400 dark:text-zinc-500"><%= empty %></p>
+<% else %>
+  <ul class="space-y-2">
+    <% rows.each do |r| %>
+      <li>
+        <div class="mb-0.5 flex items-center justify-between text-sm">
+          <span class="truncate text-zinc-700 dark:text-zinc-200"><%= r[:label] %></span>
+          <span class="ml-2 font-medium text-zinc-900 dark:text-zinc-100"><%= r[:count] %></span>
+        </div>
+        <div class="h-2 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800">
+          <div class="h-full rounded bg-zinc-800 dark:bg-zinc-300" style="width: <%= r[:percent] %>%"></div>
+        </div>
+      </li>
+    <% end %>
+  </ul>
+<% end %>

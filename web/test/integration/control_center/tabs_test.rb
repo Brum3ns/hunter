@@ -67,4 +67,19 @@ class ControlCenter::TabsTest < ActionDispatch::IntegrationTest
     assert_select "textarea[data-control-center-templates-target=yamlText]"
     assert_select "input[type=file][data-control-center-templates-target=fileInput]"
   end
+
+  test "statistics tab requires auth" do
+    get control_center_statistics_path
+    assert_redirected_to new_session_path
+  end
+
+  test "statistics tab renders tiles and the Statistics tab active" do
+    sign_in_as(@user)
+    ControlCenter::Job.create!(template_name: "a", status: "succeeded", queue_name: "test", target_count: 2)
+    get control_center_statistics_path
+    assert_response :success
+    assert_select "a[href=?][aria-current=page]", control_center_statistics_path, text: "Statistics"
+    assert_match "Jobs sent", response.body
+    assert_select "svg"
+  end
 end
