@@ -52,4 +52,18 @@ class Api::V1::ControlCenter::TemplatesTest < ActionDispatch::IntegrationTest
     assert_equal false, body["valid"]
     assert_equal 0, ControlCenter::Template.count
   end
+
+  test "validate returns rendered yaml for structured params without persisting" do
+    sign_in_as(@user)
+    post "/api/v1/control_center/templates/validate",
+         params: { name: "probe", kind: "cmdscript",
+                   commands: [{ command: "httpx", args: ["-u", "x", "-silent"], operator: "" }] },
+         as: :json
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal true, body["valid"]
+    assert_includes body["yaml"], "command: httpx"
+    assert_includes body["yaml"], "['-u', 'x']"
+    assert_equal 0, ControlCenter::Template.count
+  end
 end
