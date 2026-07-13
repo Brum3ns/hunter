@@ -17,15 +17,26 @@ module Cves
       { key: { "aliases": 1 },            name: "aliases" },
       { key: { "affected.ecosystem": 1 }, name: "affected_ecosystem" },
       { key: { "affected.package": 1 },   name: "affected_package" },
-      { key: { "has_fix": 1 },            name: "has_fix" }
+      { key: { "has_fix": 1 },            name: "has_fix" },
+      { key: { "severity_score": -1 },    name: "severity_score" },
+      { key: { "cwe_ids": 1 },            name: "cwe_ids" },
+      { key: { "languages": 1 },          name: "languages" },
+      { key: { "vendors": 1 },            name: "vendors" },
+      { key: { "tags": 1 },               name: "tags" }
     ].freeze
 
-    FILTER_KEYS = {
+    LIST_FILTER_KEYS = {
       "ecosystem" => "affected.ecosystem",
-      "package"   => "affected.package"
+      "package"   => "affected.package",
+      "language"  => "languages",
+      "vendor"    => "vendors",
+      "cwe"       => "cwe_ids",
+      "tag"       => "tags"
     }.freeze
 
-    SEARCH_FIELDS = %w[id summary].freeze
+    SEVERITY_FLOORS = { "critical" => 9.0, "high" => 7.0, "medium" => 4.0, "low" => 0.1 }.freeze
+
+    SEARCH_FIELDS = %w[id summary details].freeze
 
     def all(filters: {}, search: nil, page: 1, limit: 50)
       ensure_indexes!
@@ -53,25 +64,38 @@ module Cves
       nil
     end
 
-    def new_since(since: nil, since_id: nil, limit: 50)
+    def new_since(since: nil, since_id: nil, limit: 50, filters: {}, search: nil)
       ensure_indexes!
-      filter =
-        if since && since_id
-          { "$or" => [
-              { "first_seen_at" => { "$gt" => since } },
-              { "first_seen_at" => since, "id" => { "$gt" => since_id } }
-            ] }
-        elsif since
-          { "first_seen_at" => { "$gt" => since } }
-        else
-          {}
-        end
+      cursor = cursor_filter(since, since_id)
+      extra = build_filter(filters, search)
+      filter = combine(cursor, extra)
       collection.find(filter).sort("first_seen_at" => 1, "id" => 1).limit(limit)
                 .to_a.map { |doc| normalize(doc) }
     rescue Mongo::Error => e
       Rails.logger.warn("Cves::MongoSource#new_since failed (#{e.class}: #{e.message})")
       []
     end
+
+    def cursor_filter(since, since_id)
+      if since && since_id
+        { "$or" => [
+            { "first_seen_at" => { "$gt" => since } },
+            { "first_seen_at" => since, "id" => { "$gt" => since_id } }
+          ] }
+      elsif since
+        { "first_seen_at" => { "$gt" => since } }
+      else
+        {}
+      end
+    end
+    private_class_method :cursor_filter
+
+    def combine(cursor, extra)
+      return extra if cursor.empty?
+      return cursor if extra.empty?
+      { "$and" => [cursor, extra] }
+    end
+    private_class_method :combine
 
     # Upsert by CVE id. first_seen_at is stamped once (insert only); every sync
     # refreshes last_synced_at and the normalized body. Write errors propagate.
@@ -100,20 +124,26 @@ module Cves
     def build_filter(filters, search = nil)
       base = {}
       filters.to_h.each do |key, value|
-        case key.to_s
-        when "has_fix"
-          next if value.nil? || value == ""
-          base["has_fix"] = ActiveModel::Type::Boolean.new.cast(value)
-        when "published_after"
-          next if value.blank?
-          (t = parse_time(value)) && (base["published"] = { "$gte" => t })
-        when "modified_after"
-          next if value.blank?
-          (t = parse_time(value)) && (base["modified"] = { "$gte" => t })
+        key = key.to_s
+        if LIST_FILTER_KEYS.key?(key)
+          values = Array(value).flat_map { |v| v.to_s.split(",") }.map(&:strip).reject(&:empty?)
+          next if values.empty?
+          base[LIST_FILTER_KEYS[key]] = values.size == 1 ? values.first : { "$in" => values }
         else
-          next if value.blank?
-          mongo_key = FILTER_KEYS[key.to_s]
-          base[mongo_key] = value if mongo_key
+          case key
+          when "has_fix"
+            next if value.nil? || value == ""
+            base["has_fix"] = ActiveModel::Type::Boolean.new.cast(value)
+          when "min_severity"
+            floor = SEVERITY_FLOORS[value.to_s.downcase]
+            base["severity_score"] = { "$gte" => floor } if floor
+          when "published_after"
+            next if value.blank?
+            (t = parse_time(value)) && (base["published"] = { "$gte" => t })
+          when "modified_after"
+            next if value.blank?
+            (t = parse_time(value)) && (base["modified"] = { "$gte" => t })
+          end
         end
       end
       if search.present?
