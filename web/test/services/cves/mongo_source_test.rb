@@ -51,13 +51,14 @@ class Cves::MongoSourceTest < ActiveSupport::TestCase
     end
   end
 
-  test "all builds a case-insensitive search across id and summary" do
+  test "all builds a case-insensitive search across id, summary and details" do
     collection = FakeCollection.new([])
     with_collection(collection) do
       Cves::MongoSource.all(search: "xss", limit: 10)
       assert_equal(
         [{ "id" => { "$regex" => "xss", "$options" => "i" } },
-         { "summary" => { "$regex" => "xss", "$options" => "i" } }],
+         { "summary" => { "$regex" => "xss", "$options" => "i" } },
+         { "details" => { "$regex" => "xss", "$options" => "i" } }],
         collection.last_filter["$or"]
       )
     end
@@ -219,4 +220,41 @@ class Cves::MongoSourceTest < ActiveSupport::TestCase
       assert_equal [], Cves::MongoSource.new_since
     end
   end
+
+  test "list filters use $in for multiple comma-separated values" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.all(filters: { "ecosystem" => "npm,PyPI", "tag" => "cms" }, limit: 10)
+      assert_equal({ "$in" => %w[npm PyPI] }, collection.last_filter["affected.ecosystem"])
+      assert_equal "cms", collection.last_filter["tags"]
+    end
+  end
+
+  test "min_severity filters on severity_score floor" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.all(filters: { "min_severity" => "high" }, limit: 10)
+      assert_equal({ "$gte" => 7.0 }, collection.last_filter["severity_score"])
+    end
+  end
+
+  test "search covers id, summary and details" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.all(search: "rce", limit: 10)
+      fields = collection.last_filter["$or"].flat_map(&:keys)
+      assert_equal %w[id summary details], fields
+    end
+  end
+
+  test "new_since composes extra filters with the cursor via $and" do
+    collection = FakeCollection.new([])
+    with_collection(collection) do
+      Cves::MongoSource.new_since(since: Time.utc(2026, 7, 1), since_id: "CVE-1",
+                                  filters: { "language" => "Python" }, limit: 10)
+      assert collection.last_filter.key?("$and")
+      assert_includes collection.last_filter["$and"], { "languages" => "Python" }
+    end
+  end
+
 end
