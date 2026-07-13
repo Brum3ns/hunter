@@ -3,6 +3,8 @@ module Api
     # Vulnerabilities API — full CRUD over the MongoDB collection Raily writes.
     # No document-shape validation this pass; any well-formed JSON is accepted.
     class VulnerabilitiesController < BaseController
+      api_scope :vulnerabilities
+
       # GET /api/v1/vulnerabilities
       def index
         filters = filter_params
