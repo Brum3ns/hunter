@@ -66,10 +66,19 @@ endpoint** rooted at `/api/v1/<module>/...` and its **own web "department"**
   `pagination_page`, `clamped_limit`, `render_not_found`. **Every module API
   controller should subclass this.**
 - Tokens: `ApiToken` (Postgres, SHA-256 digest only). Mint with the rake task
-  `bin/rails api_tokens:create USERNAME=<u> NAME=<label>` (raw token shown once).
+  `bin/rails api_tokens:create USERNAME=<u> NAME=<label> SCOPES=cves,programs`
+  (raw token shown once). Tokens carry `scopes` (module slugs or `*`); a
+  controller declares `api_scope :<module>` and bearer requests lacking that
+  scope get `403 insufficient_scope`. Cookie/session requests are unaffected.
+- CVE tokens carry a saved `cve_filter` (set via `api_tokens:set_cve_filter
+  USERNAME=<u> NAME=<label> FILTER='{...}'`); `GET /api/v1/cves` and
+  `/api/v1/cves/new` apply it as defaults, request params override per field,
+  `?fields=core` returns the compact LLM serialization, and
+  `GET /api/v1/cves/config` echoes the token's filter.
 - Error envelopes: `401 unauthorized`, `403 invalid_csrf_token`,
-  `400 bad_request`, `404 not_found`, `502 upstream_unavailable` (Mongo write
-  failure). Mongo *read* failures are swallowed to an empty result.
+  `403 insufficient_scope`, `400 bad_request`, `404 not_found`,
+  `502 upstream_unavailable` (Mongo write failure). Mongo *read* failures are
+  swallowed to an empty result.
 
 ## How to add a module (the pattern)
 
