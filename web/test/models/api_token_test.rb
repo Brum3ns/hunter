@@ -13,13 +13,33 @@ class ApiTokenTest < ActiveSupport::TestCase
     assert_equal ApiToken.digest(raw), record.token_digest
   end
 
-  test "authenticate returns the user and touches last_used_at for a valid token" do
+  test "authenticate returns the token record and touches last_used_at" do
     _record, raw = ApiToken.generate(user: @user, name: "ci")
-
     freeze_time do
-      assert_equal @user, ApiToken.authenticate(raw)
-      assert_in_delta Time.current, ApiToken.find_by(token_digest: ApiToken.digest(raw)).last_used_at, 1
+      token = ApiToken.authenticate(raw)
+      assert_kind_of ApiToken, token
+      assert_equal @user, token.user
+      assert_in_delta Time.current, token.last_used_at, 1
     end
+  end
+
+  test "generate defaults to wildcard scope and empty filter" do
+    record, _raw = ApiToken.generate(user: @user, name: "ci")
+    assert_equal ["*"], record.scopes
+    assert_equal({}, record.cve_filter)
+  end
+
+  test "generate accepts explicit scopes" do
+    record, _raw = ApiToken.generate(user: @user, name: "llm", scopes: ["cves"])
+    assert_equal ["cves"], record.scopes
+  end
+
+  test "allows_scope? honours wildcard and exact slug" do
+    wild = ApiToken.generate(user: @user, name: "w").first
+    cve  = ApiToken.generate(user: @user, name: "c", scopes: ["cves"]).first
+    assert wild.allows_scope?(:vulnerabilities)
+    assert cve.allows_scope?("cves")
+    assert_not cve.allows_scope?(:vulnerabilities)
   end
 
   test "authenticate returns nil for an unknown or blank token" do

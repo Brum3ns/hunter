@@ -10,15 +10,17 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_12_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_13_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
 
   create_table "api_tokens", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.jsonb "cve_filter", default: {}, null: false
     t.datetime "last_used_at"
     t.string "name", null: false
+    t.string "scopes", default: ["*"], null: false, array: true
     t.string "token_digest", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
