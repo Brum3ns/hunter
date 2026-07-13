@@ -13,6 +13,10 @@ module Cves
 
       affected = normalize_affected(raw["affected"])
       references = Array(raw["references"]).map { |r| r.to_h.transform_keys(&:to_s).slice("type", "url") }
+      severity = Array(raw["severity"])
+      ecosystems = affected.map { |a| a["ecosystem"] }.compact.uniq
+      derived_severity = Cves::Severity.call(severity)
+      vendors = Cves::Vendors.call(affected)
 
       {
         "id" => cve,
@@ -23,9 +27,14 @@ module Cves
         "published" => parse_time(raw["published"]),
         "modified" => parse_time(raw["modified"]),
         "withdrawn" => parse_time(raw["withdrawn"]),
-        "severity" => Array(raw["severity"]),
+        "severity" => severity,
+        "severity_score" => derived_severity["severity_score"],
+        "severity_level" => derived_severity["severity_level"],
         "cwe_ids" => cwe_ids(raw, affected_raw: raw["affected"]),
-        "ecosystems" => affected.map { |a| a["ecosystem"] }.compact.uniq,
+        "ecosystems" => ecosystems,
+        "languages" => Cves::Languages.call(ecosystems),
+        "vendors" => vendors,
+        "tags" => Cves::Tagger.call(ecosystems: ecosystems, affected: affected, vendors: vendors),
         "affected" => affected,
         "references" => references,
         "has_fix" => has_fix?(references, affected),

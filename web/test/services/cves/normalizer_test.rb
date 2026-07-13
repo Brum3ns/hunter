@@ -116,4 +116,19 @@ class Cves::NormalizerTest < ActiveSupport::TestCase
     assert_equal Time.utc(2024, 2, 1), doc["withdrawn"]
     assert_equal "", doc["details"]
   end
+
+  test "adds derived severity, language, vendor and tag fields" do
+    raw = {
+      "id" => "GHSA-x", "aliases" => ["CVE-2024-9"],
+      "severity" => [{ "type" => "CVSS_V3", "score" => "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" }],
+      "affected" => [{ "package" => { "ecosystem" => "Packagist", "name" => "acme/wordpress-seo",
+                                      "purl" => "pkg:composer/acme/wordpress-seo" } }]
+    }
+    doc = Cves::Normalizer.call(raw)
+    assert_equal "critical", doc["severity_level"]
+    assert_in_delta 9.8, doc["severity_score"], 0.05
+    assert_equal ["PHP"], doc["languages"]
+    assert_equal ["acme"], doc["vendors"]
+    assert_includes doc["tags"], "cms"
+  end
 end
