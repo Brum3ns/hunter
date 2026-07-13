@@ -64,7 +64,7 @@ class ControlCenter::TabsTest < ActionDispatch::IntegrationTest
     assert_select "section[data-controller~=control-center-templates]" \
                   "[data-control-center-templates-validate-yaml-url-value=?]",
                   validate_yaml_api_v1_control_center_templates_path
-    assert_select "textarea[data-control-center-templates-target=yamlText]"
+    assert_select "[data-control-center-templates-target=yamlEditor]"
     assert_select "input[type=file][data-control-center-templates-target=fileInput]"
   end
 

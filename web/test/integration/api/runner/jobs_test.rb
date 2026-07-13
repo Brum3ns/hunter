@@ -1,6 +1,6 @@
 require "test_helper"
 
-class Api::Runner::JobsTest < ActionDispatch::IntegrationTest
+class Api::V1::Runner::JobsTest < ActionDispatch::IntegrationTest
   setup do
     @user = users(:one)
     @runner, @raw = Runner.generate(name: "curl-runner", kinds: %w[curl])
