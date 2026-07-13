@@ -71,7 +71,8 @@ Rails.application.routes.draw do
       # CVE tracking module: browse list, single CVE, and an LLM-facing
       # "new since" feed. `cves/new` precedes the :show route so it isn't
       # swallowed as an id.
-      get "cves/new", to: "cves#new"
+      get "cves/new",    to: "cves#new"
+      get "cves/config", to: "cves#filter_config"
       resources :cves, only: %i[index show]
 
       # Control Center module: Whiterabbit template CRUD + job submission.
