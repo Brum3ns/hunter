@@ -4,6 +4,8 @@ module Api
     # `index`/`show` serve the browse UI; `new` is the LLM-facing "new since"
     # feed keyed on our first_seen_at ingest stamp.
     class CvesController < BaseController
+      api_scope :cves
+
       FILTER_PARAMS = %i[ecosystem package has_fix published_after modified_after].freeze
 
       # GET /api/v1/cves

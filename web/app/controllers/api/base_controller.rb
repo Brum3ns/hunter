@@ -17,11 +17,21 @@ module Api
 
     before_action :force_json
     before_action :authenticate_api!
+    before_action :authorize_scope!
 
     rescue_from ActionController::InvalidAuthenticityToken, with: :render_csrf_failure
     rescue_from ActionController::ParameterMissing,         with: :render_bad_request
     rescue_from ActionController::UnpermittedParameters,    with: :render_bad_request
     rescue_from Mongo::Error,                               with: :render_upstream_unavailable
+
+    # Declares the module scope a bearer token must carry to use this controller.
+    def self.api_scope(slug)
+      @api_scope = slug.to_s
+    end
+
+    def self.required_api_scope
+      @api_scope
+    end
 
     private
 
@@ -42,10 +52,21 @@ module Api
     def authenticate_bearer
       token = bearer_token
       return false if token.blank?
-      user = ApiToken.authenticate(token)
-      return false unless user
-      Current.api_user = user
+      api_token = ApiToken.authenticate(token)
+      return false unless api_token
+      Current.api_token = api_token
+      Current.api_user = api_token.user
       true
+    end
+
+    # Scopes constrain bearer tokens only. Cookie/session requests (no
+    # Current.api_token) and controllers with no declared scope pass through.
+    def authorize_scope!
+      return if Current.api_token.nil?
+      slug = self.class.required_api_scope
+      return if slug.nil?
+      return if Current.api_token.allows_scope?(slug)
+      render json: { error: "insufficient_scope" }, status: :forbidden
     end
 
     def bearer_token
