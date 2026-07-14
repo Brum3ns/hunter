@@ -1,0 +1,91 @@
+openapi: "3.1.0"
+info:
+  title: "Hunter API"
+  version: "1.0.0"
+  description: |
+    JSON API for the Hunter bug-bounty dashboard, grouped by module
+    (CVEs, Vulnerabilities, Programs, Targets, Control Center, Runner).
+
+    ## Authentication
+    Every endpoint requires authentication by **either**:
+    - a signed **session cookie** (browser; CSRF-protected), or
+    - an `Authorization: Bearer <token>` header (external clients; CSRF is
+      skipped because there is no cookie and thus no forgery risk).
+
+    Mint bearer tokens with `bin/rails api_tokens:create USERNAME=<u>
+    NAME=<label> SCOPES=cves,programs`.
+
+    ## Token scopes
+    Bearer tokens carry `scopes` (module slugs, or `*` for all). A request to a
+    scoped endpoint with a token lacking that scope returns
+    `403 insufficient_scope`. Session-cookie requests are never scope-gated.
+    This document is filtered to the calling token's scopes, so a `cves`-only
+    token downloads only the CVE endpoints.
+
+    ## Try-it-out
+    `GET` requests work with your session cookie. **Write** requests
+    (POST/PATCH/DELETE) require a bearer token pasted into the Authorize
+    dialog — a cookie POST without a CSRF token is rejected as
+    `403 invalid_csrf_token`.
+
+    ## Error envelopes
+    Errors share a JSON shape `{ "error": "<code>" }` (some add `detail`):
+    `401 unauthorized`, `403 invalid_csrf_token`, `403 insufficient_scope`,
+    `400 bad_request`, `404 not_found`, `502 upstream_unavailable` (Mongo
+    write failure). Mongo *read* failures degrade to an empty result set.
+servers:
+  - url: "/"
+    description: "This Hunter instance"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "An API token minted via bin/rails api_tokens:create."
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: "Machine-readable error code."
+          examples: ["unauthorized", "insufficient_scope", "not_found"]
+        detail:
+          type: string
+          description: "Human-readable detail (bad_request only)."
+      required: ["error"]
+    PageEnvelope:
+      type: object
+      description: "Offset-paginated list envelope (the plural data key varies by module)."
+      properties:
+        count:
+          type: integer
+          description: "Total matching documents across all pages."
+        page:
+          type: integer
+          description: "1-based page number (floored at 1)."
+        limit:
+          type: integer
+          description: "Page size actually applied (default 50, max 200)."
+      required: ["count", "page", "limit"]
+  responses:
+    Unauthorized:
+      description: "Missing or invalid authentication."
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" }, example: { error: "unauthorized" } } }
+    InsufficientScope:
+      description: "The bearer token lacks the required scope."
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" }, example: { error: "insufficient_scope" } } }
+    NotFound:
+      description: "No matching resource."
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" }, example: { error: "not_found" } } }
+    BadRequest:
+      description: "Malformed or missing parameters."
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" }, example: { error: "bad_request", detail: "param is missing" } } }
+    UpstreamUnavailable:
+      description: "A Mongo write failed."
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" }, example: { error: "upstream_unavailable" } } }
+    CcUnprocessable:
+      description: "Validation failed (control center template/job)."
+      content: { application/json: { schema: { type: object, properties: { error: { type: string }, detail: { type: array, items: { type: string } } }, required: [error, detail] }, example: { error: "unprocessable_entity", detail: ["name can't be blank"] } } }
+security:
+  - bearerAuth: []
