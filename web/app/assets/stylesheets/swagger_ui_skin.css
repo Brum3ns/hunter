@@ -1,0 +1,54 @@
+/* Monochrome skin for Swagger UI on /docs — recolors Swagger's greens/blues to
+   Hunter's black-and-white language and adds dark-mode support. Loaded AFTER
+   swagger-ui.css so these rules win. Scoped to #swagger-ui so nothing leaks. */
+#swagger-ui .topbar { display: none; }
+#swagger-ui .info { margin: 1.5rem 0; }
+
+/* Neutralize method colors to grayscale bands. */
+#swagger-ui .opblock.opblock-get   { border-color: #52525b; background: rgba(82,82,91,0.04); }
+#swagger-ui .opblock.opblock-post  { border-color: #27272a; background: rgba(39,39,42,0.05); }
+#swagger-ui .opblock.opblock-put,
+#swagger-ui .opblock.opblock-patch { border-color: #3f3f46; background: rgba(63,63,70,0.05); }
+#swagger-ui .opblock.opblock-delete{ border-color: #71717a; background: rgba(113,113,122,0.05); }
+#swagger-ui .opblock .opblock-summary-method { background: #27272a; }
+
+#swagger-ui .btn.authorize,
+#swagger-ui .btn.execute {
+  background: #18181b; color: #fafafa; border-color: #18181b;
+}
+#swagger-ui .btn.authorize svg { fill: #fafafa; }
+#swagger-ui a, #swagger-ui .opblock-tag { color: #18181b; }
+
+/* Slim scrollbars on Swagger's overflow containers. */
+#swagger-ui .opblock-body pre.microlight,
+#swagger-ui .responses-inner,
+#swagger-ui .model-box {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(113 113 122 / 0.4) transparent;
+}
+
+/* Dark theme: honor both prefers-color-scheme and the app's .dark toggle. */
+@media (prefers-color-scheme: dark) {
+  html:not(.light) #swagger-ui, html:not(.light) #swagger-ui .scheme-container {
+    background: #0b0d0e; color: #e4e4e7;
+  }
+  html:not(.light) #swagger-ui .opblock .opblock-summary-description,
+  html:not(.light) #swagger-ui .info .title,
+  html:not(.light) #swagger-ui a,
+  html:not(.light) #swagger-ui .opblock-tag,
+  html:not(.light) #swagger-ui table thead tr th,
+  html:not(.light) #swagger-ui .parameter__name,
+  html:not(.light) #swagger-ui .response-col_status { color: #e4e4e7; }
+  html:not(.light) #swagger-ui .btn.authorize,
+  html:not(.light) #swagger-ui .btn.execute { background: #e4e4e7; color: #0b0d0e; border-color: #e4e4e7; }
+}
+html.dark #swagger-ui, html.dark #swagger-ui .scheme-container { background: #0b0d0e; color: #e4e4e7; }
+html.dark #swagger-ui .info .title,
+html.dark #swagger-ui a,
+html.dark #swagger-ui .opblock-tag,
+html.dark #swagger-ui table thead tr th,
+html.dark #swagger-ui .parameter__name,
+html.dark #swagger-ui .response-col_status,
+html.dark #swagger-ui .opblock .opblock-summary-description { color: #e4e4e7; }
+html.dark #swagger-ui .btn.authorize,
+html.dark #swagger-ui .btn.execute { background: #e4e4e7; color: #0b0d0e; border-color: #e4e4e7; }

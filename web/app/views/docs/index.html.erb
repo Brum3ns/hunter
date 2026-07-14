@@ -1,0 +1,30 @@
+<% content_for :title, "API Docs" %>
+<%# Full-bleed: Swagger UI manages its own width and internal scrolling. %>
+<% content_for :container, "w-full px-4 py-6" %>
+
+<% content_for :head do %>
+  <%= stylesheet_link_tag "swagger-ui" %>
+  <%= stylesheet_link_tag "swagger_ui_skin" %>
+<% end %>
+
+<div id="swagger-ui" class="slim-scroll"></div>
+
+<%= javascript_include_tag "swagger-ui-bundle" %>
+<script>
+  (function () {
+    function boot() {
+      if (!window.SwaggerUIBundle || !document.getElementById("swagger-ui")) return;
+      window.SwaggerUIBundle({
+        url: "<%= api_v1_openapi_path(format: :json) %>",
+        dom_id: "#swagger-ui",
+        docExpansion: "list",
+        defaultModelsExpandDepth: 0,
+        tagsSorter: "alpha",
+        operationsSorter: "alpha",
+        withCredentials: true
+      });
+    }
+    document.addEventListener("turbo:load", boot);
+    document.addEventListener("DOMContentLoaded", boot);
+  })();
+</script>
