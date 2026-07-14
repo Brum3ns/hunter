@@ -50,6 +50,8 @@ Rails.application.routes.draw do
   get "cves", to: "cves#index"
 
   get "help", to: "help#index"
+  # API documentation (Swagger UI) — a utility department behind session auth.
+  get "docs", to: "docs#index"
 
   # JSON API. Each Hunter module mounts its own resources under /api/v1/<module>.
   # Add new modules as sibling blocks here (programs, control_center, cves, ...).

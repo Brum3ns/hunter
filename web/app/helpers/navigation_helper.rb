@@ -28,6 +28,7 @@ module NavigationHelper
   # App-level utilities pinned to the bottom of the sidebar.
   def utility_nav_items
     [
+      { label: "API Docs", path: docs_path, controllers: %w[docs], icon: "code-bracket" },
       { label: "Settings", path: settings_path, controllers: %w[settings], icon: "cog" },
       { label: "Help", path: help_path, controllers: %w[help], icon: "question-mark-circle" }
     ]
