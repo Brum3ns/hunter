@@ -1,0 +1,52 @@
+paths:
+  /api/v1/targets:
+    get:
+      tags: ["Targets"]
+      summary: "List targets"
+      description: "Browse the alive-host inventory. `q` accepts free text plus dork expressions; `sort`/`dir` order the results."
+      parameters:
+        - { name: program, in: query, schema: { type: string }, description: "metadata.program." }
+        - { name: status, in: query, schema: { type: string }, description: "http.status_code." }
+        - { name: q, in: query, schema: { type: string }, description: "Free-text (host/ip/title/tech) and/or dork expression." }
+        - { name: sort, in: query, schema: { type: string, enum: [host, ip, port, status, title, date], default: date } }
+        - { name: dir, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: "Paginated target list."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PageEnvelope"
+                  - type: object
+                    properties:
+                      targets: { type: array, items: { $ref: "#/components/schemas/Target" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/targets/{id}:
+    get:
+      tags: ["Targets"]
+      summary: "Get one target"
+      description: "Fetch a target by ObjectId. An invalid ObjectId yields 404."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string }, description: "Mongo ObjectId string." }
+      responses:
+        "200": { description: "The target.", content: { application/json: { schema: { $ref: "#/components/schemas/Target" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  schemas:
+    Target:
+      type: object
+      description: "An alive host (raw normalized Mongo doc; extra keys allowed)."
+      additionalProperties: true
+      properties:
+        id: { type: string, description: "Mongo ObjectId (surfaced from _id)." }
+        metadata: { type: object, additionalProperties: true }
+        target: { type: object, additionalProperties: true, description: "host, ip, port." }
+        http: { type: object, additionalProperties: true, description: "status_code, title." }
+        headers: { type: object, additionalProperties: true }
+        csp: { type: object, additionalProperties: true }
+        fingerprint: { type: object, additionalProperties: true }
+        tech: { type: array, items: { type: string } }

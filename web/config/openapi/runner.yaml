@@ -1,0 +1,40 @@
+paths:
+  /api/v1/runner/jobs/claim:
+    post:
+      tags: ["Runner"]
+      summary: "Claim the next runner job"
+      description: |
+        Machine endpoint for the Whiterabbit runner. Authenticates with the
+        **runner** machine token (not a user API token) via
+        `Authorization: Bearer <runner-token>`. Returns 204 when no job is
+        queued, otherwise the claimed job.
+      responses:
+        "200":
+          description: "The claimed job."
+          content: { application/json: { schema: { type: object, properties: { id: { type: integer }, kind: { type: string }, command: { type: string } }, required: [id, kind, command] } } }
+        "204": { description: "No job available." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/runner/jobs/{id}/result:
+    post:
+      tags: ["Runner"]
+      summary: "Report a runner job result"
+      description: "Report the outcome of a claimed, running job. Authenticates with the runner machine token. Returns 404 if the job is not owned by the runner or not running."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exit_status: { type: integer }
+                stdout: { type: string }
+                stderr: { type: string }
+                error: { type: [string, "null"] }
+                duration_ms: { type: integer }
+                output_truncated: { type: boolean }
+      responses:
+        "200": { description: "Recorded.", content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } }, required: [ok] } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }

@@ -1,0 +1,97 @@
+paths:
+  /api/v1/programs/changes:
+    get:
+      tags: ["Programs"]
+      summary: "Program change feed"
+      description: "The Monitor feed of scope/bounty/status changes for the current user's programs, newest first. Use `since_id` to tail new rows or `before_id` to load older ones."
+      parameters:
+        - { name: platform, in: query, schema: { type: string } }
+        - name: kind
+          in: query
+          schema: { type: string, enum: [program_added, program_removed, bounty_changed, status_changed, scope_added, scope_removed, outofscope_added, outofscope_removed] }
+        - { name: sid, in: query, schema: { type: string }, description: "Program sid." }
+        - { name: since_id, in: query, schema: { type: integer }, description: "Return rows with id greater than this (live tail)." }
+        - { name: before_id, in: query, schema: { type: integer }, description: "Return rows with id less than this (load older)." }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: "Change rows."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  changes: { type: array, items: { $ref: "#/components/schemas/ProgramChange" } }
+                required: [changes]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/programs/runs:
+    get:
+      tags: ["Programs"]
+      summary: "Scope-run log feed"
+      description: "The Logs feed of scope tool runs, newest first. Runs are shared across operators unless `mine` is set."
+      parameters:
+        - { name: mine, in: query, schema: { type: boolean }, description: "Restrict to the current user's runs." }
+        - { name: kind, in: query, schema: { type: string, enum: [fetch, version, status, check_mongo] } }
+        - { name: platform, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [ok] }, description: "`ok` keeps successes; any other value keeps failures." }
+        - { name: since_id, in: query, schema: { type: integer }, description: "Rows with id greater than this, plus still-in-flight rows." }
+        - { name: before_id, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: "Run rows."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs: { type: array, items: { $ref: "#/components/schemas/ScopeRun" } }
+                required: [runs]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/programs/runs/{id}:
+    get:
+      tags: ["Programs"]
+      summary: "Get one scope run"
+      description: "Fetch a single run. Own runs are private; system runs (no user) are visible to any operator."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: "The run.", content: { application/json: { schema: { $ref: "#/components/schemas/ScopeRun" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  schemas:
+    ProgramChange:
+      type: object
+      properties:
+        id: { type: integer }
+        platform: { type: string }
+        program_sid: { type: string }
+        program_name: { type: string }
+        kind: { type: string }
+        old_value: { type: [string, "null"] }
+        new_value: { type: [string, "null"] }
+        detected_at: { type: [string, "null"], format: date-time }
+        scope_run_id: { type: [integer, "null"] }
+    ScopeRun:
+      type: object
+      properties:
+        id: { type: integer }
+        kind: { type: string }
+        platform: { type: [string, "null"] }
+        trigger: { type: string, enum: [manual, scheduled] }
+        mode: { type: [string, "null"] }
+        bug_bounty: { type: [boolean, "null"] }
+        vdp: { type: [boolean, "null"] }
+        programs: { type: [array, "null"], items: { type: string } }
+        success: { type: [boolean, "null"] }
+        in_flight: { type: boolean }
+        exit_status: { type: [integer, "null"] }
+        duration_ms: { type: [integer, "null"] }
+        stdout_bytes: { type: [integer, "null"] }
+        stdout_excerpt: { type: [string, "null"] }
+        stderr_excerpt: { type: [string, "null"] }
+        error_class: { type: [string, "null"] }
+        started_at: { type: [string, "null"], format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        user: { type: [string, "null"] }

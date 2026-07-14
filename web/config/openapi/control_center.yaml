@@ -1,0 +1,208 @@
+paths:
+  /api/v1/control_center/templates:
+    get:
+      tags: ["Control Center"]
+      summary: "List templates"
+      description: "All Whiterabbit command templates, ordered by name."
+      responses:
+        "200":
+          description: "Templates."
+          content: { application/json: { schema: { type: object, properties: { templates: { type: array, items: { $ref: "#/components/schemas/CcTemplate" } } }, required: [templates] } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: ["Control Center"]
+      summary: "Create a template"
+      description: "Create a template from either structured fields or a raw `yaml` string. Returns 422 with an errors array on invalid input."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CcTemplateInput" } } }
+      responses:
+        "201": { description: "Created.", content: { application/json: { schema: { $ref: "#/components/schemas/CcTemplate" } } } }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/control_center/templates/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center"]
+      summary: "Get one template"
+      description: "Fetch a template by id."
+      responses:
+        "200": { description: "The template.", content: { application/json: { schema: { $ref: "#/components/schemas/CcTemplate" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Control Center"]
+      summary: "Update a template"
+      description: "Update from structured fields or a raw `yaml` string."
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CcTemplateInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/CcTemplate" } } } }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: ["Control Center"]
+      summary: "Update a template (PUT alias)"
+      description: "Identical to PATCH."
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CcTemplateInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/CcTemplate" } } } }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: ["Control Center"]
+      summary: "Delete a template"
+      description: "Remove a template. Returns 204 on success."
+      responses:
+        "204": { description: "Deleted." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/templates/validate:
+    post:
+      tags: ["Control Center"]
+      summary: "Validate structured template fields"
+      description: "Dry-run a structured template; returns validity, errors, and the rendered YAML without persisting."
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CcTemplateInput" } } } }
+      responses:
+        "200":
+          description: "Validation result."
+          content: { application/json: { schema: { type: object, properties: { valid: { type: boolean }, errors: { type: array, items: { type: string } }, yaml: { type: string } }, required: [valid, errors, yaml] } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/control_center/templates/validate_yaml:
+    post:
+      tags: ["Control Center"]
+      summary: "Validate a raw YAML template"
+      description: "Parse a raw `yaml` string; returns validity, errors, and the parsed attributes without persisting."
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { yaml: { type: string } }, required: [yaml] } } } }
+      responses:
+        "200":
+          description: "Validation result."
+          content: { application/json: { schema: { type: object, properties: { valid: { type: boolean }, errors: { type: array, items: { type: string } }, template: { type: [object, "null"], additionalProperties: true } }, required: [valid, errors] } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/control_center/jobs:
+    get:
+      tags: ["Control Center"]
+      summary: "List jobs"
+      description: "Recent Whiterabbit jobs, newest first."
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: "Jobs."
+          content: { application/json: { schema: { type: object, properties: { jobs: { type: array, items: { $ref: "#/components/schemas/CcJob" } } }, required: [jobs] } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: ["Control Center"]
+      summary: "Submit a job"
+      description: "Run a template (by name) against a target list via Whiterabbit. Returns 422 if the template's commands fail validation."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template: { type: string, description: "Template name." }
+                targets: { type: array, items: { type: string } }
+                queue_name: { type: string, default: "test" }
+                target_chunk: { type: integer }
+                delay: { type: integer }
+              required: [template]
+      responses:
+        "201": { description: "Job recorded and submitted.", content: { application/json: { schema: { $ref: "#/components/schemas/CcJob" } } } }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/jobs/{id}:
+    get:
+      tags: ["Control Center"]
+      summary: "Get one job"
+      description: "Fetch a job by id."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: "The job.", content: { application/json: { schema: { $ref: "#/components/schemas/CcJob" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/health:
+    get:
+      tags: ["Control Center"]
+      summary: "Backend health"
+      description: "RabbitMQ and Mongo reachability for the Whiterabbit backend."
+      responses:
+        "200":
+          description: "Health snapshot."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rabbitmq: { type: object, properties: { ok: { type: boolean }, detail: { type: string } } }
+                  mongo: { type: object, properties: { ok: { type: boolean }, detail: { type: string } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/control_center/stats:
+    get:
+      tags: ["Control Center"]
+      summary: "Job dashboard stats"
+      description: "Aggregate job counts, success rate, top templates, per-queue and last-30-days daily counts."
+      responses:
+        "200":
+          description: "Stats payload."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totals: { type: object, additionalProperties: true }
+                  by_status: { type: array, items: { type: object, additionalProperties: true } }
+                  top_templates: { type: array, items: { type: object, additionalProperties: true } }
+                  by_queue: { type: array, items: { type: object, additionalProperties: true } }
+                  daily: { type: array, items: { type: object, additionalProperties: true } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+components:
+  # NOTE: no `responses:` block here — CcUnprocessable is defined in base.yaml
+  # (the service merges only paths + schemas from fragments). This fragment
+  # only $ref's it.
+  schemas:
+    CcTemplate:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        tags: { type: array, items: { type: string } }
+        description: { type: [string, "null"] }
+        output: { type: [string, "null"] }
+        commands: { type: array, items: { type: object, additionalProperties: true } }
+        target: { type: [object, "null"], additionalProperties: true }
+        created_by: { type: [string, "null"] }
+        yaml: { type: string, description: "Rendered YAML form." }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CcTemplateInput:
+      type: object
+      description: "Either structured fields OR a raw `yaml` string (yaml wins if both are present)."
+      properties:
+        yaml: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        description: { type: string }
+        output: { type: string }
+        tags: { type: array, items: { type: string } }
+        commands: { type: array, items: { type: object, properties: { command: { type: string }, operator: { type: string }, args: { type: array, items: { type: string } } } } }
+        target: { type: object, properties: { type: { type: string }, separator: { type: string }, output: { type: string } } }
+    CcJob:
+      type: object
+      properties:
+        id: { type: integer }
+        template_name: { type: string }
+        queue_name: { type: string }
+        target_count: { type: integer }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        exit_status: { type: [integer, "null"] }
+        stdout: { type: [string, "null"] }
+        stderr: { type: [string, "null"] }
+        created_by: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
