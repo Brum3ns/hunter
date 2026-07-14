@@ -55,6 +55,10 @@ Rails.application.routes.draw do
   # Add new modules as sibling blocks here (programs, control_center, cves, ...).
   namespace :api do
     namespace :v1 do
+      # Machine-readable OpenAPI document (scope-filtered per token). Canonical
+      # URL /api/v1/openapi; the .json suffix also resolves.
+      get "openapi", to: "openapi#show"
+
       # Programs module: Monitor change feed + Logs run feed.
       namespace :programs do
         get "changes",   to: "changes#index"

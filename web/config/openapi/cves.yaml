@@ -1,0 +1,155 @@
+paths:
+  /api/v1/cves:
+    get:
+      tags: ["CVEs"]
+      x-api-scope: cves
+      summary: "List CVEs"
+      description: |
+        Browse tracked CVEs, newest-modified first. Filters combine with AND.
+        Multi-value filters accept a comma-separated list (matched as `$in`).
+        A bearer token's saved `cve_filter` supplies defaults; request params
+        override it per field.
+      parameters:
+        - { name: ecosystem, in: query, schema: { type: string }, description: "OSV ecosystem(s), e.g. `PyPI,npm`." }
+        - { name: package, in: query, schema: { type: string }, description: "Affected package name(s)." }
+        - { name: language, in: query, schema: { type: string }, description: "Language tag(s)." }
+        - { name: vendor, in: query, schema: { type: string }, description: "Vendor(s)." }
+        - { name: cwe, in: query, schema: { type: string }, description: "CWE id(s), e.g. `CWE-79`." }
+        - { name: tag, in: query, schema: { type: string }, description: "Free-form tag(s)." }
+        - { name: has_fix, in: query, schema: { type: boolean }, description: "Only CVEs with (true) / without (false) a known fix." }
+        - name: min_severity
+          in: query
+          schema: { type: string, enum: [critical, high, medium, low] }
+          description: "Minimum CVSS band: critical ≥9.0, high ≥7.0, medium ≥4.0, low ≥0.1."
+        - { name: published_after, in: query, schema: { type: string, format: date-time }, description: "ISO-8601; keep CVEs published at/after this instant." }
+        - { name: modified_after, in: query, schema: { type: string, format: date-time }, description: "ISO-8601; keep CVEs modified at/after this instant." }
+        - { name: q, in: query, schema: { type: string }, description: "Case-insensitive text search over id, summary, details. Alias: `keyword`." }
+        - name: fields
+          in: query
+          schema: { type: string, enum: [core] }
+          description: "`core` returns the compact LLM serialization (drops the large `details` body); omit for the full document."
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: "Paginated CVE list."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PageEnvelope"
+                  - type: object
+                    properties:
+                      cves:
+                        type: array
+                        items: { $ref: "#/components/schemas/Cve" }
+              example:
+                count: 128
+                page: 1
+                limit: 50
+                cves:
+                  - id: "CVE-2024-1234"
+                    summary: "Example RCE in acme-lib"
+                    severity_level: "high"
+                    severity_score: 8.1
+                    has_fix: true
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+  /api/v1/cves/{id}:
+    get:
+      tags: ["CVEs"]
+      x-api-scope: cves
+      summary: "Get one CVE"
+      description: "Fetch a single CVE by its id (e.g. `CVE-2024-1234`). Always returns the full document; `fields=core` does not apply here."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string }, description: "The CVE id." }
+      responses:
+        "200":
+          description: "The full CVE document."
+          content: { application/json: { schema: { $ref: "#/components/schemas/Cve" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/cves/new:
+    get:
+      tags: ["CVEs"]
+      x-api-scope: cves
+      summary: "New-since feed (keyset)"
+      description: |
+        LLM-facing incremental feed ordered by `first_seen_at` ascending. Poll
+        by echoing the previous response's `next_since` / `next_since_id` back
+        as `since` / `since_id`; an empty page returns `next_since: null`. All
+        list filters (plus the token's saved filter) also apply. Pair with
+        `fields=core` for compact payloads.
+      parameters:
+        - { name: since, in: query, schema: { type: string, format: date-time }, description: "ISO-8601 lower bound on first_seen_at (exclusive at the tiebreaker)." }
+        - { name: since_id, in: query, schema: { type: string }, description: "Tiebreaker CVE id for rows sharing the `since` instant." }
+        - { name: fields, in: query, schema: { type: string, enum: [core] } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: ecosystem, in: query, schema: { type: string } }
+        - { name: package, in: query, schema: { type: string } }
+        - { name: min_severity, in: query, schema: { type: string, enum: [critical, high, medium, low] } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: "A page of newly-seen CVEs plus the next cursor."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  limit: { type: integer }
+                  cves: { type: array, items: { $ref: "#/components/schemas/Cve" } }
+                  next_since: { type: [string, "null"], format: date-time }
+                  next_since_id: { type: [string, "null"] }
+                required: [limit, cves, next_since, next_since_id]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+  /api/v1/cves/config:
+    get:
+      tags: ["CVEs"]
+      x-api-scope: cves
+      summary: "Echo the token's saved CVE filter"
+      description: "Returns the calling bearer token's saved `cve_filter` (the defaults applied to `/cves` and `/cves/new`). Session requests get `{}`."
+      responses:
+        "200":
+          description: "The saved filter."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cve_filter: { type: object, additionalProperties: true }
+                required: [cve_filter]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+components:
+  schemas:
+    Cve:
+      type: object
+      description: "A tracked CVE (normalized OSV document). Extra keys may appear; `fields=core` returns the subset marked core."
+      additionalProperties: true
+      properties:
+        id: { type: string, description: "CVE id (primary key), e.g. CVE-2024-1234." }
+        osv_id: { type: string }
+        summary: { type: string, description: "[core] Short title." }
+        details: { type: string, description: "Full markdown body (omitted by fields=core)." }
+        published: { type: string, format: date-time }
+        modified: { type: string, format: date-time }
+        withdrawn: { type: [string, "null"], format: date-time }
+        has_fix: { type: boolean }
+        severity_score: { type: [number, "null"], description: "[core] CVSS base score." }
+        severity_level: { type: [string, "null"], description: "[core] critical|high|medium|low." }
+        first_seen_at: { type: string, format: date-time, description: "When Hunter first ingested it (the /cves/new sort key)." }
+        last_synced_at: { type: string, format: date-time }
+        aliases: { type: array, items: { type: string } }
+        severity: { type: array, items: { type: object, additionalProperties: true } }
+        cwe_ids: { type: array, items: { type: string }, description: "[core]" }
+        ecosystems: { type: array, items: { type: string }, description: "[core]" }
+        languages: { type: array, items: { type: string }, description: "[core]" }
+        vendors: { type: array, items: { type: string }, description: "[core]" }
+        tags: { type: array, items: { type: string }, description: "[core]" }
+        affected: { type: array, items: { type: object, additionalProperties: true } }
+        references: { type: array, items: { type: object, additionalProperties: true } }
+        chain: { type: object, additionalProperties: true, description: "[core] Derived exploit/context chain." }
+      required: [id]
