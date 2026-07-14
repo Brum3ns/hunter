@@ -1,0 +1,110 @@
+paths:
+  /api/v1/vulnerabilities:
+    get:
+      tags: ["Vulnerabilities"]
+      x-api-scope: vulnerabilities
+      summary: "List vulnerabilities"
+      description: "Browse findings, newest first. Filters combine with AND; `q` is a case-insensitive search over finding name and target host."
+      parameters:
+        - { name: program, in: query, schema: { type: string }, description: "metadata.program." }
+        - { name: severity, in: query, schema: { type: string }, description: "finding.severity." }
+        - { name: status, in: query, schema: { type: string }, description: "report.status." }
+        - { name: tool, in: query, schema: { type: string }, description: "metadata.tool." }
+        - { name: q, in: query, schema: { type: string }, description: "Text search over finding.name and target.host." }
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: "Paginated vulnerability list."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PageEnvelope"
+                  - type: object
+                    properties:
+                      vulnerabilities: { type: array, items: { $ref: "#/components/schemas/Vulnerability" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+    post:
+      tags: ["Vulnerabilities"]
+      x-api-scope: vulnerabilities
+      summary: "Create a vulnerability"
+      description: "Store an arbitrary well-formed finding document. Any client-supplied `id`/`_id` is stripped."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Vulnerability" } } }
+      responses:
+        "201":
+          description: "Created; returns the new id."
+          content: { application/json: { schema: { type: object, properties: { id: { type: string } }, required: [id] } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+  /api/v1/vulnerabilities/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string }, description: "Mongo ObjectId string." }
+    get:
+      tags: ["Vulnerabilities"]
+      x-api-scope: vulnerabilities
+      summary: "Get one vulnerability"
+      description: "Fetch a finding by ObjectId. An invalid ObjectId yields 404."
+      responses:
+        "200": { description: "The finding.", content: { application/json: { schema: { $ref: "#/components/schemas/Vulnerability" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Vulnerabilities"]
+      x-api-scope: vulnerabilities
+      summary: "Update a vulnerability"
+      description: "`$set` the supplied fields on an existing finding, then return the updated document."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Vulnerability" } } }
+      responses:
+        "200": { description: "The updated finding.", content: { application/json: { schema: { $ref: "#/components/schemas/Vulnerability" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+    put:
+      tags: ["Vulnerabilities"]
+      x-api-scope: vulnerabilities
+      summary: "Update a vulnerability (PUT alias)"
+      description: "Identical to PATCH; `$set` the supplied fields and return the updated document."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Vulnerability" } } }
+      responses:
+        "200": { description: "The updated finding.", content: { application/json: { schema: { $ref: "#/components/schemas/Vulnerability" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+    delete:
+      tags: ["Vulnerabilities"]
+      x-api-scope: vulnerabilities
+      summary: "Delete a vulnerability"
+      description: "Remove a finding. Returns 204 on success."
+      responses:
+        "204": { description: "Deleted." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+components:
+  schemas:
+    Vulnerability:
+      type: object
+      description: "A finding document (raw normalized Mongo doc; extra keys allowed)."
+      additionalProperties: true
+      properties:
+        id: { type: string, description: "Mongo ObjectId (surfaced from _id)." }
+        metadata: { type: object, additionalProperties: true, description: "program, tool, date, …" }
+        report: { type: object, additionalProperties: true, description: "status and reporting fields." }
+        finding: { type: object, additionalProperties: true, description: "name, severity, description." }
+        target: { type: object, additionalProperties: true, description: "host and location." }
+        poc: { type: object, additionalProperties: true, description: "proof-of-concept detail." }
