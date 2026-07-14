@@ -36,6 +36,15 @@ info:
 servers:
   - url: "/"
     description: "This Hunter instance"
+paths:
+  /api/v1/openapi:
+    get:
+      tags: ["Meta"]
+      summary: "This OpenAPI document"
+      description: "Returns this document, filtered to the calling token's scopes. Session and wildcard-token callers receive every module."
+      responses:
+        "200": { description: "The OpenAPI 3.1 document.", content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
 components:
   securitySchemes:
     bearerAuth:
