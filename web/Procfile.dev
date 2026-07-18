@@ -1,3 +1,4 @@
 web: bin/rails server -b 0.0.0.0 -p 5000
 css: bin/rails tailwindcss:watch
 worker: bin/rails solid_queue:start
+stream: bin/rails sitemap:stream
