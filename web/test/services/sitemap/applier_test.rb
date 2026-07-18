@@ -60,4 +60,46 @@ class Sitemap::ApplierTest < ActiveSupport::TestCase
     Sitemap::Applier.tombstone_endpoint_by_source("wayback", "w1", now: now)
     assert e.reload.removed_at.present?
   end
+
+  test "a concurrent unique-constraint race on endpoint insert is retried and updates the existing row" do
+    Sitemap::Applier.upsert_target(target_attrs, now: now)
+    target = Sitemap::Target.active.find_by(origin: target_attrs[:origin])
+    digest = Sitemap::Origin.digest(katana_attrs[:url], katana_attrs[:method])
+
+    # Simulate a row that was inserted by a concurrent writer (e.g. the stream
+    # worker) after our lookup ran but before our insert landed.
+    existing = Sitemap::Endpoint.create!(
+      target_id: target.id, origin: katana_attrs[:origin], url: katana_attrs[:url],
+      path: katana_attrs[:path], method: katana_attrs[:method], url_digest: digest,
+      source: "wayback", wayback_mongo_id: "w-existing", first_seen_at: now, last_seen_at: now
+    )
+
+    original_find_endpoint = Sitemap::Applier.method(:find_endpoint)
+    calls = 0
+    stub_methods(Sitemap::Applier, find_endpoint: lambda { |t, origin, dig|
+      calls += 1
+      calls == 1 ? nil : original_find_endpoint.call(t, origin, dig)
+    }) do
+      result = Sitemap::Applier.upsert_endpoint(katana_attrs, now: now)
+      assert_equal existing.id, result.id
+      assert_equal "both", result.source
+      assert_equal "k1", result.katana_mongo_id
+      assert_equal 200, result.status_code
+    end
+
+    assert_equal 1, Sitemap::Endpoint.where(target_id: target.id, url_digest: digest).count
+  end
+
+  test "re-applying with a blank source_mongo_id preserves the last-known source instead of nulling it (M1 guard)" do
+    Sitemap::Applier.upsert_target(target_attrs, now: now)
+    e = Sitemap::Applier.upsert_endpoint(katana_attrs, now: now)
+    assert_equal "katana", e.source
+
+    # A malformed re-sync clears the katana id without supplying a wayback
+    # one; derive_source(nil, nil) is nil. Without the guard this would
+    # overwrite `source` with nil and violate the NOT NULL constraint.
+    e2 = Sitemap::Applier.upsert_endpoint(katana_attrs.merge(source_mongo_id: nil), now: now)
+    assert_equal e.id, e2.id
+    assert_equal "katana", e2.source
+  end
 end

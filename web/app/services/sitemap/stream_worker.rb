@@ -6,10 +6,16 @@ module Sitemap
   # Reconciliation remains the backstop for anything missed here.
   class StreamWorker
     UPSERT_OPS = %w[insert update replace].freeze
+    # After this many consecutive stream-open/consume failures, assume the
+    # persisted resume token has fallen outside the oplog window and is no
+    # longer resumable; clear it so the next attempt restarts from "now"
+    # instead of retrying the same dead token forever.
+    MAX_RESUME_FAILURES = 3
 
     def initialize(collection, source:)
       @collection = collection
       @source = source
+      @failure_count = 0
     end
 
     def run
@@ -18,6 +24,10 @@ module Sitemap
         stream.each { |event| apply_event(event) }
       rescue Mongo::Error => e
         Rails.logger.warn("Sitemap::StreamWorker(#{@collection}) reconnecting (#{e.class}: #{e.message})")
+        record_stream_failure
+        sleep 1
+      rescue StandardError => e
+        Rails.logger.warn("Sitemap::StreamWorker(#{@collection}) recovering from unexpected error (#{e.class}: #{e.message})")
         sleep 1
       end
     end
@@ -31,9 +41,24 @@ module Sitemap
         apply_delete(event.dig("documentKey", "_id"), now)
       end
       save_token(event["_id"])
+      @failure_count = 0
     end
 
     private
+
+    # Increments the consecutive-failure counter; once it reaches
+    # MAX_RESUME_FAILURES, clears the persisted resume token (so the next
+    # #run iteration opens a fresh, unbounded change stream) and resets the
+    # counter. Returns whether it cleared the token.
+    def record_stream_failure
+      @failure_count += 1
+      return false unless @failure_count >= MAX_RESUME_FAILURES
+
+      MongoStreamCursor.save_token(@collection, {})
+      Rails.logger.warn("Sitemap::StreamWorker(#{@collection}) resume token invalid after #{@failure_count} failures; restarting from now")
+      @failure_count = 0
+      true
+    end
 
     def apply_upsert(doc, now)
       return unless doc

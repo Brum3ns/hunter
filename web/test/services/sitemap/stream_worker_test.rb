@@ -32,4 +32,35 @@ class Sitemap::StreamWorkerTest < ActiveSupport::TestCase
     worker.apply_event(event("insert", doc: { "_id" => "a1", "target" => { "scheme" => "https", "host" => "ex.com", "port" => 443 }, "metadata" => {} }))
     assert Sitemap::Endpoint.sole.target_id.present?
   end
+
+  test "delete of an alive doc tombstones the matching target by alive_mongo_id" do
+    t = Sitemap::Applier.upsert_target({ origin: "https://ex.com:443", scheme: "https", host: "ex.com", port: 443, program: nil, alive_mongo_id: "a1" }, now: now)
+    worker = Sitemap::StreamWorker.new(Sitemap::MongoSource::ALIVE, source: nil)
+    worker.apply_event(event("delete", key: "a1"))
+    assert t.reload.removed_at.present?
+  end
+
+  test "insert of a wayback doc upserts a wayback endpoint" do
+    Sitemap::Applier.upsert_target({ origin: "https://ex.com:443", scheme: "https", host: "ex.com", port: 443, program: nil, alive_mongo_id: "a1" }, now: now)
+    worker = Sitemap::StreamWorker.new(Sitemap::MongoSource::WAYBACK, source: "wayback")
+    worker.apply_event(event("insert", doc: { "_id" => "w1", "url" => "https://ex.com/a" }))
+    ep = Sitemap::Endpoint.active.sole
+    assert_equal "wayback", ep.source
+    assert_equal "https://ex.com:443/a", ep.url
+  end
+
+  test "record_stream_failure clears the persisted resume token only at the threshold" do
+    MongoStreamCursor.save_token(Sitemap::MongoSource::KATANA, { "_data" => "stale" })
+    worker = Sitemap::StreamWorker.new(Sitemap::MongoSource::KATANA, source: "katana")
+
+    (Sitemap::StreamWorker::MAX_RESUME_FAILURES - 1).times do
+      cleared = worker.send(:record_stream_failure)
+      assert_equal false, cleared
+      assert_equal({ "_data" => "stale" }, MongoStreamCursor.token_for(Sitemap::MongoSource::KATANA))
+    end
+
+    cleared = worker.send(:record_stream_failure)
+    assert_equal true, cleared
+    assert_nil MongoStreamCursor.token_for(Sitemap::MongoSource::KATANA)
+  end
 end
