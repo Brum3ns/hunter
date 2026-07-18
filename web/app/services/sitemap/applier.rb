@@ -85,7 +85,7 @@ module Sitemap
       existing.katana_mongo_id  ||= orphan.katana_mongo_id
       existing.wayback_mongo_id ||= orphan.wayback_mongo_id
       existing.source = Sitemap::Endpoint.derive_source(existing.katana_mongo_id, existing.wayback_mongo_id)
-      existing.last_seen_at = [existing.last_seen_at, orphan.last_seen_at, now].compact.max
+      existing.last_seen_at = [ existing.last_seen_at, orphan.last_seen_at, now ].compact.max
       existing.removed_at = nil
       existing.save!
     end
