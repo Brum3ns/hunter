@@ -35,4 +35,34 @@ class Sitemap::ReconciliationTest < ActiveSupport::TestCase
     stub_mongo(alive: [alive("ex.com")], katana: [katana("https://ex.com/a")]) { Sitemap::Reconciliation.new.run }
     assert Sitemap::Endpoint.sole.target_id.present?
   end
+
+  test "an incomplete katana scan does not tombstone previously-materialized endpoints" do
+    stub_mongo(alive: [alive("ex.com")], katana: [katana("https://ex.com/a")]) { Sitemap::Reconciliation.new.run }
+    assert Sitemap::Endpoint.sole.removed_at.nil?
+
+    stub_methods(Sitemap::MongoSource,
+      each_alive:   ->(&b) { [alive("ex.com")].each(&b); true },
+      each_katana:  ->(&b) { false },
+      each_wayback: ->(&b) { [].each(&b); true }) do
+      stats = Sitemap::Reconciliation.new.run
+      assert_equal 0, stats[:endpoints_tombstoned]
+    end
+
+    assert_nil Sitemap::Endpoint.sole.removed_at, "endpoint must not be tombstoned when the katana scan failed"
+  end
+
+  test "an incomplete alive scan does not tombstone previously-materialized targets" do
+    stub_mongo(alive: [alive("ex.com")], katana: [katana("https://ex.com/a")]) { Sitemap::Reconciliation.new.run }
+    assert Sitemap::Target.sole.removed_at.nil?
+
+    stub_methods(Sitemap::MongoSource,
+      each_alive:   ->(&b) { false },
+      each_katana:  ->(&b) { [katana("https://ex.com/a")].each(&b); true },
+      each_wayback: ->(&b) { [].each(&b); true }) do
+      stats = Sitemap::Reconciliation.new.run
+      assert_equal 0, stats[:targets_tombstoned]
+    end
+
+    assert_nil Sitemap::Target.sole.removed_at, "target must not be tombstoned when the alive scan failed"
+  end
 end

@@ -13,11 +13,15 @@ module Sitemap
     def each_katana(&blk)  = each(KATANA, &blk)
     def each_wayback(&blk) = each(WAYBACK, &blk)
 
+    # Returns true when the scan completed, false when a Mongo::Error was
+    # caught partway through (or before yielding anything) — callers must not
+    # treat a false return as "nothing exists".
     def each(collection_name)
       HunterMongo.collection(collection_name).find.each { |doc| yield doc }
+      true
     rescue Mongo::Error => e
       Rails.logger.warn("Sitemap::MongoSource#each(#{collection_name}) failed (#{e.class}: #{e.message})")
-      nil
+      false
     end
 
     def change_stream(collection_name, resume_after: nil)
