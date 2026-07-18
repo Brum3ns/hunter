@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_13_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_18_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -66,6 +66,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_000001) do
     t.bigint "user_id", null: false
     t.index ["user_id", "program_sid"], name: "index_favorites_on_user_id_and_program_sid", unique: true
     t.index ["user_id"], name: "index_favorites_on_user_id"
+  end
+
+  create_table "mongo_stream_cursors", force: :cascade do |t|
+    t.string "collection", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "resume_token", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["collection"], name: "index_mongo_stream_cursors_on_collection", unique: true
   end
 
   create_table "monitor_configs", force: :cascade do |t|
@@ -192,6 +200,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_000001) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "sitemap_endpoints", force: :cascade do |t|
+    t.bigint "content_length"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.datetime "first_seen_at", null: false
+    t.string "katana_mongo_id"
+    t.datetime "last_seen_at", null: false
+    t.string "method", null: false
+    t.string "origin", null: false
+    t.text "path", null: false
+    t.datetime "removed_at"
+    t.string "source", null: false
+    t.integer "status_code"
+    t.bigint "target_id"
+    t.datetime "updated_at", null: false
+    t.text "url", null: false
+    t.binary "url_digest", null: false
+    t.string "wayback_mongo_id"
+    t.index ["origin", "url_digest"], name: "idx_sitemap_endpoints_unmatched_digest", unique: true, where: "(target_id IS NULL)"
+    t.index ["origin"], name: "idx_sitemap_endpoints_unmatched_origin", where: "(target_id IS NULL)"
+    t.index ["target_id", "path"], name: "index_sitemap_endpoints_on_target_id_and_path"
+    t.index ["target_id", "removed_at"], name: "index_sitemap_endpoints_on_target_id_and_removed_at"
+    t.index ["target_id", "url_digest"], name: "idx_sitemap_endpoints_matched_digest", unique: true
+    t.index ["target_id"], name: "index_sitemap_endpoints_on_target_id"
+  end
+
+  create_table "sitemap_targets", force: :cascade do |t|
+    t.string "alive_mongo_id"
+    t.datetime "created_at", null: false
+    t.datetime "first_seen_at", null: false
+    t.string "host", null: false
+    t.datetime "last_seen_at", null: false
+    t.string "origin", null: false
+    t.integer "port", null: false
+    t.string "program"
+    t.datetime "removed_at"
+    t.string "scheme", null: false
+    t.datetime "updated_at", null: false
+    t.index ["host"], name: "index_sitemap_targets_on_host"
+    t.index ["origin"], name: "index_sitemap_targets_on_origin", unique: true
+    t.index ["program"], name: "index_sitemap_targets_on_program"
+    t.index ["removed_at"], name: "index_sitemap_targets_on_removed_at"
+  end
+
   create_table "trashes", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "program_sid", null: false
@@ -220,5 +272,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_13_000001) do
   add_foreign_key "scope_runs", "users"
   add_foreign_key "scope_schedules", "users"
   add_foreign_key "sessions", "users"
+  add_foreign_key "sitemap_endpoints", "sitemap_targets", column: "target_id", on_delete: :cascade
   add_foreign_key "trashes", "users"
 end
