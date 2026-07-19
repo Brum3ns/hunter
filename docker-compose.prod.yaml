@@ -1,0 +1,150 @@
+# Production stack for Portainer. Pulls the images the Gitea Actions workflow
+# builds and pushes; does not build anything locally.
+#
+# Deploy-host prerequisites (the workflow only fixes the push side):
+#   1. Insecure registry — the registry is HTTP. Add to the host's
+#      /etc/docker/daemon.json:  {"insecure-registries": ["10.0.1.2:3002"]}
+#      then restart docker, or `pull_policy: always` fails on the HTTPS probe.
+#   2. Registry auth — `docker login 10.0.1.2:3002` as gadmin (the PAT), or the
+#      pull is denied.
+#   3. TLS reverse proxy — production sets force_ssl + assume_ssl. The internal
+#      runner works over http://web:5000, but browser login needs HTTPS (session
+#      cookies are `secure`). Put a TLS-terminating proxy in front of port 5000.
+#
+# All values are overridable from a .env file placed next to this compose file.
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - hunter_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Single-node replica set rs0 — required for MongoDB change streams (the
+  # sitemap sync). The healthcheck initiates the set on first boot (idempotent)
+  # and only reports healthy once a primary is elected.
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "if (!db.hello().isWritablePrimary) { try { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }) } catch (e) {} ; throw new Error('mongo rs0 not ready') }"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-hunter}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-hunter}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: ${REGISTRY_HOST:-10.0.1.2:3002}/${REGISTRY_OWNER:-gadmin}/${REGISTRY_REPO:-hunter}-web:latest
+    pull_policy: always
+    restart: unless-stopped
+    # db:prepare creates + loads the schema for all four production databases
+    # (primary, cache, queue, cable). db:seed is idempotent (admin user + runner
+    # from RUNNER_TOKEN). NOTE: RUNNER_TOKEN must be empty or strong — a weak
+    # token makes the seed abort and web never starts.
+    command: >
+      sh -c 'rm -f tmp/pids/server.pid &&
+             bundle exec rails db:prepare &&
+             bundle exec rails db:seed &&
+             foreman start -f Procfile.prod'
+    environment:
+      RAILS_ENV: production
+      RAILS_SERVE_STATIC_FILES: ${RAILS_SERVE_STATIC_FILES:-true}
+      RAILS_LOG_TO_STDOUT: ${RAILS_LOG_TO_STDOUT:-true}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-hunter_production}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      MONGO_HOST: ${MONGO_HOST:-mongo}
+      MONGO_PORT: ${MONGO_PORT:-27017}
+      MONGO_REPLICA_SET: ${MONGO_REPLICA_SET:-rs0}
+      MONGO_DATABASE: ${MONGO_DATABASE:-bugbounty}
+      MONGO_COLLECTION: ${MONGO_COLLECTION:-vulnerabilities}
+      MONGO_PROGRAMS_COLLECTION: ${MONGO_PROGRAMS_COLLECTION:-scope}
+      MONGO_ALIVE_COLLECTION: ${MONGO_ALIVE_COLLECTION:-alive}
+      MONGO_CRAWL_COLLECTION: ${MONGO_CRAWL_COLLECTION:-crawl}
+      MONGO_USERNAME: ${MONGO_USERNAME:-}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-}
+      MONGO_AUTH_SOURCE: ${MONGO_AUTH_SOURCE:-admin}
+      MONGO_SERVER_SELECTION_TIMEOUT: ${MONGO_SERVER_SELECTION_TIMEOUT:-3}
+      MONGO_CONNECT_TIMEOUT: ${MONGO_CONNECT_TIMEOUT:-3}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      RUNNER_TOKEN: ${RUNNER_TOKEN:-}
+      WHITERABBIT_BIN: ${WHITERABBIT_BIN:-/usr/local/bin/whiterabbit}
+      SCOPE_BIN: ${SCOPE_BIN:-/usr/local/bin/scope}
+      CMDSCRIPT_HASH_SALT: ${CMDSCRIPT_HASH_SALT:-}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_HTTP_PORT: ${RABBITMQ_HTTP_PORT:-15672}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-hunter}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-hunter}
+      RABBITMQ_TOKEN: ${RABBITMQ_TOKEN:-}
+      CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  runner:
+    image: ${REGISTRY_HOST:-10.0.1.2:3002}/${REGISTRY_OWNER:-gadmin}/${REGISTRY_REPO:-hunter}-runner:latest
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      HUNTER_API_URL: ${HUNTER_API_URL:-http://web:5000}
+      RUNNER_TOKEN: ${RUNNER_TOKEN}
+      RUNNER_POLL_INTERVAL: ${RUNNER_POLL_INTERVAL:-2}
+      RUNNER_MAX_CONCURRENCY: ${RUNNER_MAX_CONCURRENCY:-30}
+      CURL_MAX_TIME: ${CURL_MAX_TIME:-30}
+      CURL_MAX_OUTPUT: ${CURL_MAX_OUTPUT:-262144}
+    depends_on:
+      web:
+        condition: service_started
+    user: "65534:65534"
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 256
+
+volumes:
+  hunter_db:
+  mongodb_data:
+  rabbitmq_data:
