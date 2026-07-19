@@ -1,0 +1,10 @@
+<%# web/app/views/sitemap/origins/tree.html.erb %>
+<%= turbo_frame_tag "origin_tree_#{@target.id}" do %>
+  <% if @nodes.any? %>
+    <ul>
+      <%= render partial: "sitemap/origins/node", collection: @nodes, as: :node %>
+    </ul>
+  <% else %>
+    <p class="px-2 py-1 text-zinc-500 dark:text-zinc-400">No endpoints.</p>
+  <% end %>
+<% end %>

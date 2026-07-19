@@ -1,0 +1,20 @@
+<%# web/app/views/sitemap/origins/_node.html.erb %>
+<li data-node>
+  <button type="button" data-action="click->sitemap-tree#activate"
+          <%= "data-url=#{sitemap_endpoint_path(node.endpoint.id)}".html_safe if node.endpoint? %>
+          class="flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800">
+    <% if node.folder? %>
+      <span data-chevron class="inline-block w-3 shrink-0 text-zinc-400 transition-transform">▸</span>
+      <span class="shrink-0 text-zinc-400">📁</span>
+    <% else %>
+      <span class="inline-block w-3 shrink-0"></span>
+      <span class="shrink-0 text-zinc-400">📄</span>
+    <% end %>
+    <span class="truncate text-zinc-700 dark:text-zinc-200"><%= node.label %></span>
+  </button>
+  <% if node.folder? %>
+    <div data-children hidden class="pl-4">
+      <ul><%= render partial: "sitemap/origins/node", collection: node.children, as: :node %></ul>
+    </div>
+  <% end %>
+</li>
