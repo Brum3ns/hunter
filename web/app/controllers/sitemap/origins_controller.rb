@@ -12,5 +12,13 @@ module Sitemap
       @targets = scope.to_a
       @counts = Sitemap::Endpoint.active.where(target_id: @targets.map(&:id)).group(:target_id).count
     end
+
+    def tree
+      @target = Sitemap::Target.active.find_by(id: params[:id])
+      return head :not_found unless @target
+
+      @nodes = Sitemap::Tree.build(@target.endpoints.active)
+      render :tree
+    end
   end
 end
