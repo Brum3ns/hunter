@@ -1,0 +1,26 @@
+<% content_for :title, "hunter — Sitemap" %>
+<% content_for :container, "w-full" %>
+
+<div class="flex h-[calc(100dvh-3rem)] w-full">
+  <div class="flex w-full max-w-md shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
+    <form action="<%= sitemap_root_path %>" method="get" class="border-b border-zinc-200 p-2 dark:border-zinc-800">
+      <input type="search" name="q" value="<%= @q %>" placeholder="Search domain…"
+             class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-[#111315] dark:text-zinc-100" />
+    </form>
+
+    <div data-controller="sitemap-tree" class="min-h-0 flex-1 overflow-y-auto slim-scroll py-1 text-sm">
+      <ul>
+        <%= render partial: "sitemap/origins/origin", collection: @targets, as: :target, locals: { counts: @counts } %>
+      </ul>
+      <% if @targets.empty? %>
+        <p class="px-3 py-4 text-zinc-500 dark:text-zinc-400">No origins yet.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="min-w-0 flex-1">
+    <%= turbo_frame_tag "sitemap_detail" do %>
+      <p class="p-6 text-sm text-zinc-500 dark:text-zinc-400">Select an endpoint to see its detail.</p>
+    <% end %>
+  </div>
+</div>
