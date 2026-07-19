@@ -6,11 +6,11 @@ class Sitemap::MongoSourceTest < ActiveSupport::TestCase
     def find = @docs
   end
 
-  test "each_katana yields every doc from the collection and returns true on completion" do
+  test "each_crawl yields every doc from the collection and returns true on completion" do
     fake = FakeCollection.new([{ "_id" => 1 }, { "_id" => 2 }])
-    stub_methods(HunterMongo, collection: ->(name) { assert_equal Sitemap::MongoSource::KATANA, name; fake }) do
+    stub_methods(HunterMongo, collection: ->(name) { assert_equal Sitemap::MongoSource::CRAWL, name; fake }) do
       seen = []
-      result = Sitemap::MongoSource.each_katana { |d| seen << d["_id"] }
+      result = Sitemap::MongoSource.each_crawl { |d| seen << d["_id"] }
       assert_equal [1, 2], seen
       assert_equal true, result
     end
