@@ -2,7 +2,7 @@ module Sitemap
   # Tails one collection's MongoDB change stream and applies events to the
   # Postgres projection via Sitemap::Applier, persisting the resume token after
   # each event so it resumes after a restart. `source` is nil for the alive
-  # (target) collection, or "katana"/"wayback" for endpoint collections.
+  # (target) collection, or "crawl" for the endpoint collection.
   # Reconciliation remains the backstop for anything missed here.
   class StreamWorker
     UPSERT_OPS = %w[insert update replace].freeze
@@ -67,7 +67,7 @@ module Sitemap
         target = Sitemap::Applier.upsert_target(attrs, now: now)
         Sitemap::Applier.attach_orphans_for(target, now: now)
       else
-        attrs = Sitemap::EndpointNormalizer.call(doc, source: @source) or return
+        attrs = Sitemap::EndpointNormalizer.call(doc) or return
         Sitemap::Applier.upsert_endpoint(attrs, now: now)
       end
     end
@@ -78,7 +78,7 @@ module Sitemap
         target = Sitemap::Target.find_by(alive_mongo_id: mongo_id.to_s)
         target&.tombstone!(now)
       else
-        Sitemap::Applier.tombstone_endpoint_by_source(@source, mongo_id.to_s, now: now)
+        Sitemap::Applier.tombstone_endpoint_by_mongo_id(mongo_id.to_s, now: now)
       end
     end
 

@@ -22,7 +22,7 @@ module Sitemap
                                         first_seen_at: now, last_seen_at: now)
       endpoint = Sitemap::Endpoint.create!(target_id: target.id, origin: target.origin,
                                             url: "#{target.origin}/a", path: "/a", method: "GET",
-                                            source: "katana", url_digest: Sitemap::Origin.digest("#{target.origin}/a", "GET"),
+                                            url_digest: Sitemap::Origin.digest("#{target.origin}/a", "GET"),
                                             first_seen_at: now, last_seen_at: now)
 
       # Delete via raw SQL, bypassing AR's `dependent: :destroy`, so this

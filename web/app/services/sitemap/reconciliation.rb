@@ -14,16 +14,11 @@ module Sitemap
         stats[:targets_upserted] += 1
       end
 
-      source_ok = {}
-      %w[katana wayback].each do |source|
-        source_ok[source] = Sitemap::MongoSource.public_send("each_#{source}") do |doc|
-          attrs = Sitemap::EndpointNormalizer.call(doc, source: source) or next
-          Sitemap::Applier.upsert_endpoint(attrs, now: run_at)
-          stats[:endpoints_upserted] += 1
-        end
+      crawl_ok = Sitemap::MongoSource.each_crawl do |doc|
+        attrs = Sitemap::EndpointNormalizer.call(doc) or next
+        Sitemap::Applier.upsert_endpoint(attrs, now: run_at)
+        stats[:endpoints_upserted] += 1
       end
-      katana_ok = source_ok["katana"]
-      wayback_ok = source_ok["wayback"]
 
       if alive_ok
         stats[:targets_tombstoned] =
@@ -32,11 +27,11 @@ module Sitemap
         Rails.logger.warn("Sitemap::Reconciliation skipping target tombstoning: alive scan incomplete")
       end
 
-      if katana_ok && wayback_ok
+      if crawl_ok
         stats[:endpoints_tombstoned] =
           Sitemap::Endpoint.active.where(last_seen_at: ...run_at).update_all(removed_at: run_at)
       else
-        Rails.logger.warn("Sitemap::Reconciliation skipping endpoint tombstoning: katana_ok=#{katana_ok} wayback_ok=#{wayback_ok}")
+        Rails.logger.warn("Sitemap::Reconciliation skipping endpoint tombstoning: crawl scan incomplete")
       end
 
       Sitemap::Target.active.find_each { |t| Sitemap::Applier.attach_orphans_for(t, now: run_at) }

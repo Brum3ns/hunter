@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_18_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_19_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -203,21 +203,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_18_000001) do
   create_table "sitemap_endpoints", force: :cascade do |t|
     t.bigint "content_length"
     t.string "content_type"
+    t.string "crawl_mongo_id"
     t.datetime "created_at", null: false
     t.datetime "first_seen_at", null: false
-    t.string "katana_mongo_id"
     t.datetime "last_seen_at", null: false
     t.string "method", null: false
     t.string "origin", null: false
     t.text "path", null: false
     t.datetime "removed_at"
-    t.string "source", null: false
     t.integer "status_code"
     t.bigint "target_id"
     t.datetime "updated_at", null: false
     t.text "url", null: false
     t.binary "url_digest", null: false
-    t.string "wayback_mongo_id"
     t.index ["origin", "url_digest"], name: "idx_sitemap_endpoints_unmatched_digest", unique: true, where: "(target_id IS NULL)"
     t.index ["origin"], name: "idx_sitemap_endpoints_unmatched_origin", where: "(target_id IS NULL)"
     t.index ["target_id", "path"], name: "index_sitemap_endpoints_on_target_id_and_path"

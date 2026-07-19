@@ -24,7 +24,7 @@ module Sitemap
       target = Sitemap::Target.active.find_by(origin: attrs[:origin])
       assign = lambda do |ep|
         ep.target_id = target&.id
-        apply_source(ep, attrs)
+        ep.crawl_mongo_id = attrs[:crawl_mongo_id] if attrs[:crawl_mongo_id].present?
         ep.status_code    = attrs[:status_code]    if attrs[:status_code].present?
         ep.content_length = attrs[:content_length] if attrs[:content_length].present?
         ep.content_type   = attrs[:content_type]   if attrs[:content_type].present?
@@ -56,17 +56,12 @@ module Sitemap
       end
     end
 
-    def tombstone_endpoint_by_source(source, mongo_id, now:)
-      col = source == "katana" ? :katana_mongo_id : :wayback_mongo_id
-      Sitemap::Endpoint.where(col => mongo_id).find_each do |ep|
-        ep.public_send("#{col}=", nil)
-        derived = Sitemap::Endpoint.derive_source(ep.katana_mongo_id, ep.wayback_mongo_id)
-        # `source` is NOT NULL at the DB level; once no provenance remains we
-        # leave the last-known source in place and rely on removed_at as the
-        # tombstone marker instead of nulling this column out.
-        ep.source = derived if derived
-        ep.removed_at = now if derived.nil?
-        ep.save!
+    # A change-stream delete of a crawl doc tombstones the endpoint(s) that
+    # carried its id. Reconciliation's epoch pass remains the authority if the
+    # same URL is still present via another (yet-unseen) crawl doc.
+    def tombstone_endpoint_by_mongo_id(mongo_id, now:)
+      Sitemap::Endpoint.where(crawl_mongo_id: mongo_id).find_each do |ep|
+        ep.update!(removed_at: now)
       end
     end
 
@@ -96,29 +91,8 @@ module Sitemap
     end
     private_class_method :save_with_unique_retry
 
-    def apply_source(ep, attrs)
-      if attrs[:source] == "katana"
-        ep.katana_mongo_id = attrs[:source_mongo_id]
-      else
-        ep.wayback_mongo_id = attrs[:source_mongo_id]
-      end
-      derived = Sitemap::Endpoint.derive_source(ep.katana_mongo_id, ep.wayback_mongo_id)
-      # `source` is NOT NULL at the DB level; when derivation yields nothing
-      # (e.g. a malformed re-sync clears the only id we had), leave whatever
-      # source is already on the record rather than nulling it out.
-      ep.source = derived if derived
-    end
-    private_class_method :apply_source
-
     def merge_into(existing, orphan, now)
-      existing.katana_mongo_id  ||= orphan.katana_mongo_id
-      existing.wayback_mongo_id ||= orphan.wayback_mongo_id
-      derived = Sitemap::Endpoint.derive_source(existing.katana_mongo_id, existing.wayback_mongo_id)
-      # Same NOT NULL guard as apply_source. In practice `existing` is always
-      # an already-persisted, previously-valid endpoint (it has a non-null
-      # `source` by construction), so `derived` here is never actually nil —
-      # this mirrors the invariant defensively rather than covering a reachable case.
-      existing.source = derived if derived
+      existing.crawl_mongo_id ||= orphan.crawl_mongo_id
       existing.last_seen_at = [ existing.last_seen_at, orphan.last_seen_at, now ].compact.max
       existing.removed_at = nil
       existing.save!

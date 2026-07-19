@@ -5,13 +5,11 @@ module Sitemap
   module MongoSource
     module_function
 
-    ALIVE   = ENV.fetch("MONGO_ALIVE_COLLECTION", "alive")
-    KATANA  = ENV.fetch("MONGO_KATANA_COLLECTION", "katana")
-    WAYBACK = ENV.fetch("MONGO_WAYBACK_COLLECTION", "wayback")
+    ALIVE = ENV.fetch("MONGO_ALIVE_COLLECTION", "alive")
+    CRAWL = ENV.fetch("MONGO_CRAWL_COLLECTION", "crawl")
 
-    def each_alive(&blk)   = each(ALIVE, &blk)
-    def each_katana(&blk)  = each(KATANA, &blk)
-    def each_wayback(&blk) = each(WAYBACK, &blk)
+    def each_alive(&blk) = each(ALIVE, &blk)
+    def each_crawl(&blk) = each(CRAWL, &blk)
 
     # Returns true when the scan completed, false when a Mongo::Error was
     # caught partway through (or before yielding anything) — callers must not
