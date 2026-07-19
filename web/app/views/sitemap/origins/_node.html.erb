@@ -5,17 +5,20 @@
           <%= 'aria-expanded="false"'.html_safe if node.folder? %>
           class="flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 data-[selected]:bg-zinc-200 dark:data-[selected]:bg-zinc-800">
     <% if node.folder? %>
-      <span data-chevron class="inline-block w-3 shrink-0 text-zinc-400 transition-transform">▸</span>
-      <span class="shrink-0 text-zinc-400">📁</span>
+      <span data-chevron class="inline-flex w-4 shrink-0 text-zinc-400 transition-transform"><%= heroicon "chevron-right", classes: "h-4 w-4" %></span>
+      <span class="shrink-0 text-zinc-400"><%= heroicon "folder", classes: "h-4 w-4" %></span>
     <% else %>
-      <span class="inline-block w-3 shrink-0"></span>
-      <span class="shrink-0 text-zinc-400">📄</span>
+      <span class="inline-block w-4 shrink-0"></span>
+      <span class="shrink-0 text-zinc-400"><%= heroicon "document", classes: "h-4 w-4" %></span>
     <% end %>
-    <span class="truncate text-zinc-700 dark:text-zinc-200"><%= node.label %></span>
+    <span class="truncate <%= node.has_query? ? "text-red-600 dark:text-red-400" : "text-zinc-700 dark:text-zinc-200" %>"><%= node.label %></span>
+    <% node.methods.reject { |m| m == "GET" }.each do |m| %>
+      <span class="ml-1 shrink-0 rounded px-1 text-[10px] font-semibold <%= sitemap_method_class(m) %>"><%= m %></span>
+    <% end %>
   </button>
   <% if node.folder? %>
-    <div data-children hidden class="pl-4">
-      <ul><%= render partial: "sitemap/origins/node", collection: node.children, as: :node %></ul>
+    <div data-children hidden>
+      <ul class="sitemap-subtree"><%= render partial: "sitemap/origins/node", collection: node.children, as: :node %></ul>
     </div>
   <% end %>
 </li>

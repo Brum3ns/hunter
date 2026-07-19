@@ -9,10 +9,10 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
                             first_seen_at: now, last_seen_at: now)
   end
 
-  def endpoint!(target, path)
+  def endpoint!(target, path, method: "GET")
     now = Time.current
     Sitemap::Endpoint.create!(target_id: target.id, origin: target.origin, url: "#{target.origin}#{path}",
-      path: path, method: "GET", url_digest: Sitemap::Origin.digest("#{target.origin}#{path}", "GET"),
+      path: path, method: method, url_digest: Sitemap::Origin.digest("#{target.origin}#{path}", method),
       first_seen_at: now, last_seen_at: now)
   end
 
@@ -54,5 +54,23 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
   test "missing target is 404" do
     get sitemap_origin_tree_path(id: 999_999)
     assert_response :not_found
+  end
+
+  test "tree uses SVG icons, elbow subtree, method chip on non-GET, red on query" do
+    t = target!(host: "vis.host")
+    endpoint!(t, "/nuxt/app.js")                     # nested -> folder + leaf
+    endpoint!(t, "/submit", method: "POST")          # non-GET -> chip
+    now = Time.current
+    Sitemap::Endpoint.create!(target_id: t.id, origin: t.origin, url: "#{t.origin}/s?a=1", path: "/s",
+      method: "GET", url_digest: Sitemap::Origin.digest("#{t.origin}/s?a=1", "GET"),
+      first_seen_at: now, last_seen_at: now)         # parameterized -> red
+
+    get sitemap_origin_tree_path(t)
+    assert_response :success
+    assert_select "ul.sitemap-subtree"                       # elbow container
+    assert_select "svg", minimum: 1                          # SVG icons present
+    assert_no_match(/📁|📄|▸/, @response.body)               # no emojis
+    assert_match "POST", @response.body                      # non-GET method chip
+    assert_match "text-red-600", @response.body               # parameterized label styled red
   end
 end

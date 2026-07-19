@@ -1,7 +1,7 @@
 <%# web/app/views/sitemap/origins/tree.html.erb %>
 <%= turbo_frame_tag "origin_tree_#{@target.id}" do %>
   <% if @nodes.any? %>
-    <ul>
+    <ul class="sitemap-subtree">
       <%= render partial: "sitemap/origins/node", collection: @nodes, as: :node %>
     </ul>
   <% else %>

@@ -10,7 +10,7 @@
 
     <div data-controller="sitemap-tree" class="min-h-0 flex-1 overflow-y-auto slim-scroll py-1 text-sm">
       <ul>
-        <%= render partial: "sitemap/origins/origin", collection: @targets, as: :target, locals: { counts: @counts } %>
+        <%= render partial: "sitemap/origins/origin", collection: @targets, as: :target, locals: { counts: @counts, filter: @filter } %>
       </ul>
       <% if @targets.empty? %>
         <p class="px-3 py-4 text-zinc-500 dark:text-zinc-400">No origins yet.</p>
