@@ -2,7 +2,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 // Owns all sitemap-tree interactivity: expand/collapse folders, lazy-load an
-// origin's tree Turbo Frame on first expand, and (Task 4) load endpoint detail.
+// origin's tree Turbo Frame on first expand, and load endpoint detail on click.
 export default class extends Controller {
   activate(event) {
     const row = event.currentTarget
@@ -20,6 +20,14 @@ export default class extends Controller {
       if (open && frame && !frame.getAttribute("src")) {
         frame.setAttribute("src", frame.getAttribute("data-src"))
       }
+    }
+
+    const url = row.dataset.url
+    if (url) {
+      const detail = document.getElementById("sitemap_detail")
+      if (detail) detail.setAttribute("src", url)
+      this.element.querySelectorAll("[data-selected]").forEach((el) => delete el.dataset.selected)
+      row.dataset.selected = "true"
     }
   }
 }
