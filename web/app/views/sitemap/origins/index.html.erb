@@ -8,6 +8,8 @@
              class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-[#111315] dark:text-zinc-100" />
     </form>
 
+    <%= render "sitemap/origins/filters" %>
+
     <div data-controller="sitemap-tree" class="min-h-0 flex-1 overflow-y-auto slim-scroll py-1 text-sm">
       <ul>
         <%= render partial: "sitemap/origins/origin", collection: @targets, as: :target, locals: { counts: @counts, filter: @filter } %>
