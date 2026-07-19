@@ -79,4 +79,17 @@ class Sitemap::OriginsTest < ActionDispatch::IntegrationTest
     assert_match "keep", @response.body
     assert_no_match(/\bdrop\b/, @response.body) # not "backdrop" (sidebar markup) — whole word only
   end
+
+  test "filter panel renders controls and echoes active values" do
+    a = target!(host: "f.host"); a.update!(program: "atg"); endpoint!(a, "/x", method: "POST")
+    get sitemap_root_path(methods: ["POST"], min_count: 2, program: "atg", status: ["2"], path: "x", has_query: "1")
+    assert_response :success
+    assert_select "form[action=?][method=get]", sitemap_root_path
+    assert_select "input[name='min_count'][value='2']"
+    assert_select "input[name='methods[]'][value='POST'][checked]"
+    assert_select "input[name='status[]'][value='2'][checked]"
+    assert_select "input[name='path'][value='x']"
+    assert_select "select[name='program'] option[selected][value='atg']"
+    assert_select "input[name='has_query'][checked]"
+  end
 end

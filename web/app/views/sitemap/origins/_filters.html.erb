@@ -1,0 +1,73 @@
+<%# web/app/views/sitemap/origins/_filters.html.erb %>
+<details class="border-b border-zinc-200 px-2 py-2 dark:border-zinc-800" <%= "open" if @filter.present? || @program || @scheme || @min_count != 1 %>>
+  <summary class="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Filters</summary>
+  <%= form_with url: sitemap_root_path, method: :get, class: "mt-2 space-y-3 text-sm" do %>
+    <% if @q.present? %><input type="hidden" name="q" value="<%= @q %>" /><% end %>
+
+    <div>
+      <div class="mb-1 text-xs text-zinc-500">Method</div>
+      <div class="flex flex-wrap gap-2">
+        <% @method_options.each do |m| %>
+          <label class="inline-flex items-center gap-1">
+            <input type="checkbox" name="methods[]" value="<%= m %>" <%= "checked" if Array(@filter["methods"]).include?(m) %> />
+            <span><%= m %></span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+
+    <div>
+      <div class="mb-1 text-xs text-zinc-500">Status</div>
+      <div class="flex flex-wrap gap-2">
+        <% %w[2 3 4 5].each do |f| %>
+          <label class="inline-flex items-center gap-1">
+            <input type="checkbox" name="status[]" value="<%= f %>" <%= "checked" if Array(@filter["status"]).include?(f) %> />
+            <span><%= f %>xx</span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+
+    <label class="block">
+      <span class="text-xs text-zinc-500">Path contains</span>
+      <input type="text" name="path" value="<%= @filter["path"] %>" class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-[#111315]" />
+    </label>
+
+    <label class="block">
+      <span class="text-xs text-zinc-500">Content-type</span>
+      <input type="text" name="content_type" value="<%= @filter["content_type"] %>" class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-[#111315]" />
+    </label>
+
+    <label class="inline-flex items-center gap-1">
+      <input type="checkbox" name="has_query" value="1" <%= "checked" if @filter["has_query"].present? %> />
+      <span>Has parameter (query)</span>
+    </label>
+
+    <label class="block">
+      <span class="text-xs text-zinc-500">Program</span>
+      <select name="program" class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-[#111315]">
+        <option value="">Any</option>
+        <% @programs.each do |p| %><option value="<%= p %>" <%= "selected" if @program == p %>><%= p %></option><% end %>
+      </select>
+    </label>
+
+    <label class="block">
+      <span class="text-xs text-zinc-500">Scheme</span>
+      <select name="scheme" class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-[#111315]">
+        <option value="">Any</option>
+        <option value="https" <%= "selected" if @scheme == "https" %>>https</option>
+        <option value="http" <%= "selected" if @scheme == "http" %>>http</option>
+      </select>
+    </label>
+
+    <label class="block">
+      <span class="text-xs text-zinc-500">Min endpoints</span>
+      <input type="number" name="min_count" min="0" value="<%= @min_count %>" class="mt-1 w-24 rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-[#111315]" />
+    </label>
+
+    <div class="flex items-center gap-3 pt-1">
+      <button type="submit" class="rounded bg-zinc-900 px-3 py-1 text-white dark:bg-zinc-100 dark:text-zinc-900">Apply</button>
+      <a href="<%= sitemap_root_path %>" class="text-zinc-500 hover:underline">Clear</a>
+    </div>
+  <% end %>
+</details>
