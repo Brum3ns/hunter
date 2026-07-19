@@ -5,6 +5,13 @@ RUN go mod download
 COPY tmp/whiterabbit/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/whiterabbit ./cmd/whiterabbit
 
+FROM golang:1.24-bookworm AS scope-build
+WORKDIR /src
+COPY tmp/scope/go.mod tmp/scope/go.sum ./
+RUN go mod download
+COPY tmp/scope/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/scope ./cmd/scope
+
 FROM ruby:3.3.6-slim
 
 # Defaults produce the production image (what CI builds and pushes); the dev
@@ -37,6 +44,9 @@ COPY web/ ./
 
 COPY --from=whiterabbit-build /out/whiterabbit /usr/local/bin/whiterabbit
 ENV WHITERABBIT_BIN=/usr/local/bin/whiterabbit
+
+COPY --from=scope-build /out/scope /usr/local/bin/scope
+ENV SCOPE_BIN=/usr/local/bin/scope
 
 RUN if [ "$RAILS_ENV" = "production" ]; then \
       SECRET_KEY_BASE_DUMMY=1 bundle exec rails assets:precompile; \

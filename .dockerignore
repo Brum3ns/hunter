@@ -1,0 +1,15 @@
+# Keep the build context lean and predictable regardless of what sits under
+# tmp/. The web image only needs the Go source of whiterabbit and scope
+# (go.mod/go.sum + cmd/internal/pkg), plus web/ and runner/.
+**/.git
+
+# scope's Rails app is not needed to build the scope Go binary; excluding it
+# also keeps a full local scope checkout (with web/vendor/bundle) out of the
+# context.
+tmp/scope/web
+
+# Never ship the host's bundle/tmp/logs/node_modules into the context.
+web/vendor/bundle
+web/tmp
+web/log
+web/node_modules
