@@ -5,9 +5,10 @@ module Sitemap
   module Tree
     module_function
 
-    Node = Struct.new(:label, :full_path, :endpoint, :children, keyword_init: true) do
-      def folder?   = children.any?
-      def endpoint? = !endpoint.nil?
+    Node = Struct.new(:label, :full_path, :endpoint, :children, :methods, :has_query, keyword_init: true) do
+      def folder?    = children.any?
+      def endpoint?  = !endpoint.nil?
+      def has_query? = has_query
     end
 
     # Root-level nodes, sorted (folders first, then leaves; each alphabetical).
@@ -25,8 +26,7 @@ module Sitemap
       parts = path.sub(%r{\A/}, "").split("/").reject(&:empty?)
 
       if parts.empty? # the "/" root request
-        e = (root["/"] ||= entry("/", "/"))
-        e[:endpoint] ||= endpoint
+        terminate(root["/"] ||= entry("/", "/"), endpoint)
         return
       end
 
@@ -40,19 +40,26 @@ module Sitemap
         path_parts << part
         full = "/" + path_parts.join("/") + (is_dir ? "/" : "")
         e = (level[label] ||= entry(label, full))
-        e[:endpoint] ||= endpoint if last
+        terminate(e, endpoint) if last
         level = e[:children]
       end
     end
     private_class_method :insert
 
-    def entry(label, full) = { label: label, full_path: full, endpoint: nil, children: {} }
+    def terminate(node_entry, endpoint)
+      node_entry[:endpoint] ||= endpoint
+      node_entry[:methods] |= [endpoint.method.to_s.upcase]
+      node_entry[:has_query] ||= endpoint.url.to_s.include?("?")
+    end
+    private_class_method :terminate
+
+    def entry(label, full) = { label: label, full_path: full, endpoint: nil, children: {}, methods: [], has_query: false }
     private_class_method :entry
 
     def to_nodes(level)
       nodes = level.values.map do |e|
         Node.new(label: e[:label], full_path: e[:full_path], endpoint: e[:endpoint],
-                 children: to_nodes(e[:children]))
+                 children: to_nodes(e[:children]), methods: e[:methods].sort, has_query: e[:has_query])
       end
       nodes.sort_by { |n| [n.folder? ? 0 : 1, n.label.downcase] }
     end

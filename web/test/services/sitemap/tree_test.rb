@@ -1,10 +1,10 @@
 require "test_helper"
 
 class Sitemap::TreeTest < ActiveSupport::TestCase
-  Ep = Struct.new(:id, :path, :method, :status_code)
+  Ep = Struct.new(:id, :path, :method, :status_code, :url)
 
   def build(*paths)
-    eps = paths.each_with_index.map { |p, i| Ep.new(i + 1, p, "GET", 200) }
+    eps = paths.each_with_index.map { |p, i| Ep.new(i + 1, p, "GET", 200, "https://ex.com:443#{p}") }
     Sitemap::Tree.build(eps)
   end
 
@@ -74,5 +74,32 @@ class Sitemap::TreeTest < ActiveSupport::TestCase
     assert_equal "b", leaf.label
     assert_equal "/a/b", leaf.full_path
     assert leaf.endpoint?
+  end
+
+  test "methods aggregates unique upcased methods at a node" do
+    eps = [Ep.new(1, "/x", "get", 200, "https://ex.com/x"),
+           Ep.new(2, "/x", "post", 201, "https://ex.com/x")]
+    node = Sitemap::Tree.build(eps).sole
+    assert_equal ["GET", "POST"], node.methods
+  end
+
+  test "has_query? is true when any endpoint at the node has a query string" do
+    eps = [Ep.new(1, "/s", "GET", 200, "https://ex.com/s"),
+           Ep.new(2, "/s", "GET", 200, "https://ex.com/s?a=1")]
+    node = Sitemap::Tree.build(eps).sole
+    assert node.has_query?
+  end
+
+  test "has_query? false and methods present for a plain endpoint" do
+    node = build("/plain").sole
+    refute node.has_query?
+    assert_equal ["GET"], node.methods
+  end
+
+  test "pure folder node has empty methods and no query" do
+    folder = build("/dir/child").sole
+    assert_equal "dir/", folder.label
+    assert_equal [], folder.methods
+    refute folder.has_query?
   end
 end
