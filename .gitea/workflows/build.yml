@@ -22,6 +22,19 @@ jobs:
             [registry."${{ vars.REGISTRY_HOST }}"]
               http = true
 
+      - name: Fetch Go sources (whiterabbit, scope) from Gitea
+        env:
+          REGISTRY_HOST: ${{ env.REGISTRY_HOST }}
+          CLONE_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          WHITERABBIT_REF: ${{ vars.WHITERABBIT_REF }}
+          SCOPE_REF: ${{ vars.SCOPE_REF }}
+        run: |
+          rm -rf tmp/whiterabbit tmp/scope
+          git clone --depth 1 --branch "${WHITERABBIT_REF:-main}" \
+            "http://gadmin:${CLONE_TOKEN}@${REGISTRY_HOST}/gadmin/whiterabbit.git" tmp/whiterabbit
+          git clone --depth 1 --branch "${SCOPE_REF:-main}" \
+            "http://gadmin:${CLONE_TOKEN}@${REGISTRY_HOST}/gadmin/scope.git" tmp/scope
+
       - name: Write registry auth (HTTP registry, bypass docker login HTTPS probe)
         env:
           REGISTRY_USER: gadmin
