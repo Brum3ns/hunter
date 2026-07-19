@@ -12,6 +12,10 @@
 #      cookies are `secure`). Put a TLS-terminating proxy in front of port 5000.
 #
 # All values are overridable from a .env file placed next to this compose file.
+# Required (no default — set these in .env): SECRET_KEY_BASE, ADMIN_PASSWORD
+# (and RAILS_MASTER_KEY if the app reads encrypted credentials). An empty
+# ADMIN_PASSWORD makes db:seed abort (blank password rejected) and web will
+# crash-loop, same failure mode as a weak RUNNER_TOKEN.
 services:
   db:
     image: postgres:18-alpine

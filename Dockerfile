@@ -52,6 +52,6 @@ RUN if [ "$RAILS_ENV" = "production" ]; then \
       SECRET_KEY_BASE_DUMMY=1 bundle exec rails assets:precompile; \
     fi
 
-EXPOSE 3000
+EXPOSE 5000
 
 CMD ["bundle", "exec", "rails", "server", "-b", "0.0.0.0"]
