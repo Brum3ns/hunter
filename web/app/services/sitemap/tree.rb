@@ -22,7 +22,7 @@ module Sitemap
     def insert(root, endpoint)
       path = endpoint.path.to_s
       path = "/#{path}" unless path.start_with?("/")
-      parts = path.sub(%r{\A/}, "").split("/")
+      parts = path.sub(%r{\A/}, "").split("/").reject(&:empty?)
 
       if parts.empty? # the "/" root request
         e = (root["/"] ||= entry("/", "/"))

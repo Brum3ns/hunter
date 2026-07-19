@@ -12,6 +12,7 @@ export default class extends Controller {
     if (children) {
       const open = children.hidden
       children.hidden = !open
+      row.setAttribute("aria-expanded", String(open))
       const chevron = row.querySelector("[data-chevron]")
       if (chevron) chevron.classList.toggle("rotate-90", open)
 
