@@ -301,3 +301,23 @@ dialog.program-modal::backdrop {
 .hljs-strong {
   font-weight: 600;
 }
+
+@layer components {
+  /* Sitemap tree: elbow connectors drawn purely in CSS so any depth works.
+     Each nested list is a .sitemap-subtree; each row (li) draws a vertical
+     guide plus a horizontal elbow, and the last child truncates the guide at
+     the elbow to form the corner. */
+  .sitemap-subtree { padding-left: 0.75rem; }
+  .sitemap-subtree > li { position: relative; padding-left: 0.85rem; }
+  .sitemap-subtree > li::before {
+    content: ""; position: absolute; left: 0; top: 0; height: 100%;
+    border-left: 1px solid rgb(212 212 216); /* zinc-300 */
+  }
+  .sitemap-subtree > li:last-child::before { height: 0.95rem; }
+  .sitemap-subtree > li::after {
+    content: ""; position: absolute; left: 0; top: 0.95rem; width: 0.6rem;
+    border-top: 1px solid rgb(212 212 216);
+  }
+  .dark .sitemap-subtree > li::before,
+  .dark .sitemap-subtree > li::after { border-color: rgb(255 255 255 / 0.12); }
+}

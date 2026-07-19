@@ -1,12 +1,13 @@
+<%# web/app/views/sitemap/origins/_origin.html.erb %>
 <li data-node>
   <button type="button" data-action="click->sitemap-tree#activate" aria-expanded="false"
           class="flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800">
-    <span data-chevron class="inline-block w-3 shrink-0 text-zinc-400 transition-transform">▸</span>
-    <span class="shrink-0 text-zinc-400"><%= target.scheme == "https" ? "🔒" : "🌐" %></span>
+    <span data-chevron class="inline-flex w-4 shrink-0 text-zinc-400 transition-transform"><%= heroicon "chevron-right", classes: "h-4 w-4" %></span>
+    <span class="shrink-0 text-zinc-400"><%= heroicon(target.scheme == "https" ? "lock-closed" : "globe-alt", classes: "h-4 w-4") %></span>
     <span class="truncate font-medium text-zinc-800 dark:text-zinc-100"><%= target.host %>:<%= target.port %></span>
     <span class="ml-auto shrink-0 rounded bg-zinc-200 px-1.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"><%= counts[target.id].to_i %></span>
   </button>
-  <div data-children hidden class="pl-4">
-    <%= turbo_frame_tag "origin_tree_#{target.id}", data: { src: sitemap_origin_tree_path(target) } %>
+  <div data-children hidden>
+    <%= turbo_frame_tag "origin_tree_#{target.id}", data: { src: sitemap_origin_tree_path(target, filter) } %>
   </div>
 </li>
