@@ -28,6 +28,13 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
     assert_match "app.js", @response.body                 # leaf row
     assert_select "button[data-url=?]", sitemap_endpoint_path(leaf.id)   # leaf loads detail
     assert_select "button[data-action*='sitemap-tree#activate']"
+
+    leaf_url = sitemap_endpoint_path(leaf.id)
+    leaf_button = css_select(%(button[data-url="#{leaf_url}"])).first
+    assert_includes leaf_button["class"], "data-[selected]:bg-zinc-200", "selected-row style must be self-contained via Tailwind data-attribute variant"
+
+    assert_select "button[aria-expanded='false']" # folder toggle exposes expanded state
+    refute_includes leaf_button.attributes.keys, "aria-expanded", "leaf/endpoint buttons must not carry aria-expanded"
   end
 
   test "empty state when the origin has no active endpoints" do

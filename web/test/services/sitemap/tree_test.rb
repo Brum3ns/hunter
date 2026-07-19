@@ -63,4 +63,16 @@ class Sitemap::TreeTest < ActiveSupport::TestCase
     node = Sitemap::Tree.build(eps).sole
     assert_equal 1, node.endpoint.id
   end
+
+  test "empty path segments from // collapse like a single /" do
+    nodes = build("/a//b")
+    refute_includes nodes.map(&:label), "/", "no top-level node should be labeled '/'"
+    folder = nodes.sole
+    assert_equal "a/", folder.label
+    assert folder.folder?
+    leaf = folder.children.sole
+    assert_equal "b", leaf.label
+    assert_equal "/a/b", leaf.full_path
+    assert leaf.endpoint?
+  end
 end
