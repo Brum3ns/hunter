@@ -9,15 +9,26 @@ module Sitemap
     STATUS_RANGES = { "2" => 200..299, "3" => 300..399, "4" => 400..499, "5" => 500..599 }.freeze
     TRUTHY = %w[1 true on yes].freeze
 
-    def apply(scope, params)
+    def apply(scope, params, free_text: nil, expression: nil, include_root: nil)
       params ||= {}
+      allow_root = truthy?(include_root) || expression&.includes_positive_root?
+      scope = scope.where.not(path: "/") unless allow_root
       scope = by_methods(scope, params[:methods])
       scope = by_status(scope, params[:status])
       scope = by_path(scope, params[:path])
       scope = by_has_query(scope, params[:has_query])
       scope = by_content_type(scope, params[:content_type])
+
+      if free_text.present? || expression
+        scope = scope.joins(:target)
+        scope = scope.where(DorkExpression::Mapper.free_text_arel(free_text)) if free_text.present?
+        scope = scope.where(expression.to_arel) if expression
+      end
       scope
     end
+
+    def truthy?(value) = TRUTHY.include?(value.to_s.downcase)
+    private_class_method :truthy?
 
     def by_methods(scope, methods)
       list = Array(methods).map { |m| m.to_s.strip.upcase }.reject(&:empty?)
@@ -39,7 +50,7 @@ module Sitemap
     private_class_method :by_path
 
     def by_has_query(scope, flag)
-      TRUTHY.include?(flag.to_s.downcase) ? scope.where("url LIKE ?", "%?%") : scope
+      truthy?(flag) ? scope.where("url LIKE ?", "%?%") : scope
     end
     private_class_method :by_has_query
 

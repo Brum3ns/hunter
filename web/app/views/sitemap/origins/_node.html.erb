@@ -1,7 +1,7 @@
 <%# web/app/views/sitemap/origins/_node.html.erb %>
 <li data-node>
   <button type="button" data-action="click->sitemap-tree#activate"
-          <%= "data-url=#{sitemap_endpoint_path(node.endpoint.id)}".html_safe if node.endpoint? %>
+          <%= "data-url=#{targets_sitemap_endpoint_path(node.endpoint.id)}".html_safe if node.endpoint? %>
           <%= 'aria-expanded="false"'.html_safe if node.folder? %>
           class="flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 data-[selected]:bg-zinc-200 dark:data-[selected]:bg-zinc-800">
     <% if node.folder? %>

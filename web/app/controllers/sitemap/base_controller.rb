@@ -1,10 +1,6 @@
 module Sitemap
-  # Base for every controller in the Sitemap web department.
-  class BaseController < ApplicationController
-    include Department
-
-    TABS = [
-      { name: "Sitemap", path: :sitemap_root_path }
-    ].freeze
+  # Sitemap keeps its own controllers and data layer while sharing the Target
+  # department's web tabs and sidebar state.
+  class BaseController < Targets::BaseController
   end
 end

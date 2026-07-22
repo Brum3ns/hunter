@@ -1,28 +1,109 @@
 <% content_for :title, "hunter — Sitemap" %>
 <% content_for :container, "w-full" %>
+<%
+  dork_groups = [
+    ["Text match", [
+      ["host:*.example.com", "target host"],
+      ["origin:https://api.example.com:443", "full target origin"],
+      ["program:acme", "program name"],
+      ["path:/admin", "endpoint path"],
+      ["url:token", "full endpoint URL"],
+      ["content_type:json", "response content type"]
+    ]],
+    ["Category", [
+      ["method:POST", "HTTP method"],
+      ["scheme:https", "http or https"]
+    ]],
+    ["Numbers and dates", [
+      ["status:>=500", "HTTP status comparison"],
+      ["port:443", "target port"],
+      ["length:>1024", "response bytes"],
+      ["seen:>=2026-07-01", "last-seen UTC date"]
+    ]],
+    ["Boolean", [
+      ["has_query:yes", "URL has a query string"],
+      ["root:yes", "show only the / root endpoint"],
+      ["root:no", "exclude the / root endpoint"]
+    ]],
+    ["Combine", [
+      ["a AND b", "both match (implicit between terms)"],
+      ["a OR b", "either matches"],
+      ["(a OR b) AND c", "group with parentheses"]
+    ]]
+  ]
+%>
 
-<div class="flex h-[calc(100dvh-3rem)] w-full">
-  <div class="flex w-full max-w-md shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
-    <form action="<%= sitemap_root_path %>" method="get" class="border-b border-zinc-200 p-2 dark:border-zinc-800">
-      <input type="search" name="q" value="<%= @q %>" placeholder="Search domain…"
-             class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-[#111315] dark:text-zinc-100" />
-    </form>
-
-    <%= render "sitemap/origins/filters" %>
-
-    <div data-controller="sitemap-tree" class="min-h-0 flex-1 overflow-y-auto slim-scroll py-1 text-sm">
-      <ul>
-        <%= render partial: "sitemap/origins/origin", collection: @targets, as: :target, locals: { counts: @counts, filter: @filter } %>
-      </ul>
-      <% if @targets.empty? %>
-        <p class="px-3 py-4 text-zinc-500 dark:text-zinc-400">No origins yet.</p>
-      <% end %>
-    </div>
+<div class="flex h-[calc(100dvh-3rem)] w-full flex-col md:h-dvh">
+  <div class="shrink-0 px-3 md:px-4">
+    <%= render "layouts/department_tabs", label: "Target sections" %>
   </div>
 
-  <div class="min-w-0 flex-1">
-    <%= turbo_frame_tag "sitemap_detail" do %>
-      <p class="p-6 text-sm text-zinc-500 dark:text-zinc-400">Select an endpoint to see its detail.</p>
-    <% end %>
+  <div class="mt-3 flex min-h-0 w-full flex-1">
+    <div class="flex w-full max-w-md shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
+      <%= form_with url: targets_sitemap_path, method: :get,
+            data: { sitemap_search: true },
+            class: "flex items-center gap-2 border-b border-zinc-200 p-2 dark:border-zinc-800" do %>
+        <% Array(@filter["methods"]).reject(&:blank?).each do |method| %>
+          <%= hidden_field_tag "methods[]", method %>
+        <% end %>
+        <% Array(@filter["status"]).reject(&:blank?).each do |status| %>
+          <%= hidden_field_tag "status[]", status %>
+        <% end %>
+        <% %w[path has_query content_type include_root].each do |key| %>
+          <%= hidden_field_tag key, @filter[key] if @filter[key].present? %>
+        <% end %>
+        <%= hidden_field_tag :program, @program if @program.present? %>
+        <%= hidden_field_tag :scheme, @scheme if @scheme.present? %>
+        <%= hidden_field_tag :min_count, @min_count %>
+
+        <div class="relative min-w-0 flex-1">
+          <input type="search" name="q" value="<%= @q %>" autocomplete="off"
+                 placeholder="Search or dork… host:*.example.com status:>=500"
+                 class="w-full rounded-md border border-zinc-300 bg-white py-2 pl-3 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-[#111315] dark:text-zinc-100 dark:focus:border-zinc-300" />
+
+          <div class="group absolute right-1.5 top-1/2 -translate-y-1/2">
+            <button type="button" aria-label="Search syntax help"
+                    class="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 outline-none hover:bg-zinc-100 hover:text-zinc-700 focus:bg-zinc-100 focus:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 dark:focus:bg-zinc-800">
+              <%= heroicon "question-mark-circle", classes: "h-4 w-4" %>
+            </button>
+            <div class="invisible absolute right-0 top-full z-40 mt-2 max-h-[70vh] w-96 max-w-[calc(100vw-3rem)] overflow-y-auto slim-scroll rounded-md border border-zinc-200 bg-white p-3 opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-zinc-800 dark:bg-[#111315]">
+              <% dork_groups.each_with_index do |(title, rows), index| %>
+                <p class="text-[10.5px] font-medium uppercase tracking-[0.12em] text-zinc-400 <%= index.zero? ? "mb-2" : "mt-3 mb-2 border-t border-zinc-200 pt-2 dark:border-zinc-800" %>"><%= title %></p>
+                <dl class="space-y-1.5 font-mono">
+                  <% rows.each do |dork, hint| %>
+                    <div>
+                      <dt class="break-all text-[11.5px] leading-snug text-zinc-800 dark:text-zinc-200"><%= dork %></dt>
+                      <dd class="mt-0.5 pl-3 text-[10.5px] leading-snug text-zinc-500 dark:text-zinc-400"><%= hint %></dd>
+                    </div>
+                  <% end %>
+                </dl>
+              <% end %>
+              <p class="mt-3 border-t border-zinc-200 pt-2 text-[10.5px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                Operators are case-insensitive · plain text matches hosts, programs, paths, URLs, and content types.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-[#111315] dark:text-zinc-200 dark:hover:bg-zinc-800">Search</button>
+      <% end %>
+
+      <%= render "sitemap/origins/filters" %>
+
+      <div data-controller="sitemap-tree" class="min-h-0 flex-1 overflow-y-auto slim-scroll py-1 text-sm">
+        <ul>
+          <%= render partial: "sitemap/origins/origin", collection: @targets, as: :target, locals: { counts: @counts, filter: @tree_filter } %>
+        </ul>
+        <% if @targets.empty? %>
+          <p class="px-3 py-4 text-zinc-500 dark:text-zinc-400">No origins yet.</p>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="min-w-0 flex-1">
+      <%= turbo_frame_tag "sitemap_detail" do %>
+        <p class="p-6 text-sm text-zinc-500 dark:text-zinc-400">Select an endpoint to see its detail.</p>
+      <% end %>
+    </div>
   </div>
 </div>

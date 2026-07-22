@@ -20,6 +20,10 @@ class IconHelperTest < ActionView::TestCase
     assert_raises(ArgumentError) { heroicon("nope") }
   end
 
+  test "renders the target department glyph" do
+    assert_match(/<svg/, heroicon("target"))
+  end
+
   test "renders new program-page glyphs" do
     %w[magnifying-glass star squares-2x2 list-bullet arrow-up arrow-down
        trash clock arrow-top-right-on-square arrow-down-tray clipboard].each do |name|
