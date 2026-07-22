@@ -1,0 +1,27 @@
+<%# web/app/views/cves/overview/_table.html.erb — locals: cves %>
+<div class="hidden overflow-x-auto md:block">
+  <table class="w-full text-left text-sm">
+    <thead>
+      <tr class="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+        <% %w[CVE Summary Ecosystems Fix CVSS Modified].each do |label| %>
+          <th class="px-4 py-3 font-medium"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% if cves.any? %>
+        <%= render partial: "cves/overview/row", collection: cves, as: :cve %>
+      <% else %>
+        <tr><td colspan="6" class="px-4 py-12 text-center text-zinc-500 dark:text-zinc-400">No CVEs match your filters.</td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<div class="md:hidden">
+  <% if cves.any? %>
+    <%= render partial: "cves/overview/card", collection: cves, as: :cve %>
+  <% else %>
+    <div class="px-4 py-12 text-center text-zinc-500 dark:text-zinc-400">No CVEs match your filters.</div>
+  <% end %>
+</div>

@@ -1,0 +1,84 @@
+<%# web/app/views/cves/overview/_facets.html.erb — locals: facets, filter_params, search
+    Filter sidebar (its own GET form). Ecosystem is single-value (equality),
+    matching the API; the radio group reflects that. Carries q in a hidden
+    field so applying filters preserves the search. %>
+<%
+  wrap = "rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]"
+  group = "border-b border-zinc-100 pb-3 last:border-0 dark:border-zinc-800/60"
+  summary = "facet-summary flex cursor-pointer items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 [&::-webkit-details-marker]:hidden"
+  chevron = "h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180"
+  text_input = "min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100"
+  selected_eco = filter_params["ecosystem"].to_s
+%>
+<details class="facet-shell <%= wrap %>" open>
+  <summary class="facet-summary mb-3 flex cursor-pointer items-center justify-between text-sm font-semibold text-zinc-900 lg:hidden dark:text-zinc-100">
+    Filters
+    <%= heroicon "adjustments-horizontal", classes: "h-4 w-4 text-zinc-400" %>
+  </summary>
+
+  <div class="facet-shell-body">
+    <%= form_with url: cves_root_path, method: :get, class: "space-y-4" do %>
+      <%= hidden_field_tag :q, search if search.present? %>
+
+      <% if facets.any? %>
+        <details class="group <%= group %>" open>
+          <summary class="<%= summary %>">Ecosystem <%= heroicon "chevron-down", classes: chevron %></summary>
+          <div class="mt-2 max-h-60 space-y-1 overflow-y-auto slim-scroll">
+            <label class="flex items-center justify-between gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+              <span class="flex min-w-0 items-center gap-2">
+                <%= radio_button_tag "ecosystem", "", selected_eco.blank?, class: "shrink-0" %>
+                <span class="truncate">All</span>
+              </span>
+            </label>
+            <% facets.each do |facet| %>
+              <label class="flex items-center justify-between gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                <span class="flex min-w-0 items-center gap-2">
+                  <%= radio_button_tag "ecosystem", facet["ecosystem"], selected_eco == facet["ecosystem"].to_s, class: "shrink-0" %>
+                  <span class="truncate"><%= facet["ecosystem"] %></span>
+                </span>
+                <span class="shrink-0 text-xs tabular-nums text-zinc-400 dark:text-zinc-500"><%= facet["count"] %></span>
+              </label>
+            <% end %>
+          </div>
+        </details>
+      <% end %>
+
+      <details class="group <%= group %>" open>
+        <summary class="<%= summary %>">Package <%= heroicon "chevron-down", classes: chevron %></summary>
+        <div class="mt-2">
+          <%= text_field_tag :package, filter_params["package"], placeholder: "e.g. lodash",
+                autocomplete: "off", class: text_input %>
+        </div>
+      </details>
+
+      <details class="group <%= group %>" open>
+        <summary class="<%= summary %>">Fix <%= heroicon "chevron-down", classes: chevron %></summary>
+        <label class="mt-2 flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+          <%= check_box_tag :has_fix, "true", filter_params["has_fix"].present?, class: "shrink-0 rounded border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800" %>
+          <span>Has a fix</span>
+        </label>
+      </details>
+
+      <details class="group <%= group %>" open>
+        <summary class="<%= summary %>">Dates <%= heroicon "chevron-down", classes: chevron %></summary>
+        <div class="mt-2 space-y-2">
+          <label class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <span class="w-20 shrink-0">Published ≥</span>
+            <%= date_field_tag :published_after, filter_params["published_after"], class: text_input %>
+          </label>
+          <label class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <span class="w-20 shrink-0">Modified ≥</span>
+            <%= date_field_tag :modified_after, filter_params["modified_after"], class: text_input %>
+          </label>
+        </div>
+      </details>
+
+      <div class="flex items-center gap-2 pt-1">
+        <%= submit_tag "Apply filters",
+              class: "min-w-0 flex-1 cursor-pointer rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200" %>
+        <%= link_to "Reset", cves_root_path,
+              class: "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100" %>
+      </div>
+    <% end %>
+  </div>
+</details>

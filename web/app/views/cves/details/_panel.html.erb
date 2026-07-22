@@ -1,0 +1,160 @@
+<%# web/app/views/cves/details/_panel.html.erb — local: cve
+    The chain (fix commits / issues / advisories / fixed versions / git ranges)
+    is the module's core value-add, so it renders first. All external links open
+    in a new tab. `details` is plain text (no markdown gem). %>
+<%
+  chain = cve.chain
+  link  = "inline-flex items-center gap-1.5 break-all text-sm text-blue-600 hover:underline dark:text-blue-400"
+  chip  = "inline-flex items-center rounded border border-zinc-200 px-1.5 py-0.5 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+  section_h = "mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+%>
+<header class="shrink-0 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+  <div class="flex items-start justify-between gap-4">
+    <div class="min-w-0">
+      <div class="flex flex-wrap items-center gap-2">
+        <%= render "cves/overview/fix_badge", has_fix: cve.has_fix %>
+        <% if (score = cve_cvss_score(cve.severity)) %>
+          <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400"><%= score %></span>
+        <% end %>
+      </div>
+      <h2 class="mt-2 break-all font-mono text-lg font-semibold leading-snug text-zinc-900 dark:text-zinc-100"><%= cve.id %></h2>
+      <p class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+        Published <%= cve_short_date(cve.published) %> · Modified <%= cve_short_date(cve.modified) %>
+      </p>
+    </div>
+    <button type="button" data-action="click->drawer#close" aria-label="Close"
+            class="-mr-1 shrink-0 rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+      <%= heroicon "x-mark", classes: "h-5 w-5" %>
+    </button>
+  </div>
+  <% if cve.withdrawn.present? %>
+    <p class="mt-3 rounded-md bg-amber-100 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-500/15 dark:text-amber-400">
+      Withdrawn <%= cve_short_date(cve.withdrawn) %>
+    </p>
+  <% end %>
+  <% if cve.aliases.reject { |a| a == cve.id }.any? %>
+    <div class="mt-3 flex flex-wrap gap-1.5">
+      <% cve.aliases.reject { |a| a == cve.id }.each do |a| %>
+        <span class="<%= chip %> font-mono"><%= a %></span>
+      <% end %>
+    </div>
+  <% end %>
+</header>
+
+<div class="slim-scroll flex-1 space-y-7 overflow-y-auto px-6 py-6">
+  <%# --- Chain: the headline section --- %>
+  <section>
+    <h3 class="<%= section_h %>">Fix chain</h3>
+    <div class="space-y-4">
+      <% [["Fix commits", chain["fix_commits"], "arrow-top-right-on-square"],
+          ["Issues",      chain["issue_urls"], "arrow-top-right-on-square"],
+          ["Advisories",  chain["advisory_urls"], "arrow-top-right-on-square"]].each do |label, urls, icon| %>
+        <% if Array(urls).any? %>
+          <div>
+            <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500"><%= label %></p>
+            <ul class="space-y-1">
+              <% urls.each do |url| %>
+                <li>
+                  <a href="<%= url %>" target="_blank" rel="noopener noreferrer" class="<%= link %>">
+                    <%= heroicon icon, classes: "h-3.5 w-3.5 shrink-0" %><%= url %>
+                  </a>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+      <% end %>
+
+      <% if Array(chain["fixed_versions"]).any? %>
+        <div>
+          <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Fixed versions</p>
+          <div class="flex flex-wrap gap-1.5">
+            <% chain["fixed_versions"].each do |fv| %>
+              <span class="<%= chip %> font-mono"><%= fv["ecosystem"] %>/<%= fv["package"] %>@<%= fv["version"] %></span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <% if Array(chain["git_ranges"]).any? %>
+        <div>
+          <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Git ranges</p>
+          <ul class="space-y-1 font-mono text-xs">
+            <% chain["git_ranges"].each do |r| %>
+              <li class="text-zinc-600 dark:text-zinc-400">
+                <% if r["repo"].present? %><a href="<%= r["repo"] %>" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline dark:text-blue-400"><%= r["repo"] %></a><br><% end %>
+                <%= r["introduced"].presence || "?" %> → <%= r["fixed"].presence || "?" %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <% if Array(chain["fix_commits"]).empty? && Array(chain["issue_urls"]).empty? && Array(chain["advisory_urls"]).empty? && Array(chain["fixed_versions"]).empty? && Array(chain["git_ranges"]).empty? %>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400">No fix chain data.</p>
+      <% end %>
+    </div>
+  </section>
+
+  <%# --- Summary / details --- %>
+  <% if cve.summary.present? || cve.details.present? %>
+    <section class="space-y-3">
+      <h3 class="<%= section_h %>">Summary</h3>
+      <% if cve.summary.present? %>
+        <p class="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"><%= cve.summary %></p>
+      <% end %>
+      <% if cve.details.present? %>
+        <div class="whitespace-pre-wrap rounded bg-zinc-50 px-3 py-2 text-sm leading-relaxed text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400"><%= cve.details %></div>
+      <% end %>
+    </section>
+  <% end %>
+
+  <%# --- Affected --- %>
+  <% if cve.affected.any? %>
+    <section>
+      <h3 class="<%= section_h %>">Affected</h3>
+      <div class="space-y-4">
+        <% cve.affected.each do |aff| %>
+          <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+            <p class="font-mono text-sm text-zinc-800 dark:text-zinc-200"><%= aff["ecosystem"] %> / <%= aff["package"] %></p>
+            <% if aff["purl"].present? %><p class="mt-0.5 break-all font-mono text-xs text-zinc-500 dark:text-zinc-400"><%= aff["purl"] %></p><% end %>
+            <% if Array(aff["versions"]).any? %>
+              <p class="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">Versions: <%= aff["versions"].join(", ") %></p>
+            <% end %>
+            <% if Array(aff["ranges"]).any? %>
+              <ul class="mt-1.5 space-y-0.5 font-mono text-xs text-zinc-600 dark:text-zinc-400">
+                <% aff["ranges"].each do |r| %>
+                  <li><%= r["type"] %>: <%= r["introduced"].presence || "?" %> → <%= r["fixed"].presence || "?" %></li>
+                <% end %>
+              </ul>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+
+  <%# --- Classification + references --- %>
+  <section>
+    <h3 class="<%= section_h %>">Classification</h3>
+    <dl class="grid grid-cols-2 gap-x-6 gap-y-4">
+      <%= render "cves/details/field", label: "CWEs", value: cve.cwe_ids.join(", ") %>
+      <%= render "cves/details/field", label: "Ecosystems", value: cve.ecosystems.join(", ") %>
+      <%= render "cves/details/field", label: "OSV id", value: cve.osv_id %>
+    </dl>
+  </section>
+
+  <% if cve.references.any? %>
+    <section>
+      <h3 class="<%= section_h %>">References</h3>
+      <ul class="space-y-1">
+        <% cve.references.each do |ref| %>
+          <li class="flex items-start gap-2">
+            <span class="<%= chip %> shrink-0"><%= cve_reference_label(ref["type"]) %></span>
+            <a href="<%= ref["url"] %>" target="_blank" rel="noopener noreferrer" class="<%= link %>"><%= ref["url"] %></a>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
+</div>
