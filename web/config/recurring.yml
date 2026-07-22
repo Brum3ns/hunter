@@ -5,6 +5,21 @@
 #     args: [ 1000, { batch_size: 500 } ]
 #     schedule: every hour
 
+# Dev mirrors production's CVE sync so a running stack backfills the `cves`
+# collection on its own. Note: recurring tasks fire on the schedule's next
+# occurrence, not on boot — to populate immediately, run one sync by hand
+# (`bin/rails runner "Cves::Sync.new.run"`). A full OSV mirror is heavy, so the
+# cadence is deliberately infrequent.
+development:
+  cve_sync:
+    class: Cves::SyncJob
+    queue: background
+    schedule: every 6 hours
+  sitemap_sync:
+    class: Sitemap::SyncJob
+    queue: background
+    schedule: every 30 minutes
+
 production:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
@@ -13,3 +28,7 @@ production:
     class: Cves::SyncJob
     queue: background
     schedule: every 6 hours
+  sitemap_sync:
+    class: Sitemap::SyncJob
+    queue: background
+    schedule: every 30 minutes
