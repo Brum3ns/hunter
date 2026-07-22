@@ -43,11 +43,23 @@ Rails.application.routes.draw do
     get "/jobs", to: "jobs#index",      as: :jobs
     get "/statistics", to: "statistics#index", as: :statistics
   end
-  # Target web department — configurable table of "alive" assets (MongoDB).
+  # Target web department — configurable assets plus their related Sitemap.
+  # Sitemap routes must precede /targets/:id so "sitemap" is not treated as an
+  # asset identifier.
   get "targets", to: "targets#index"
+  get "targets/sitemap",                 to: "sitemap/origins#index", as: :targets_sitemap
+  get "targets/sitemap/origins/:id/tree", to: "sitemap/origins#tree", as: :targets_sitemap_origin_tree
+  get "targets/sitemap/endpoints/:id",    to: "sitemap/endpoints#show", as: :targets_sitemap_endpoint
   # Detail loaded into the docked side-panel Turbo Frame (must follow the index).
   get "targets/:id", to: "targets#show", as: :target
-  get "cves", to: "cves#index"
+  # CVE web department — browse list + single-CVE detail drawer. Mirrors the
+  # vulnerabilities namespace. "/:id" is a CVE id (e.g. CVE-2024-1234).
+  namespace :cves do
+    get "/", to: "overview#index", as: :root
+    get "/:id", to: "details#show", as: :detail
+  end
+  # Preserve bookmarked Sitemap entry URLs, including their active filters.
+  get "sitemap", to: redirect(path: "/targets/sitemap"), as: :legacy_sitemap
 
   get "help", to: "help#index"
   # API documentation (Swagger UI) — a utility department behind session auth.
