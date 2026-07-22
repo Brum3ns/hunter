@@ -1,0 +1,14 @@
+<%# web/app/views/cves/details/show.html.erb %>
+<%= turbo_frame_tag "cve_panel" do %>
+  <div data-controller="drawer" data-action="keydown.esc@window->drawer#close">
+    <div data-drawer-target="backdrop"
+         data-action="click->drawer#close"
+         class="fixed inset-0 z-40 bg-zinc-950/30 opacity-0 backdrop-blur-sm transition-opacity duration-300 ease-out dark:bg-black/60"></div>
+
+    <aside data-drawer-target="panel"
+           role="dialog" aria-modal="true" aria-label="CVE detail"
+           class="fixed inset-y-0 right-0 z-50 flex h-full w-full translate-x-full flex-col border-l border-zinc-200 bg-white shadow-2xl transition-transform duration-300 ease-out md:w-[85vw] lg:w-[70vw] dark:border-zinc-800 dark:bg-[#0b0d0e]">
+      <%= render "cves/details/panel", cve: @cve %>
+    </aside>
+  </div>
+<% end %>

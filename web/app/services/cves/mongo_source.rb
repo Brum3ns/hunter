@@ -64,6 +64,22 @@ module Cves
       nil
     end
 
+    # Distinct affected ecosystems with document counts, for the browse sidebar.
+    # Returns [{ "ecosystem" => "npm", "count" => 1234 }, ...] sorted by count
+    # desc. Read-only; swallows Mongo::Error like the other reads.
+    def ecosystem_facets(limit: 50)
+      collection.aggregate([
+        { "$unwind" => "$affected" },
+        { "$group"  => { "_id" => "$affected.ecosystem", "count" => { "$sum" => 1 } } },
+        { "$match"  => { "_id" => { "$ne" => nil } } },
+        { "$sort"   => { "count" => -1 } },
+        { "$limit"  => limit }
+      ]).map { |row| { "ecosystem" => row["_id"], "count" => row["count"] } }
+    rescue Mongo::Error => e
+      Rails.logger.warn("Cves::MongoSource#ecosystem_facets failed (#{e.class}: #{e.message})")
+      []
+    end
+
     def new_since(since: nil, since_id: nil, limit: 50, filters: {}, search: nil)
       ensure_indexes!
       cursor = cursor_filter(since, since_id)

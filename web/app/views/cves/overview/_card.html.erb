@@ -1,0 +1,13 @@
+<%# web/app/views/cves/overview/_card.html.erb — collection partial, local: cve %>
+<div data-controller="rowlink"
+     data-rowlink-url-value="<%= cves_detail_path(cve.id) %>"
+     data-rowlink-frame-value="cve_panel"
+     data-action="click->rowlink#open"
+     class="cursor-pointer border-b border-zinc-100 px-4 py-3 last:border-0 hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-white/5">
+  <div class="flex items-center justify-between gap-2">
+    <span class="font-mono text-sm text-zinc-900 dark:text-zinc-100"><%= cve.id %></span>
+    <%= render "cves/overview/fix_badge", has_fix: cve.has_fix %>
+  </div>
+  <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400"><%= truncate(cve.summary.presence || "—", length: 120) %></p>
+  <p class="mt-1 text-xs text-zinc-400 dark:text-zinc-500"><%= cve.ecosystems.join(", ") %> · <%= cve_short_date(cve.modified) %></p>
+</div>

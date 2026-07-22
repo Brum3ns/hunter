@@ -1,0 +1,6 @@
+<%# web/app/views/cves/overview/_fix_badge.html.erb — local: has_fix (Boolean) %>
+<% if has_fix %>
+  <span class="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">Fix</span>
+<% else %>
+  <span class="text-xs text-zinc-400 dark:text-zinc-600">—</span>
+<% end %>

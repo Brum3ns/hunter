@@ -1,0 +1,17 @@
+<%# web/app/views/cves/overview/_filters.html.erb — locals: filter_params, search
+    Sticky search bar (its own GET form, sibling of the table). Carries the
+    sidebar's filter values as hidden fields so a search preserves them. %>
+<%
+  input_classes = "w-full rounded-md border border-zinc-300 bg-white py-2 pl-3 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-100 dark:focus:border-zinc-300"
+%>
+<%= form_with url: cves_root_path, method: :get, class: "flex min-w-0 flex-1 items-center gap-2" do %>
+  <% %i[ecosystem package has_fix published_after modified_after].each do |k| %>
+    <%= hidden_field_tag k, filter_params[k.to_s] if filter_params[k.to_s].present? %>
+  <% end %>
+  <div class="relative min-w-48 flex-1">
+    <%= search_field_tag :q, search, placeholder: "Search CVE id or summary…",
+          autocomplete: "off", class: input_classes %>
+  </div>
+  <%= submit_tag "Search",
+        class: "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-[#0b0d0e] dark:text-zinc-200 dark:hover:bg-zinc-800" %>
+<% end %>

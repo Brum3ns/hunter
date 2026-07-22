@@ -12,8 +12,12 @@ class Cves::MongoSourceTest < ActiveSupport::TestCase
   end
 
   class FakeCollection
-    attr_reader :last_filter, :query, :upserts, :count_result
-    def initialize(docs = [], count_result: 0) = (@docs = docs; @upserts = []; @count_result = count_result)
+    attr_reader :last_filter, :query, :upserts, :count_result, :last_pipeline
+    def initialize(docs = [], count_result: 0, agg_rows: []) = (@docs = docs; @upserts = []; @count_result = count_result; @agg_rows = agg_rows)
+    def aggregate(pipeline)
+      @last_pipeline = pipeline
+      @agg_rows
+    end
     def find(filter = {})
       @last_filter = filter
       @query = FakeQuery.new(@docs)
@@ -257,4 +261,24 @@ class Cves::MongoSourceTest < ActiveSupport::TestCase
     end
   end
 
+  test "ecosystem_facets unwinds affected and maps rows to ecosystem/count" do
+    rows = [{ "_id" => "npm", "count" => 12 }, { "_id" => "PyPI", "count" => 3 }]
+    collection = FakeCollection.new(agg_rows: rows)
+    with_collection(collection) do
+      facets = Cves::MongoSource.ecosystem_facets(limit: 5)
+      assert_equal([{ "ecosystem" => "npm", "count" => 12 },
+                    { "ecosystem" => "PyPI", "count" => 3 }], facets)
+      stages = collection.last_pipeline.map { |s| s.keys.first }
+      assert_equal ["$unwind", "$group", "$match", "$sort", "$limit"], stages
+      assert_equal 5, collection.last_pipeline.last["$limit"]
+    end
+  end
+
+  test "ecosystem_facets swallows Mongo::Error and returns empty" do
+    boom = FakeCollection.new
+    boom.define_singleton_method(:aggregate) { |*| raise Mongo::Error, "down" }
+    with_collection(boom) do
+      assert_equal [], Cves::MongoSource.ecosystem_facets
+    end
+  end
 end
