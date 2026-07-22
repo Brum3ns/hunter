@@ -1,0 +1,11 @@
+<%
+  klass = {
+    "2xx" => "bg-emerald-500/15 text-emerald-400",
+    "3xx" => "bg-sky-500/15 text-sky-400",
+    "4xx" => "bg-amber-500/15 text-amber-400",
+    "5xx" => "bg-red-500/15 text-red-400"
+  }.fetch(family, "bg-white/10 text-zinc-300")
+%>
+<span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold <%= klass %>">
+  <%= code.presence || "—" %>
+</span>

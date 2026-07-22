@@ -1,0 +1,5 @@
+<%# One page of rows for an infinite-scroll fetch, plus a marker carrying the
+    next page URL (empty when there are no more). The client appends the rows
+    and reads data-next-url to know whether to keep loading. %>
+<% @targets.each do |target| %><%= render "row", target: target %><% end %>
+<div data-next-url="<%= @next_page_url %>"></div>

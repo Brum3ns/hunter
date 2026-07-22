@@ -1,0 +1,9 @@
+<% shown = Array(tech).first(4) %>
+<div class="flex items-center gap-1">
+  <% shown.each do |name| %>
+    <%= tech_icon_tag(name) %>
+  <% end %>
+  <% if Array(tech).length > shown.length %>
+    <span class="rounded bg-white/10 px-1 text-[10px] font-semibold text-zinc-300">+<%= Array(tech).length - shown.length %></span>
+  <% end %>
+</div>

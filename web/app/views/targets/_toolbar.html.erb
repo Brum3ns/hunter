@@ -1,0 +1,23 @@
+<%# Summary count chips (display-only this pass) + column picker trigger. %>
+<div data-targets-columns-target="toolbar" class="flex flex-wrap items-center gap-2">
+  <span class="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-zinc-300">
+    Assets <span class="rounded bg-white/10 px-1.5 py-0.5 font-semibold text-white"><%= @total %></span>
+  </span>
+
+  <div class="relative ml-auto">
+    <details class="group">
+      <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10">
+        <%= heroicon "adjustments-horizontal", classes: "h-4 w-4" %> Columns
+      </summary>
+      <div class="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-white/10 bg-[#0a0a0a] p-2 shadow-xl">
+        <% TargetsHelper::COLUMNS.each do |col| %>
+          <label class="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-zinc-300 hover:bg-white/5">
+            <input type="checkbox" data-action="targets-columns#toggle" data-col="<%= col[:key] %>"
+                   <%= "checked" if col[:default] %> class="accent-white" />
+            <%= col[:label] %>
+          </label>
+        <% end %>
+      </div>
+    </details>
+  </div>
+</div>

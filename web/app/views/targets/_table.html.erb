@@ -1,0 +1,38 @@
+<div data-controller="targets-columns targets-infinite"
+     data-targets-infinite-url-value="<%= @next_page_url %>"
+     class="slim-scroll overflow-x-auto rounded-xl border border-white/10">
+  <%# Header row. Each header cell carries the column metadata the client
+      controller needs: key, label, default width, default visibility. %>
+  <div data-targets-columns-target="header"
+       class="grid border-b border-white/10 bg-white/5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 xl:text-xs">
+    <% TargetsHelper::COLUMNS.each do |col| %>
+      <div class="group relative flex items-center gap-1 px-3 py-2.5 lg:px-4 lg:py-3" draggable="true"
+           data-targets-columns-target="head" data-col="<%= col[:key] %>"
+           data-label="<%= col[:label] %>" data-width="<%= col[:width] %>"
+           data-default="<%= col[:default] %>"
+           style="<%= "display:none" unless col[:default] %>">
+        <% if Targets::MongoSource::SORT_FIELDS.key?(col[:key]) %>
+          <%= link_to col[:label],
+                targets_path(request.query_parameters.merge("sort" => col[:key], "dir" => (@sort == col[:key] && @dir == "asc") ? "desc" : "asc").except("page")),
+                class: "truncate hover:text-white" %>
+        <% else %>
+          <span class="truncate"><%= col[:label] %></span>
+        <% end %>
+        <span class="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+              data-action="mousedown->targets-columns#startResize" data-col="<%= col[:key] %>"></span>
+      </div>
+    <% end %>
+  </div>
+
+  <div data-targets-columns-target="body">
+    <% if @targets.empty? %>
+      <div class="px-4 py-10 text-center text-sm text-zinc-500">No assets found.</div>
+    <% else %>
+      <% @targets.each do |target| %>
+        <%= render "row", target: target %>
+      <% end %>
+    <% end %>
+    <%# Sentinel: when it scrolls near the viewport the next page is fetched. %>
+    <div data-targets-infinite-target="sentinel" aria-hidden="true"></div>
+  </div>
+</div>

@@ -1,0 +1,27 @@
+<%= turbo_frame_tag "target_panel" do %>
+  <%# display:contents so the <aside>'s containing block is the (tall, stretched)
+      turbo-frame rather than this wrapper — that gives `position: sticky` the
+      travel room it needs to stay pinned while the list scrolls. %>
+  <div class="contents" data-controller="side-panel"
+       data-action="keydown.esc@window->side-panel#close click@window->side-panel#closeOutside">
+    <%# Backdrop only on mobile, where the panel slides over the list. Its click
+        is handled by closeOutside (window listener), so no explicit action. %>
+    <div data-side-panel-target="backdrop"
+         class="fixed inset-0 z-40 bg-black/50 opacity-0 transition-opacity duration-200 md:hidden"></div>
+
+    <aside data-side-panel-target="panel"
+           role="dialog" aria-label="Target detail"
+           class="fixed inset-y-0 right-0 z-50 flex h-dvh w-full translate-x-full flex-col border-l border-white/10 bg-[#0b0d0e] text-white shadow-2xl transition-transform duration-300 ease-out
+                  md:sticky md:top-0 md:z-auto md:w-[420px] md:shrink-0 md:shadow-none lg:w-[500px] xl:w-[560px]">
+      <%# Width resize handle straddling the left border. The hit area is a wide
+          (12px) invisible strip so it is easy to grab; a hairline appears on
+          hover. Desktop only — the mobile panel is a full-width overlay. %>
+      <div data-action="mousedown->side-panel#startResize"
+           class="group absolute inset-y-0 -left-1.5 z-20 hidden w-3 cursor-col-resize md:block"
+           aria-hidden="true">
+        <span class="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-white/25"></span>
+      </div>
+      <%= render "targets/panel", target: @target %>
+    </aside>
+  </div>
+<% end %>
