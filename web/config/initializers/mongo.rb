@@ -70,6 +70,11 @@ module HunterMongo
       server_selection_timeout: Integer(ENV.fetch("MONGO_SERVER_SELECTION_TIMEOUT", "3")),
       connect_timeout: Integer(ENV.fetch("MONGO_CONNECT_TIMEOUT", "3"))
     }
+    # Naming the replica set puts the driver in replica-set topology (not a
+    # direct connection), which change streams require. Left unset for a
+    # standalone Mongo, where passing it would prevent connecting.
+    replica_set = ENV["MONGO_REPLICA_SET"].presence
+    opts[:replica_set] = replica_set if replica_set
     user = ENV["MONGO_USERNAME"].presence
     pass = ENV["MONGO_PASSWORD"].presence
     opts.merge!(user: user, password: pass, auth_source: ENV.fetch("MONGO_AUTH_SOURCE", "admin")) if user && pass
