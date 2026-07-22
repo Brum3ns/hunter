@@ -13,6 +13,7 @@ export default class extends Controller {
   static targets = [
     "rows", "empty", "editor", "commands", "commandRow", "errors", "save", "saveClose", "savedFlash",
     "fName", "fKind", "fOutput", "fTags", "fDescription",
+    "fTargetType", "fTargetSep", "fTargetSepCustom", "fTargetOutput", "targetFields", "targetSepCustomWrap",
     "sendDialog", "sendName", "sendTargets", "sendQueue", "sendChunk", "sendDelay", "sendResult",
     "modeStructured", "modeYaml", "modeSplit", "splitWrap", "structuredPanel", "yamlPanel", "yamlEditor", "yamlErrors", "yamlValid", "fileInput",
   ]
@@ -138,6 +139,7 @@ export default class extends Controller {
     this.fDescriptionTarget.value = ""
     this.commandsTarget.replaceChildren()
     this.addCommand()
+    this._setTarget(null)
     this.errorsTarget.classList.add("hidden")
     this.editorTarget.classList.remove("hidden")
     this.sendDialogTarget.classList.add("hidden")
@@ -157,6 +159,7 @@ export default class extends Controller {
     this.commandsTarget.replaceChildren()
     ;(t.commands || []).forEach((c) => this.addCommand(c))
     if (!(t.commands || []).length) this.addCommand()
+    this._setTarget(t.target)
     this.editorTarget.classList.remove("hidden")
     this.sendDialogTarget.classList.add("hidden")
     this.validate()
@@ -214,6 +217,21 @@ export default class extends Controller {
     event.target.value = ""
   }
 
+  // Download the editor's current YAML as <name>.yaml (client-side, no server).
+  downloadYaml() {
+    const name = (this.fNameTarget.value.trim() || "template")
+      .toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "template"
+    const blob = new Blob([this._yamlValue()], { type: "text/yaml" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${name}.yaml`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
   validateDebounced() { clearTimeout(this._valTimer); this._valTimer = setTimeout(() => this.validate(), 300) }
   validateYaml() { clearTimeout(this._yamlTimer); this._yamlTimer = setTimeout(() => this._doValidateYaml(), 300) }
 
@@ -246,12 +264,58 @@ export default class extends Controller {
       this.commandsTarget.replaceChildren()
       ;(attrs.commands || []).forEach((c) => this.addCommand(c))
       if (!(attrs.commands || []).length) this.addCommand()
+      this._setTarget(attrs.target)
     })
   }
 
   _syncGuard(fn) {
     this._syncing = true
     try { fn() } finally { this._syncing = false }
+  }
+
+  // --- target block --------------------------------------------------------
+
+  // Named separators <-> their real characters. Custom falls through to the text
+  // field so arbitrary separators are still expressible.
+  static SEPARATORS = { newline: "\n", comma: ",", space: " ", tab: "\t" }
+
+  // { type, separator, output } for the save/validate payload, or null when the
+  // Type select is None (so no target block is sent and the renderer omits it).
+  collectTarget() {
+    const type = this.fTargetTypeTarget.value
+    if (!type) return null
+    const sel = this.fTargetSepTarget.value
+    const separator = sel === "custom"
+      ? this.fTargetSepCustomTarget.value
+      : this.constructor.SEPARATORS[sel] ?? "\n"
+    return { type, separator, output: this.fTargetOutputTarget.value.trim() }
+  }
+
+  // Populate the target controls from a parsed target hash (or clear to None).
+  _setTarget(target) {
+    const type = (target && target.type) || ""
+    this.fTargetTypeTarget.value = ["file", "stdin"].includes(type) ? type : ""
+    const sep = target ? String(target.separator ?? "") : "\n"
+    const named = Object.keys(this.constructor.SEPARATORS).find((k) => this.constructor.SEPARATORS[k] === sep)
+    if (target && !named) {
+      this.fTargetSepTarget.value = "custom"
+      this.fTargetSepCustomTarget.value = sep
+    } else {
+      this.fTargetSepTarget.value = named || "newline"
+      this.fTargetSepCustomTarget.value = ""
+    }
+    this.fTargetOutputTarget.value = (target && target.output) || ""
+    this._applyTargetVisibility()
+  }
+
+  targetChanged() {
+    this._applyTargetVisibility()
+    this.validateDebounced()
+  }
+
+  _applyTargetVisibility() {
+    this.targetFieldsTarget.classList.toggle("hidden", !this.fTargetTypeTarget.value)
+    this.targetSepCustomWrapTarget.classList.toggle("hidden", this.fTargetSepTarget.value !== "custom")
   }
 
   _renderYamlErrors(errors) {
@@ -338,19 +402,25 @@ export default class extends Controller {
     return `"${arg.replace(/(["\\])/g, "\\$1")}"`
   }
 
+  // The structured form as a create/validate payload. `target` is included only
+  // when a Type is chosen, so None-target templates render without the block.
+  _structuredBody() {
+    const body = {
+      name: this.fNameTarget.value.trim(),
+      kind: this.fKindTarget.value,
+      output: this.fOutputTarget.value.trim(),
+      description: this.fDescriptionTarget.value,
+      tags: this.fTagsTarget.value.split(",").map((s) => s.trim()).filter(Boolean),
+      commands: this.collectCommands(),
+    }
+    const target = this.collectTarget()
+    if (target) body.target = target
+    return body
+  }
+
   async validate() {
     if (!this._syncing) this.lastEdited = "structured"
-    const { ok, data } = await apiFetch(this.validateUrlValue, {
-      method: "POST",
-      body: {
-        name: this.fNameTarget.value.trim(),
-        kind: this.fKindTarget.value,
-        output: this.fOutputTarget.value.trim(),
-        description: this.fDescriptionTarget.value,
-        tags: this.fTagsTarget.value.split(",").map((s) => s.trim()).filter(Boolean),
-        commands: this.collectCommands(),
-      },
-    })
+    const { ok, data } = await apiFetch(this.validateUrlValue, { method: "POST", body: this._structuredBody() })
     const errors = ok && data ? data.errors : ["validation request failed"]
     const valid = ok && data && data.valid && this.fNameTarget.value.trim().length > 0
     this.showErrors(valid ? [] : errors)
@@ -382,14 +452,7 @@ export default class extends Controller {
     if (source === "yaml") {
       body = { yaml: this._yamlValue() }
     } else {
-      body = {
-        name: this.fNameTarget.value.trim(),
-        kind: this.fKindTarget.value,
-        output: this.fOutputTarget.value.trim(),
-        description: this.fDescriptionTarget.value,
-        tags: this.fTagsTarget.value.split(",").map((s) => s.trim()).filter(Boolean),
-        commands: this.collectCommands(),
-      }
+      body = this._structuredBody()
     }
     const url = this.editingId ? `${this.indexUrlValue}/${this.editingId}` : this.indexUrlValue
     const method = this.editingId ? "PATCH" : "POST"

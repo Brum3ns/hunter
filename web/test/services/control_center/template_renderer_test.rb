@@ -91,6 +91,21 @@ class ControlCenter::TemplateRendererTest < ActiveSupport::TestCase
                  YAML.safe_load(yaml)["commands"][0]["args"]
   end
 
+  test "renders a file target block that round-trips with the newline separator preserved" do
+    t = ControlCenter::Template.new(
+      name: "tf", commands: [{ "command" => "httpx", "args" => ["-l", "__TARGET_FILE__"], "operator" => "" }],
+      target: { "type" => "file", "separator" => "\n", "output" => "/tmp/targets-__UUID__.txt" }
+    )
+    yaml = ControlCenter::TemplateRenderer.to_yaml(t)
+
+    # Matches the *-tf-* example templates: a double-quoted newline separator.
+    assert_includes yaml, %(separator: "\\n")
+    target = YAML.safe_load(yaml)["target"]
+    assert_equal "file", target["type"]
+    assert_equal "\n", target["separator"]
+    assert_equal "/tmp/targets-__UUID__.txt", target["output"]
+  end
+
   test "omits output and target when blank" do
     t = ControlCenter::Template.new(name: "x", commands: [{ "command" => "httpx", "args" => [], "operator" => "" }])
     parsed = YAML.safe_load(ControlCenter::TemplateRenderer.to_yaml(t))

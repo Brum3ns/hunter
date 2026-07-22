@@ -21,6 +21,13 @@ module ControlCenter
         target_file = File.join(dir, "targets.txt")
         File.write(target_file, Array(targets).join("\n"))
 
+        # Whiterabbit only chunks when -target-chunk > 0, and its chunk path aborts
+        # unless -folder-nfs points at an existing directory. Provide one inside the
+        # ephemeral tree so chunked sends work; targets travel inside the message for
+        # target-block templates, so a per-job dir is sufficient here.
+        nfs_dir = File.join(dir, "nfs")
+        FileUtils.mkdir_p(nfs_dir, mode: 0o700)
+
         flags = [
           "-run", template.name,
           "-folder-cmdscript", cmd_dir,
@@ -28,6 +35,7 @@ module ControlCenter
           "-queue-name", queue_name.to_s,
           "-target-chunk", target_chunk.to_i.to_s,
           "-delay", delay.to_i.to_s,
+          "-folder-nfs", nfs_dir,
           "-db", File.join(dir, "badgerdb")
         ]
         WhiterabbitCommand.execute(flags, timeout: TIMEOUT, max_output: MAX_OUTPUT)

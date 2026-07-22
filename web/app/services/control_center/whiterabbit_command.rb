@@ -15,7 +15,7 @@ module ControlCenter
 
     ALLOWED_FLAGS = %w[
       -run -folder-cmdscript -folder-workflow -target -target-chunk
-      -queue-name -delay -salt -db -timeout
+      -queue-name -delay -salt -db -timeout -folder-nfs
       -list -validate -check-rabbitmq -check-mongo -info
     ].freeze
 
