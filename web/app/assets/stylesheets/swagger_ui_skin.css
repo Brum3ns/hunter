@@ -1,54 +1,294 @@
-/* Monochrome skin for Swagger UI on /docs — recolors Swagger's greens/blues to
-   Hunter's black-and-white language and adds dark-mode support. Loaded AFTER
-   swagger-ui.css so these rules win. Scoped to #swagger-ui so nothing leaks. */
+/* Hunter skin for Swagger UI on /docs.
+ *
+ * Loaded AFTER swagger-ui.css so these rules win, and scoped entirely to
+ * #swagger-ui so nothing leaks into the rest of the app.
+ *
+ * Theming is CLASS-based, exactly like the rest of Hunter: the app toggles
+ * `html.dark` (see the inline script in layouts/application.html.erb) and never
+ * adds a `.light` class. We key off that same signal — NO prefers-color-scheme
+ * media query — so Swagger always matches the operator's chosen theme instead of
+ * their OS setting. Every surface is driven from the token block below, so light
+ * and dark stay legible without per-element duplication.
+ *
+ * Palette is Hunter's zinc monochrome; the only color spent is on the HTTP
+ * method badges, mapped to the app's own semantic accents (emerald = create,
+ * amber = update, red = destroy, zinc = read).
+ */
+
+/* ── Tokens ──────────────────────────────────────────────────────────────── */
+#swagger-ui {
+  --hx-bg:            #ffffff;  /* raised surfaces: opblocks, models, modal   */
+  --hx-bg-subtle:     #fafafa;  /* section headers, hovered rows              */
+  --hx-bg-inset:      #f4f4f5;  /* inputs, inline code, version pill          */
+  --hx-code-bg:       #18181b;  /* request/response/example code blocks       */
+  --hx-code-fg:       #e4e4e7;
+  --hx-border:        #e4e4e7;  /* hairlines                                  */
+  --hx-border-strong: #d4d4d8;  /* input borders, table header rule           */
+  --hx-text:          #18181b;  /* primary text                              */
+  --hx-text-muted:    #52525b;  /* secondary text, table headers              */
+  --hx-text-faint:    #71717a;  /* types, hints, deprecation                  */
+  --hx-accent:        #18181b;  /* primary buttons (Authorize / Execute)      */
+  --hx-accent-fg:     #fafafa;
+  --hx-accent-hover:  #27272a;
+
+  /* Method badge fills — saturated enough to carry white badge text.         */
+  --hx-get:    #52525b;
+  --hx-post:   #059669;
+  --hx-put:    #b45309;
+  --hx-delete: #dc2626;
+  --hx-method-fg: #ffffff;
+
+  color: var(--hx-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html.dark #swagger-ui {
+  --hx-bg:            #111417;
+  --hx-bg-subtle:     #0b0d0e;
+  --hx-bg-inset:      #1c1f22;
+  --hx-code-bg:       #09090b;
+  --hx-code-fg:       #e4e4e7;
+  --hx-border:        #27272a;
+  --hx-border-strong: #3f3f46;
+  --hx-text:          #f4f4f5;
+  --hx-text-muted:    #a1a1aa;
+  --hx-text-faint:    #71717a;
+  --hx-accent:        #f4f4f5;
+  --hx-accent-fg:     #0b0d0e;
+  --hx-accent-hover:  #d4d4d8;
+
+  /* Brighter fills on the dark canvas; dark badge text for AA contrast.       */
+  --hx-get:    #a1a1aa;
+  --hx-post:   #34d399;
+  --hx-put:    #fbbf24;
+  --hx-delete: #f87171;
+  --hx-method-fg: #0b0d0e;
+}
+
+/* ── Canvas & chrome ─────────────────────────────────────────────────────── */
 #swagger-ui .topbar { display: none; }
+#swagger-ui { background: transparent; }
 #swagger-ui .info { margin: 1.5rem 0; }
+#swagger-ui .info .title { color: var(--hx-text); font-weight: 600; }
+#swagger-ui .info .title small,
+#swagger-ui .info .title small pre {
+  background: var(--hx-bg-inset); color: var(--hx-text-muted);
+  border: 1px solid var(--hx-border); border-radius: 9999px;
+}
+#swagger-ui .info p,
+#swagger-ui .info li,
+#swagger-ui .info table { color: var(--hx-text-muted); }
+#swagger-ui .info .base-url { color: var(--hx-text-faint); }
 
-/* Neutralize method colors to grayscale bands. */
-#swagger-ui .opblock.opblock-get   { border-color: #52525b; background: rgba(82,82,91,0.04); }
-#swagger-ui .opblock.opblock-post  { border-color: #27272a; background: rgba(39,39,42,0.05); }
+/* Server / auth bar sits flush like a Hunter toolbar — no floating shadow. */
+#swagger-ui .scheme-container {
+  background: var(--hx-bg-subtle); box-shadow: none;
+  border: 1px solid var(--hx-border); border-radius: 8px;
+}
+#swagger-ui .scheme-container .schemes-title { color: var(--hx-text); }
+
+/* Links: same ink as body text, differentiated by an underline affordance. */
+#swagger-ui a,
+#swagger-ui a:visited { color: var(--hx-text); text-decoration: underline; text-underline-offset: 2px; }
+#swagger-ui a:hover { color: var(--hx-text-muted); }
+
+/* ── Tag section headers ─────────────────────────────────────────────────── */
+#swagger-ui .opblock-tag {
+  color: var(--hx-text); border-bottom: 1px solid var(--hx-border);
+  text-decoration: none;
+}
+#swagger-ui .opblock-tag:hover { background: var(--hx-bg-subtle); }
+#swagger-ui .opblock-tag small { color: var(--hx-text-faint); }
+#swagger-ui .opblock-tag svg,
+#swagger-ui .expand-operation svg,
+#swagger-ui svg.arrow { fill: var(--hx-text-muted); }
+
+/* ── Operation blocks ────────────────────────────────────────────────────── */
+#swagger-ui .opblock {
+  background: var(--hx-bg); border-radius: 8px;
+  box-shadow: none; margin: 0 0 10px;
+}
+#swagger-ui .opblock .opblock-summary { border-color: currentColor; }
+#swagger-ui .opblock .opblock-summary-path,
+#swagger-ui .opblock .opblock-summary-path a {
+  color: var(--hx-text);
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+#swagger-ui .opblock .opblock-summary-path__deprecated { text-decoration: line-through; }
+#swagger-ui .opblock .opblock-summary-description { color: var(--hx-text-muted); }
+#swagger-ui .opblock .opblock-summary-operation-id { color: var(--hx-text-faint); }
+#swagger-ui .opblock .opblock-summary-method {
+  background: var(--hx-get); color: var(--hx-method-fg); font-weight: 600;
+  text-shadow: none; border-radius: 6px;
+}
+
+/* One color per verb: border, faint summary tint, and badge fill all agree. */
+#swagger-ui .opblock.opblock-get    { border-color: var(--hx-get); }
+#swagger-ui .opblock.opblock-post   { border-color: var(--hx-post); }
 #swagger-ui .opblock.opblock-put,
-#swagger-ui .opblock.opblock-patch { border-color: #3f3f46; background: rgba(63,63,70,0.05); }
-#swagger-ui .opblock.opblock-delete{ border-color: #71717a; background: rgba(113,113,122,0.05); }
-#swagger-ui .opblock .opblock-summary-method { background: #27272a; }
+#swagger-ui .opblock.opblock-patch  { border-color: var(--hx-put); }
+#swagger-ui .opblock.opblock-delete { border-color: var(--hx-delete); }
 
+#swagger-ui .opblock.opblock-get    .opblock-summary { background: color-mix(in srgb, var(--hx-get)    6%, var(--hx-bg)); border-color: var(--hx-get); }
+#swagger-ui .opblock.opblock-post   .opblock-summary { background: color-mix(in srgb, var(--hx-post)   6%, var(--hx-bg)); border-color: var(--hx-post); }
+#swagger-ui .opblock.opblock-put    .opblock-summary,
+#swagger-ui .opblock.opblock-patch  .opblock-summary { background: color-mix(in srgb, var(--hx-put)    6%, var(--hx-bg)); border-color: var(--hx-put); }
+#swagger-ui .opblock.opblock-delete .opblock-summary { background: color-mix(in srgb, var(--hx-delete) 6%, var(--hx-bg)); border-color: var(--hx-delete); }
+
+#swagger-ui .opblock.opblock-get    .opblock-summary-method { background: var(--hx-get); }
+#swagger-ui .opblock.opblock-post   .opblock-summary-method { background: var(--hx-post); }
+#swagger-ui .opblock.opblock-put    .opblock-summary-method,
+#swagger-ui .opblock.opblock-patch  .opblock-summary-method { background: var(--hx-put); }
+#swagger-ui .opblock.opblock-delete .opblock-summary-method { background: var(--hx-delete); }
+
+#swagger-ui .opblock.opblock-deprecated { opacity: .75; }
+#swagger-ui .opblock.opblock-deprecated .opblock-summary-method { background: var(--hx-text-faint); }
+
+/* ── Sub-sections, parameters, responses ─────────────────────────────────── */
+#swagger-ui .opblock-section-header {
+  background: var(--hx-bg-subtle); box-shadow: none;
+  border-bottom: 1px solid var(--hx-border);
+}
+#swagger-ui .opblock-section-header h4,
+#swagger-ui .opblock-section-header > label,
+#swagger-ui .opblock-title,
+#swagger-ui .opblock-description-wrapper,
+#swagger-ui .opblock-external-docs-wrapper,
+#swagger-ui .tab li,
+#swagger-ui .response-col_links { color: var(--hx-text); }
+
+#swagger-ui table thead tr td,
+#swagger-ui table thead tr th {
+  color: var(--hx-text-muted); border-bottom: 1px solid var(--hx-border-strong);
+  font-weight: 600;
+}
+#swagger-ui table tbody tr td { color: var(--hx-text); border-color: var(--hx-border); }
+#swagger-ui .parameters-col_description,
+#swagger-ui .parameters-col_description .markdown p { color: var(--hx-text-muted); }
+#swagger-ui .parameter__name { color: var(--hx-text); font-weight: 600; }
+#swagger-ui .parameter__name.required span { color: var(--hx-delete); }
+#swagger-ui .parameter__type,
+#swagger-ui .parameter__deprecated,
+#swagger-ui .parameter__in {
+  color: var(--hx-text-faint);
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+#swagger-ui .response-col_status { color: var(--hx-text); }
+#swagger-ui .response-col_description,
+#swagger-ui .response-col_description .markdown p { color: var(--hx-text-muted); }
+#swagger-ui .responses-inner > h4,
+#swagger-ui .responses-inner > h5 { color: var(--hx-text); }
+#swagger-ui .tab li.active { color: var(--hx-text); font-weight: 600; }
+#swagger-ui .tab li:not(.active) { color: var(--hx-text-faint); }
+
+/* ── Form controls ───────────────────────────────────────────────────────── */
+#swagger-ui input[type=text],
+#swagger-ui input[type=password],
+#swagger-ui input[type=search],
+#swagger-ui input[type=email],
+#swagger-ui input[type=file],
+#swagger-ui textarea,
+#swagger-ui select {
+  background: var(--hx-bg-inset); color: var(--hx-text);
+  border: 1px solid var(--hx-border-strong); border-radius: 6px;
+}
+#swagger-ui input::placeholder,
+#swagger-ui textarea::placeholder { color: var(--hx-text-faint); }
+#swagger-ui input:focus,
+#swagger-ui textarea:focus,
+#swagger-ui select:focus { outline: 2px solid var(--hx-accent); outline-offset: 1px; }
+/* Restore the native, theme-aware dropdown chevron (CSP-safe: no data URI). */
+#swagger-ui select { appearance: auto; background-image: none; }
+#swagger-ui .parameter__name + .parameter__type,
+#swagger-ui .prop-type { color: var(--hx-post); }
+#swagger-ui .prop-format { color: var(--hx-text-faint); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+#swagger-ui .btn { border-radius: 6px; box-shadow: none; font-weight: 500; }
 #swagger-ui .btn.authorize,
 #swagger-ui .btn.execute {
-  background: #18181b; color: #fafafa; border-color: #18181b;
+  background: var(--hx-accent); color: var(--hx-accent-fg);
+  border-color: var(--hx-accent);
 }
-#swagger-ui .btn.authorize svg { fill: #fafafa; }
-#swagger-ui a, #swagger-ui .opblock-tag { color: #18181b; }
+#swagger-ui .btn.authorize:hover,
+#swagger-ui .btn.execute:hover { background: var(--hx-accent-hover); border-color: var(--hx-accent-hover); }
+#swagger-ui .btn.authorize svg { fill: var(--hx-accent-fg); }
+#swagger-ui .btn.try-out__btn,
+#swagger-ui .btn.cancel,
+#swagger-ui .btn-clear {
+  background: transparent; color: var(--hx-text);
+  border: 1px solid var(--hx-border-strong);
+}
+#swagger-ui .btn.try-out__btn:hover,
+#swagger-ui .btn.cancel:hover,
+#swagger-ui .btn-clear:hover { background: var(--hx-bg-subtle); }
+#swagger-ui .authorization__btn svg { fill: var(--hx-text-muted); }
+#swagger-ui .copy-to-clipboard { background: var(--hx-bg-inset); border-radius: 4px; }
+#swagger-ui .copy-to-clipboard button { background: var(--hx-text-muted); }
 
-/* Slim scrollbars on Swagger's overflow containers. */
+/* ── Code blocks (curl / request / response / examples) ──────────────────── */
+#swagger-ui .opblock-body pre.microlight,
+#swagger-ui .highlight-code > .microlight,
+#swagger-ui .curl-command .microlight,
+#swagger-ui .responses-inner pre {
+  background: var(--hx-code-bg); color: var(--hx-code-fg);
+  border-radius: 6px;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+#swagger-ui .markdown code,
+#swagger-ui .renderedMarkdown code {
+  background: var(--hx-bg-inset); color: var(--hx-text);
+  border: 1px solid var(--hx-border); border-radius: 4px; padding: 0 .3em;
+}
+
+/* ── Models / schema ─────────────────────────────────────────────────────── */
+#swagger-ui section.models {
+  background: var(--hx-bg); border: 1px solid var(--hx-border); border-radius: 8px;
+}
+#swagger-ui section.models .models-control,
+#swagger-ui section.models h4,
+#swagger-ui .model-title,
+#swagger-ui .model-toggle { color: var(--hx-text); }
+#swagger-ui section.models .model-container,
+#swagger-ui section.models .model-container:hover { background: var(--hx-bg-inset); }
+#swagger-ui .model-box { background: var(--hx-bg-inset); border-radius: 6px; }
+#swagger-ui .model,
+#swagger-ui .model .property {
+  color: var(--hx-text-muted);
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+#swagger-ui .model .property.primitive { color: var(--hx-text-faint); }
+#swagger-ui .model-hint { background: var(--hx-code-bg); color: var(--hx-code-fg); }
+#swagger-ui .renderedMarkdown p,
+#swagger-ui .markdown p { color: var(--hx-text-muted); }
+
+/* ── Auth modal ──────────────────────────────────────────────────────────── */
+#swagger-ui .dialog-ux .backdrop-ux { background: rgba(0, 0, 0, .55); }
+#swagger-ui .dialog-ux .modal-ux {
+  background: var(--hx-bg); border: 1px solid var(--hx-border-strong); border-radius: 10px;
+}
+#swagger-ui .dialog-ux .modal-ux-header { border-bottom: 1px solid var(--hx-border); }
+#swagger-ui .dialog-ux .modal-ux-header h3,
+#swagger-ui .dialog-ux .modal-ux-content h4,
+#swagger-ui .dialog-ux .modal-ux-content p,
+#swagger-ui .dialog-ux .modal-ux-content label,
+#swagger-ui .dialog-ux .modal-ux-content .scopes h2 { color: var(--hx-text); }
+#swagger-ui .dialog-ux .modal-ux-content code { background: var(--hx-bg-inset); color: var(--hx-text); }
+
+/* ── Feedback states ─────────────────────────────────────────────────────── */
+#swagger-ui .errors-wrapper {
+  background: color-mix(in srgb, var(--hx-delete) 10%, var(--hx-bg));
+  border: 1px solid var(--hx-delete); border-radius: 8px;
+}
+#swagger-ui .errors-wrapper .errors h4,
+#swagger-ui .errors-wrapper .error-wrapper { color: var(--hx-text); }
+#swagger-ui .loading-container .loading::after { border-color: var(--hx-text-muted) transparent var(--hx-text-muted) transparent; }
+
+/* ── Slim scrollbars on Swagger's overflow containers ────────────────────── */
 #swagger-ui .opblock-body pre.microlight,
 #swagger-ui .responses-inner,
-#swagger-ui .model-box {
+#swagger-ui .model-box,
+#swagger-ui .highlight-code {
   scrollbar-width: thin;
   scrollbar-color: rgb(113 113 122 / 0.4) transparent;
 }
-
-/* Dark theme: honor both prefers-color-scheme and the app's .dark toggle. */
-@media (prefers-color-scheme: dark) {
-  html:not(.light) #swagger-ui, html:not(.light) #swagger-ui .scheme-container {
-    background: #0b0d0e; color: #e4e4e7;
-  }
-  html:not(.light) #swagger-ui .opblock .opblock-summary-description,
-  html:not(.light) #swagger-ui .info .title,
-  html:not(.light) #swagger-ui a,
-  html:not(.light) #swagger-ui .opblock-tag,
-  html:not(.light) #swagger-ui table thead tr th,
-  html:not(.light) #swagger-ui .parameter__name,
-  html:not(.light) #swagger-ui .response-col_status { color: #e4e4e7; }
-  html:not(.light) #swagger-ui .btn.authorize,
-  html:not(.light) #swagger-ui .btn.execute { background: #e4e4e7; color: #0b0d0e; border-color: #e4e4e7; }
-}
-html.dark #swagger-ui, html.dark #swagger-ui .scheme-container { background: #0b0d0e; color: #e4e4e7; }
-html.dark #swagger-ui .info .title,
-html.dark #swagger-ui a,
-html.dark #swagger-ui .opblock-tag,
-html.dark #swagger-ui table thead tr th,
-html.dark #swagger-ui .parameter__name,
-html.dark #swagger-ui .response-col_status,
-html.dark #swagger-ui .opblock .opblock-summary-description { color: #e4e4e7; }
-html.dark #swagger-ui .btn.authorize,
-html.dark #swagger-ui .btn.execute { background: #e4e4e7; color: #0b0d0e; border-color: #e4e4e7; }
