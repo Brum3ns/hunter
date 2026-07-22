@@ -1,0 +1,30 @@
+<div data-targets-columns-target="row"
+     data-target-row
+     data-controller="rowlink"
+     data-rowlink-url-value="<%= target_path(target.id) %>"
+     data-rowlink-frame-value="target_panel"
+     data-action="click->rowlink#open"
+     class="grid cursor-pointer items-center border-b border-white/5 text-sm text-zinc-200 hover:bg-white/5 lg:text-[15px]">
+  <% TargetsHelper::COLUMNS.each do |col| %>
+    <div class="min-w-0 truncate px-3 py-2.5 lg:px-4 lg:py-3.5" data-col="<%= col[:key] %>"
+         style="<%= "display:none" unless col[:default] %>">
+      <% case col[:key] %>
+      <% when "host" %>
+        <div class="flex items-center justify-between gap-2">
+          <span class="truncate font-mono text-[13px] text-white lg:text-sm"><%= target.host %></span>
+          <% if target.seen_at.present? %>
+            <span class="shrink-0 text-[11px] text-emerald-500/80" title="<%= target.seen_at %>">
+              <%= (time_ago_in_words(Time.zone.parse(target.seen_at)) + " ago") rescue nil %>
+            </span>
+          <% end %>
+        </div>
+      <% when "technologies" %>
+        <%= render "tech_icons", tech: target.tech %>
+      <% when "status" %>
+        <%= render "status_badge", code: target.status_code, family: target.status_family %>
+      <% else %>
+        <span class="truncate font-mono text-[13px] lg:text-sm"><%= target_cell_value(target, col[:key]) %></span>
+      <% end %>
+    </div>
+  <% end %>
+</div>

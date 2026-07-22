@@ -1,0 +1,24 @@
+<% content_for :title, "Target" %>
+<%# Full-bleed: override the layout's centered max-w wrapper so the dense asset
+    table reaches the screen edges with only small padding. %>
+<% content_for :container, "w-full" %>
+<%# Horizontal split: the list flexes to fill, the panel frame docks flush to
+    the right edge when a row is clicked (zero width while empty). %>
+<div class="flex min-h-dvh">
+  <div class="flex min-w-0 flex-1 flex-col gap-3 px-3 py-3 md:px-4 md:py-4">
+    <%= render "layouts/department_tabs", label: "Target sections" %>
+
+    <form method="get" action="<%= targets_path %>" class="flex items-center gap-2">
+      <span class="rounded-md border border-white/20 px-2 py-1 text-[11px] font-semibold tracking-wide text-zinc-300">AI</span>
+      <input type="search" name="q" value="<%= @search %>" placeholder="Search or dork your assets…  (host:*.example.com status:200 tech:nginx)"
+             class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-white/30 focus:outline-none" />
+      <input type="hidden" name="sort" value="<%= @sort %>" />
+      <input type="hidden" name="dir" value="<%= @dir %>" />
+    </form>
+
+    <%= render "toolbar" %>
+    <%= render "table" %>
+  </div>
+
+  <%= turbo_frame_tag "target_panel", class: "shrink-0" %>
+</div>

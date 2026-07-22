@@ -38,8 +38,12 @@
       <%= render "layouts/sidebar" if authenticated? %>
       <%# overflow-x-clip (not -hidden) contains horizontal overflow WITHOUT
           making <main> a scroll container, so the page body stays the scroll
-          context and `position: sticky` (nav, search, filters) works. %>
-      <main class="flex-1 overflow-x-clip">
+          context and `position: sticky` (nav, search, filters) works.
+          min-w-0 lets this flex item shrink to its allotted width instead of
+          its content width — without it, a full-bleed page with a fixed-width
+          docked sibling (e.g. the Target detail panel) pushes <main> past the
+          viewport and forces page-level horizontal + vertical scrollbars. %>
+      <main class="min-w-0 flex-1 overflow-x-clip">
         <%# Container width is opt-in: a data-dense department can widen it with
             content_for(:container) without forking the layout. %>
         <div class="<%= content_for?(:container) ? yield(:container).strip : "mx-auto max-w-6xl px-6 py-10" %>">

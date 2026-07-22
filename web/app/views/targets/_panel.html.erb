@@ -1,0 +1,114 @@
+<%# Full detail for one asset, shown in the docked side-panel. Sections mirror
+    the alive document (target / http / tech / headers / csp / fingerprint /
+    metadata). Empty sections are skipped so short assets stay compact. %>
+<header class="shrink-0 border-b border-white/10 px-4 py-3">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2">
+        <%= render "targets/status_badge", code: target.status_code, family: target.status_family %>
+        <% if target.seen_at.present? %>
+          <span class="text-[11px] text-zinc-500" title="<%= target.seen_at %>"><%= target.seen_at %></span>
+        <% end %>
+      </div>
+      <h2 class="mt-2 break-all font-mono text-base font-semibold leading-snug text-white"><%= target.host.presence || "—" %></h2>
+      <% if target.title.present? %>
+        <p class="mt-0.5 break-words text-sm text-zinc-400"><%= target.title %></p>
+      <% end %>
+    </div>
+    <button type="button" data-action="click->side-panel#close" aria-label="Close"
+            class="-mr-1 shrink-0 rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white">
+      <%= heroicon "x-mark", classes: "h-5 w-5" %>
+    </button>
+  </div>
+  <% if target.url.present? %>
+    <a href="<%= target.url %>" target="_blank" rel="noopener noreferrer"
+       class="mt-3 inline-flex items-center gap-1.5 rounded-md bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 hover:text-white">
+      <%= heroicon "arrow-top-right-on-square", classes: "h-3.5 w-3.5" %> Open URL
+    </a>
+  <% end %>
+</header>
+
+<div class="slim-scroll flex-1 space-y-5 overflow-y-auto px-4 py-4">
+  <% if target.tech.any? %>
+    <section>
+      <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Technologies</h3>
+      <div class="flex flex-wrap gap-1.5">
+        <% target.tech.each do |name| %>
+          <span class="inline-flex items-center gap-1.5 rounded-md bg-white/5 py-1 pl-1 pr-2 text-xs text-zinc-200">
+            <%= tech_icon_tag(name) %><%= name %>
+          </span>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+
+  <section>
+    <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Target</h3>
+    <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+      <%= render "targets/field", label: "URL",    value: target.url %>
+      <%= render "targets/field", label: "Host",   value: target.host %>
+      <%= render "targets/field", label: "IP",     value: target.ip %>
+      <%= render "targets/field", label: "Port",   value: target.port %>
+      <%= render "targets/field", label: "Scheme", value: target.scheme %>
+      <%= render "targets/field", label: "Path",   value: target.path %>
+      <%= render "targets/field", label: "Method", value: target.verb %>
+      <%= render "targets/field", label: "Input",  value: target.input %>
+    </dl>
+  </section>
+
+  <section>
+    <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">HTTP</h3>
+    <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+      <%= render "targets/field", label: "Status",       value: target.status_code %>
+      <%= render "targets/field", label: "Title",        value: target.title %>
+      <%= render "targets/field", label: "Web Server",   value: target.webserver %>
+      <%= render "targets/field", label: "Content-Type", value: target.content_type %>
+      <%= render "targets/field", label: "Length",       value: target.content_length %>
+      <%= render "targets/field", label: "Words",        value: target.words %>
+      <%= render "targets/field", label: "Lines",        value: target.lines %>
+      <%= render "targets/field", label: "Resp. Time",   value: target.response_time %>
+    </dl>
+  </section>
+
+  <% if target.headers.any? %>
+    <section>
+      <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Response Headers</h3>
+      <dl class="space-y-3">
+        <% target.headers.each do |key, value| %>
+          <%= render "targets/field", label: key.to_s, value: value %>
+        <% end %>
+      </dl>
+    </section>
+  <% end %>
+
+  <% if target.csp["fqdn"].present? || target.csp["domains"].present? %>
+    <section>
+      <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">CSP</h3>
+      <dl class="space-y-3">
+        <%= render "targets/field", label: "FQDN",    value: Array(target.csp["fqdn"]).join(", ") %>
+        <%= render "targets/field", label: "Domains", value: Array(target.csp["domains"]).join(", ") %>
+      </dl>
+    </section>
+  <% end %>
+
+  <% if target.page_type.present? || target.phash.present? %>
+    <section>
+      <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Fingerprint</h3>
+      <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+        <%= render "targets/field", label: "Page Type", value: target.page_type %>
+        <%= render "targets/field", label: "pHash",     value: target.phash %>
+      </dl>
+    </section>
+  <% end %>
+
+  <section>
+    <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Metadata</h3>
+    <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+      <%= render "targets/field", label: "Program", value: target.program %>
+      <%= render "targets/field", label: "Tool",    value: target.tool %>
+      <%= render "targets/field", label: "Scan ID", value: target.scan_id %>
+      <%= render "targets/field", label: "Date",    value: target.seen_at %>
+      <%= render "targets/field", label: "Failed",  value: target.failed.nil? ? nil : target.failed.to_s %>
+    </dl>
+  </section>
+</div>
