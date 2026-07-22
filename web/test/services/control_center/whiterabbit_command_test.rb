@@ -16,6 +16,16 @@ class ControlCenter::WhiterabbitCommandTest < ActiveSupport::TestCase
     assert_includes captured, "probe"
   end
 
+  test "allows -folder-nfs so chunked sends can pass a chunk output dir" do
+    captured = nil
+    stub_methods(W, capture: ->(argv) { captured = argv; ["ok", "", 0] }) do
+      result = W.execute(["-run", "probe", "-folder-nfs", "/tmp/nfs"], timeout: 5, max_output: 1024)
+      assert_nil result.error
+    end
+    assert_includes captured, "-folder-nfs"
+    assert_includes captured, "/tmp/nfs"
+  end
+
   test "rejects a flag not on the allowlist without executing" do
     called = false
     stub_methods(W, capture: ->(_argv) { called = true; ["", "", 0] }) do

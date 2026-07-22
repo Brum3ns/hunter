@@ -59,8 +59,12 @@
         <button type="button" data-control-center-templates-target="modeSplit" data-action="control-center-templates#showSplit"
                 class="px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800">Split</button>
       </div>
-      <label class="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
-        Upload .yaml
+      <button type="button" data-action="control-center-templates#downloadYaml"
+              class="ml-auto inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+        <%= heroicon "arrow-down-tray", classes: "h-4 w-4" %> Download .yaml
+      </button>
+      <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+        <%= heroicon "arrow-up", classes: "h-4 w-4" %> Upload .yaml
         <input type="file" accept=".yaml,.yml,text/yaml" class="hidden"
                data-control-center-templates-target="fileInput" data-action="control-center-templates#onFile">
       </label>
@@ -110,6 +114,50 @@
         <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">__UUID__</code> — set a <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">target</code> to use the file placeholder.
       </p>
       <div data-control-center-templates-target="commands" class="space-y-2"></div>
+    </div>
+
+    <div class="mt-3">
+      <div class="mb-1">
+        <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Target</span>
+      </div>
+      <p class="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+        How the worker delivers the target list.
+        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">File</code> writes it to a file your command reads via
+        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">__TARGET_FILE__</code>;
+        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">Stdin</code> pipes it via
+        <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-800">__TARGET_STDIN__</code>.
+      </p>
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="text-sm">Type
+          <select data-control-center-templates-target="fTargetType" data-action="change->control-center-templates#targetChanged"
+                  class="mt-1 block rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <option value="">None</option>
+            <option value="file">File</option>
+            <option value="stdin">Stdin</option>
+          </select>
+        </label>
+        <div data-control-center-templates-target="targetFields" class="hidden flex flex-1 flex-wrap items-end gap-3">
+          <label class="text-sm">Separator
+            <select data-control-center-templates-target="fTargetSep" data-action="change->control-center-templates#targetChanged"
+                    class="mt-1 block rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+              <option value="newline">Newline (\n)</option>
+              <option value="comma">Comma</option>
+              <option value="space">Space</option>
+              <option value="tab">Tab (\t)</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </label>
+          <label class="hidden text-sm" data-control-center-templates-target="targetSepCustomWrap">Custom separator
+            <input data-control-center-templates-target="fTargetSepCustom" data-action="input->control-center-templates#validateDebounced"
+                   class="mt-1 block w-32 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          </label>
+          <label class="flex-1 text-sm">Output file
+            <input data-control-center-templates-target="fTargetOutput" data-action="input->control-center-templates#validateDebounced"
+                   placeholder="/tmp/targets-__UUID__.txt"
+                   class="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          </label>
+        </div>
+      </div>
     </div>
 
     <%# Row template cloned by addCommand(). args are whitespace-separated tokens

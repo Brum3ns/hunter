@@ -24,7 +24,22 @@ class ControlCenter::StandaloneTest < ActiveSupport::TestCase
     assert_includes captured_flags, "probe"
     assert_equal "scan", captured_flags[captured_flags.index("-queue-name") + 1]
     assert_equal "10", captured_flags[captured_flags.index("-target-chunk") + 1]
+    # A chunked send needs -folder-nfs pointing at a real dir or whiterabbit aborts.
+    assert_includes captured_flags, "-folder-nfs"
     assert_match(/httpx/, rendered)
+  end
+
+  test "submit passes an existing -folder-nfs directory for chunking" do
+    nfs_ok = nil
+    fake = lambda do |flags, timeout:, max_output:|
+      dir = flags[flags.index("-folder-nfs") + 1]
+      nfs_ok = File.directory?(dir)
+      W::Result.new(exit_status: 0, stdout: "", stderr: "", error: nil)
+    end
+    stub_methods(W, execute: fake) do
+      ControlCenter::Standalone.submit(template: template, targets: %w[a.com], queue_name: "test", target_chunk: 1)
+    end
+    assert nfs_ok, "-folder-nfs must point at a directory that exists at exec time"
   end
 
   test "submit writes targets to the target file" do
