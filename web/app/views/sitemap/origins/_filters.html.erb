@@ -1,7 +1,7 @@
 <%# web/app/views/sitemap/origins/_filters.html.erb %>
 <details class="border-b border-zinc-200 px-2 py-2 dark:border-zinc-800" <%= "open" if @filter.present? || @program || @scheme || @min_count != 1 %>>
   <summary class="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Filters</summary>
-  <%= form_with url: sitemap_root_path, method: :get, class: "mt-2 space-y-3 text-sm" do %>
+  <%= form_with url: targets_sitemap_path, method: :get, class: "mt-2 space-y-3 text-sm" do %>
     <% if @q.present? %><input type="hidden" name="q" value="<%= @q %>" /><% end %>
 
     <div>
@@ -43,6 +43,11 @@
       <span>Has parameter (query)</span>
     </label>
 
+    <label class="inline-flex items-center gap-1">
+      <input type="checkbox" name="include_root" value="1" <%= "checked" if @filter["include_root"].present? %> />
+      <span>Include <code>/</code> root</span>
+    </label>
+
     <label class="block">
       <span class="text-xs text-zinc-500">Program</span>
       <select name="program" class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-[#111315]">
@@ -67,7 +72,7 @@
 
     <div class="flex items-center gap-3 pt-1">
       <button type="submit" class="rounded bg-zinc-900 px-3 py-1 text-white dark:bg-zinc-100 dark:text-zinc-900">Apply</button>
-      <a href="<%= sitemap_root_path %>" class="text-zinc-500 hover:underline">Clear</a>
+      <a href="<%= targets_sitemap_path %>" class="text-zinc-500 hover:underline">Clear</a>
     </div>
   <% end %>
 </details>

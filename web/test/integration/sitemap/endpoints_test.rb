@@ -14,7 +14,7 @@ class Sitemap::EndpointsTest < ActionDispatch::IntegrationTest
 
   test "shows method, status, url and last-seen in the detail frame" do
     e = endpoint!(path: "/about", status: 200)
-    get sitemap_endpoint_path(e.id)
+    get targets_sitemap_endpoint_path(e.id)
     assert_response :success
     assert_select "turbo-frame#sitemap_detail"
     assert_match "GET", @response.body
@@ -23,13 +23,13 @@ class Sitemap::EndpointsTest < ActionDispatch::IntegrationTest
   end
 
   test "missing endpoint is 404" do
-    get sitemap_endpoint_path(id: 999_999)
+    get targets_sitemap_endpoint_path(id: 999_999)
     assert_response :not_found
   end
 
   test "tombstoned endpoint is 404" do
     e = endpoint!(removed_at: Time.current)
-    get sitemap_endpoint_path(e.id)
+    get targets_sitemap_endpoint_path(e.id)
     assert_response :not_found
   end
 end

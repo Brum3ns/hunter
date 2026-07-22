@@ -8,6 +8,6 @@
     <span class="ml-auto shrink-0 rounded bg-zinc-200 px-1.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"><%= counts[target.id].to_i %></span>
   </button>
   <div data-children hidden>
-    <%= turbo_frame_tag "origin_tree_#{target.id}", data: { src: sitemap_origin_tree_path(target, filter) } %>
+    <%= turbo_frame_tag "origin_tree_#{target.id}", data: { src: targets_sitemap_origin_tree_path(target, filter) } %>
   </div>
 </li>

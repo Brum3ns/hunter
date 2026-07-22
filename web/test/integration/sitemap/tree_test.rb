@@ -21,15 +21,15 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
     endpoint!(t, "/about")
     leaf = endpoint!(t, "/_nuxt/app.js")
 
-    get sitemap_origin_tree_path(t)
+    get targets_sitemap_origin_tree_path(t)
     assert_response :success
     assert_select "turbo-frame#origin_tree_#{t.id}"
     assert_match "_nuxt/", @response.body                 # folder row
     assert_match "app.js", @response.body                 # leaf row
-    assert_select "button[data-url=?]", sitemap_endpoint_path(leaf.id)   # leaf loads detail
+    assert_select "button[data-url=?]", targets_sitemap_endpoint_path(leaf.id)   # leaf loads detail
     assert_select "button[data-action*='sitemap-tree#activate']"
 
-    leaf_url = sitemap_endpoint_path(leaf.id)
+    leaf_url = targets_sitemap_endpoint_path(leaf.id)
     leaf_button = css_select(%(button[data-url="#{leaf_url}"])).first
     assert_includes leaf_button["class"], "data-[selected]:bg-zinc-200", "selected-row style must be self-contained via Tailwind data-attribute variant"
 
@@ -39,7 +39,7 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
 
   test "empty state when the origin has no active endpoints" do
     t = target!
-    get sitemap_origin_tree_path(t)
+    get targets_sitemap_origin_tree_path(t)
     assert_response :success
     assert_match(/no endpoints/i, @response.body)
   end
@@ -47,12 +47,12 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
   test "tombstoned endpoints are excluded" do
     t = target!
     e = endpoint!(t, "/gone"); e.update!(removed_at: Time.current)
-    get sitemap_origin_tree_path(t)
+    get targets_sitemap_origin_tree_path(t)
     assert_no_match "gone", @response.body
   end
 
   test "missing target is 404" do
-    get sitemap_origin_tree_path(id: 999_999)
+    get targets_sitemap_origin_tree_path(id: 999_999)
     assert_response :not_found
   end
 
@@ -65,12 +65,43 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
       method: "GET", url_digest: Sitemap::Origin.digest("#{t.origin}/s?a=1", "GET"),
       first_seen_at: now, last_seen_at: now)         # parameterized -> red
 
-    get sitemap_origin_tree_path(t)
+    get targets_sitemap_origin_tree_path(t)
     assert_response :success
     assert_select "ul.sitemap-subtree"                       # elbow container
     assert_select "svg", minimum: 1                          # SVG icons present
     assert_no_match(/📁|📄|▸/, @response.body)               # no emojis
     assert_match "POST", @response.body                      # non-GET method chip
     assert_match "text-red-600", @response.body               # parameterized label styled red
+  end
+
+  test "root endpoint is hidden by default" do
+    t = target!(host: "root.host")
+    endpoint!(t, "/")
+    endpoint!(t, "/child")
+
+    get targets_sitemap_origin_tree_path(t)
+
+    assert_select "button span", text: "/", count: 0
+    assert_select "button span", text: "child", count: 1
+  end
+
+  test "include_root shows the root endpoint" do
+    t = target!(host: "root.host")
+    endpoint!(t, "/")
+
+    get targets_sitemap_origin_tree_path(t, include_root: "1")
+
+    assert_select "button span", text: "/", count: 1
+  end
+
+  test "root dork shows only the root endpoint" do
+    t = target!(host: "root.host")
+    endpoint!(t, "/")
+    endpoint!(t, "/child")
+
+    get targets_sitemap_origin_tree_path(t, q: "root:yes")
+
+    assert_select "button span", text: "/", count: 1
+    assert_select "button span", text: "child", count: 0
   end
 end
