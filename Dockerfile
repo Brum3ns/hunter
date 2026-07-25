@@ -49,7 +49,11 @@ COPY --from=scope-build /out/scope /usr/local/bin/scope
 ENV SCOPE_BIN=/usr/local/bin/scope
 
 RUN if [ "$RAILS_ENV" = "production" ]; then \
-      SECRET_KEY_BASE_DUMMY=1 bundle exec rails assets:precompile; \
+      SECRET_KEY_BASE_DUMMY=1 \
+      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=build-only-primary-key \
+      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=build-only-deterministic-key \
+      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=build-only-key-derivation-salt \
+      bundle exec rails assets:precompile; \
     fi
 
 EXPOSE 5000
