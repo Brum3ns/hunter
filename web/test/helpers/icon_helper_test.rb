@@ -30,4 +30,8 @@ class IconHelperTest < ActionView::TestCase
       assert_match(/<svg/, heroicon(name), "expected #{name} to render")
     end
   end
+
+  test "renders the template import glyph" do
+    assert_match(/<svg/, heroicon("arrow-up-tray"))
+  end
 end

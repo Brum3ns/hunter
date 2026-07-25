@@ -9,6 +9,20 @@ class User < ApplicationRecord
   has_many :program_changes, dependent: :destroy
   has_one :scope_schedule, dependent: :destroy
   has_one :monitor_config, dependent: :destroy
+  has_many :control_center_ansible_credentials,
+    class_name: "ControlCenter::Ansible::Credential",
+    foreign_key: :created_by_id,
+    dependent: :restrict_with_error,
+    inverse_of: :created_by
+  has_many :control_center_ansible_playbooks,
+    class_name: "ControlCenter::Ansible::Playbook", foreign_key: :created_by_id,
+    inverse_of: :created_by
+  has_many :control_center_ansible_inventories,
+    class_name: "ControlCenter::Ansible::Inventory", foreign_key: :created_by_id,
+    inverse_of: :created_by
+  has_many :control_center_ansible_variable_sets,
+    class_name: "ControlCenter::Ansible::VariableSet", foreign_key: :created_by_id,
+    inverse_of: :created_by
 
   normalizes :username, with: ->(u) { u.strip.downcase }
 

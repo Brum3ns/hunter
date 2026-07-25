@@ -16,6 +16,18 @@ module Hunter
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w[assets tasks])
 
+    encryption_env = {
+      primary_key: "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY",
+      deterministic_key: "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY",
+      key_derivation_salt: "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT"
+    }
+    encryption_env.each do |setting, env_name|
+      value = ENV[env_name].presence
+      config.active_record.encryption.public_send("#{setting}=", value) if value
+    end
+    config.active_record.encryption.support_unencrypted_data = false
+    config.active_record.encryption.store_key_references = true
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files

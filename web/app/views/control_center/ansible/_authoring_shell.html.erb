@@ -1,0 +1,107 @@
+<section class="mt-6"
+         data-controller="ansible-authoring<%= " ansible-playbook-import ansible-playbook-selection" if resource_type == "playbook" %>"
+         <% if resource_type == "playbook" %>
+         data-action="dragenter@window->ansible-playbook-import#dragEnter dragover@window->ansible-playbook-import#dragOver dragleave@window->ansible-playbook-import#dragLeave drop@window->ansible-playbook-import#drop dragend@window->ansible-playbook-import#dragEnd ansible-authoring:resource-deleted->ansible-playbook-selection#resourceDeleted"
+         data-ansible-playbook-import-index-url-value="<%= index_url %>"
+         data-ansible-playbook-import-validate-url-value="<%= validate_url %>"
+         data-ansible-playbook-import-max-files-value="100"
+         data-ansible-playbook-import-max-file-bytes-value="<%= ControlCenter::Ansible::YamlLimits::MAX_BYTES %>"
+         data-ansible-playbook-import-max-batch-bytes-value="10485760"
+         data-ansible-playbook-selection-export-url-value="<%= export_api_v1_control_center_ansible_playbooks_path %>"
+         <% end %>
+         data-ansible-authoring-index-url-value="<%= index_url %>"
+         data-ansible-authoring-validate-url-value="<%= validate_url %>"
+         data-ansible-authoring-resource-type-value="<%= resource_type %>"
+         data-ansible-authoring-max-bytes-value="<%= ControlCenter::Ansible::YamlLimits::MAX_BYTES %>">
+  <div class="mb-4 flex flex-wrap items-center gap-2">
+    <label class="relative min-w-56 flex-1">
+      <span class="sr-only">Search <%= resource_label.downcase.pluralize %></span>
+      <input type="search" placeholder="Search <%= resource_label.downcase.pluralize %>"
+             data-action="input->ansible-authoring#search"
+             class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+    </label>
+    <% if resource_type == "playbook" %>
+      <label class="inline-flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" data-ansible-playbook-selection-target="selectAll"
+               data-action="ansible-playbook-selection#toggleVisible"
+               class="rounded border-zinc-300 dark:border-zinc-700">
+        Select all visible
+      </label>
+      <label class="inline-flex cursor-pointer items-center rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
+        Import YAML
+        <input type="file" multiple accept=".yml,.yaml,text/yaml,application/yaml" class="sr-only"
+               data-ansible-playbook-import-target="fileInput"
+               data-action="change->ansible-playbook-import#filesSelected">
+      </label>
+      <button type="button" disabled data-ansible-playbook-selection-target="download"
+              data-action="ansible-playbook-selection#download"
+              class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700">
+        Download selected
+      </button>
+      <span aria-live="polite" data-ansible-playbook-selection-target="status" class="text-xs text-zinc-500"></span>
+    <% end %>
+    <button type="button" data-action="ansible-authoring#newResource"
+            class="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
+      New <%= resource_label.downcase %>
+    </button>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,2fr)]">
+    <aside class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]" aria-label="Saved <%= resource_label.downcase.pluralize %>">
+      <div data-ansible-authoring-target="list" class="divide-y divide-zinc-100 dark:divide-zinc-800"></div>
+      <p class="px-4 py-12 text-center text-sm text-zinc-500" data-ansible-authoring-target="empty">
+        No <%= resource_label.downcase.pluralize %> yet.
+      </p>
+    </aside>
+
+    <form data-ansible-authoring-target="form" data-action="submit->ansible-authoring#save"
+          class="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#111315]">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="text-base font-semibold"><%= resource_label %> editor</h2>
+          <span data-ansible-authoring-target="dirty" class="hidden text-xs font-medium text-amber-700 dark:text-amber-300">Unsaved changes</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <label class="cursor-pointer rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
+            Upload YAML
+            <input type="file" accept=".yml,.yaml,text/yaml,application/yaml" class="sr-only"
+                   data-ansible-authoring-target="uploadInput" data-action="change->ansible-authoring#upload">
+          </label>
+          <button type="button" data-action="ansible-authoring#download"
+                  class="rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
+            Download YAML
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="text-sm font-medium">Name
+          <input required data-ansible-authoring-target="name" data-action="input->ansible-authoring#markDirty"
+                 class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-normal dark:border-zinc-700 dark:bg-zinc-900">
+        </label>
+        <label class="text-sm font-medium">Description
+          <input data-ansible-authoring-target="description" data-action="input->ansible-authoring#markDirty"
+                 class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-normal dark:border-zinc-700 dark:bg-zinc-900">
+        </label>
+      </div>
+
+      <label class="mt-4 block text-sm font-medium">Raw YAML
+        <textarea rows="21" spellcheck="false" data-ansible-authoring-target="yaml"
+                  data-action="input->ansible-authoring#markDirty"
+                  class="mt-1 w-full resize-y rounded-md border border-zinc-300 bg-zinc-950 px-3 py-2 font-mono text-sm leading-6 text-zinc-100 dark:border-zinc-700"></textarea>
+      </label>
+      <p class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+        Do not place credentials, tokens, passwords, or private keys in raw YAML. Use encrypted Hunter credentials and variable sets; tasks consuming secrets should use <code>no_log: true</code>.
+      </p>
+
+      <div class="mt-3 min-h-6 text-sm" aria-live="polite" data-ansible-authoring-target="validation"></div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button type="submit" class="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900">Save</button>
+        <button type="button" data-action="ansible-authoring#validate" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium dark:border-zinc-700">Validate</button>
+        <button type="button" data-action="ansible-authoring#delete" class="ml-auto rounded-md border border-rose-300 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-900 dark:text-rose-300">Delete</button>
+      </div>
+    </form>
+  </div>
+
+  <%= render "control_center/ansible/playbook_import" if resource_type == "playbook" %>
+</section>

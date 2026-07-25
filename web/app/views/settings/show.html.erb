@@ -18,6 +18,7 @@
   <nav class="shrink-0 lg:sticky lg:top-6 lg:w-48" aria-label="Settings sections">
     <p class="px-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Access</p>
     <a href="#runners" class="block rounded px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">Runners</a>
+    <a href="#ansible-credentials" class="block rounded px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">Ansible credentials</a>
 
     <p class="mt-4 px-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Programs · Scope</p>
     <a href="#credentials" class="block rounded px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">Platform credentials</a>
@@ -27,6 +28,7 @@
 
   <div class="min-w-0 flex-1 space-y-10">
     <%= render "settings/runners", runners: @runners %>
+    <%= render "settings/ansible_credentials", credentials: @ansible_credentials %>
     <%= render "settings/credentials" %>
     <%= render "settings/schedule", schedule: @schedule %>
     <%= render "settings/monitor", monitor_config: @monitor_config %>

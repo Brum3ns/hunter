@@ -6,6 +6,11 @@
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
 
+  config.active_record.encryption.primary_key = "8f1f681a40844730f7353c66412dca1e"
+  config.active_record.encryption.deterministic_key = "1a80ad4db8344b4ca1f9f874ac1a1c3f"
+  config.active_record.encryption.key_derivation_salt = "38c752e93e534c1f82620f93fc92a6bd"
+  config.active_record.encryption.support_unencrypted_data = false
+
   # While tests run files are not watched, reloading is not necessary.
   config.enable_reloading = false
 

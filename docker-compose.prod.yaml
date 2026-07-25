@@ -85,6 +85,9 @@ services:
       RAILS_LOG_TO_STDOUT: ${RAILS_LOG_TO_STDOUT:-true}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
+      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY}
+      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY}
+      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT}
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
       DB_DATABASE: ${DB_DATABASE:-hunter_production}
@@ -116,6 +119,8 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-hunter}
       RABBITMQ_TOKEN: ${RABBITMQ_TOKEN:-}
       CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
+      ANSIBLE_LEASE_SECONDS: ${ANSIBLE_LEASE_SECONDS:-45}
+      ANSIBLE_CLAIM_TIMEOUT_SECONDS: ${ANSIBLE_CLAIM_TIMEOUT_SECONDS:-300}
     ports:
       - "5000:5000"
     depends_on:
@@ -147,6 +152,36 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 512m
     pids_limit: 256
+
+  ansible-executor:
+    image: ${REGISTRY_HOST:-10.0.1.2:3002}/${REGISTRY_OWNER:-gadmin}/${REGISTRY_REPO:-hunter}-ansible-executor:latest
+    pull_policy: always
+    environment:
+      HUNTER_URL: ${HUNTER_ANSIBLE_URL:-http://web:5000}
+      HUNTER_RUNNER_TOKEN: ${HUNTER_ANSIBLE_RUNNER_TOKEN}
+      ANSIBLE_ALLOWED_CIDRS: ${ANSIBLE_ALLOWED_CIDRS}
+      ANSIBLE_ALLOWED_PORTS: ${ANSIBLE_ALLOWED_PORTS:-22}
+      ANSIBLE_POLL_SECONDS: ${ANSIBLE_POLL_SECONDS:-2}
+      ANSIBLE_HEARTBEAT_SECONDS: ${ANSIBLE_HEARTBEAT_SECONDS:-15}
+      ANSIBLE_LEASE_SECONDS: ${ANSIBLE_LEASE_SECONDS:-45}
+      ANSIBLE_MAX_EVENT_BATCH: ${ANSIBLE_MAX_EVENT_BATCH:-100}
+      ANSIBLE_MAX_BUFFER_BYTES: ${ANSIBLE_MAX_BUFFER_BYTES:-5242880}
+      ANSIBLE_CANCEL_GRACE_SECONDS: ${ANSIBLE_CANCEL_GRACE_SECONDS:-10}
+      ANSIBLE_MAX_FORKS: ${ANSIBLE_MAX_FORKS:-5}
+      ANSIBLE_WORKSPACE_ROOT: /runner
+    depends_on:
+      web:
+        condition: service_started
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /runner:rw,noexec,nosuid,nodev,mode=0700,size=64m
+    mem_limit: 512m
+    pids_limit: 256
+    init: true
+    restart: unless-stopped
 
 volumes:
   hunter_db:

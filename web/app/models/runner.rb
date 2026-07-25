@@ -12,12 +12,16 @@ class Runner < ApplicationRecord
   # A preset token must clear this floor. `openssl rand -base64 32` (44 chars) and
   # `SecureRandom.urlsafe_base64(32)` (43 chars) both satisfy it comfortably.
   MINIMUM_TOKEN_LENGTH = 32
+  KINDS = %w[curl ansible].freeze
 
   has_many :runner_jobs, dependent: :nullify
+
+  before_validation :normalize_kinds
 
   validates :name, presence: true, uniqueness: true
   validates :token_digest, presence: true, uniqueness: true
   validates :kinds, presence: true
+  validate :kinds_are_supported
 
   def self.generate(name:, kinds:)
     raw = SecureRandom.urlsafe_base64(32)
@@ -72,5 +76,16 @@ class Runner < ApplicationRecord
 
   def self.digest(raw)
     Digest::SHA256.hexdigest(raw.to_s)
+  end
+
+  private
+
+  def normalize_kinds
+    self.kinds = Array(kinds).map { |kind| kind.to_s.strip }.reject(&:blank?).uniq
+  end
+
+  def kinds_are_supported
+    unknown = kinds - KINDS
+    errors.add(:kinds, "contains unsupported values: #{unknown.join(', ')}") if unknown.any?
   end
 end

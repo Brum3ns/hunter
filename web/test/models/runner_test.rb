@@ -46,6 +46,20 @@ class RunnerTest < ActiveSupport::TestCase
     assert_raises(ActiveRecord::RecordInvalid) { Runner.generate(name: "empty", kinds: []) }
   end
 
+  test "accepts ansible and rejects unknown capabilities" do
+    runner, = Runner.generate(name: "ansible-executor", kinds: %w[ansible])
+    assert_equal %w[ansible], runner.kinds
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      Runner.generate(name: "unsafe", kinds: %w[shell])
+    end
+  end
+
+  test "normalizes capability values before validation" do
+    runner, = Runner.generate(name: "mixed", kinds: [ " curl ", "", "curl", :ansible ])
+    assert_equal %w[curl ansible], runner.kinds
+  end
+
   test "ensure_from_token! registers a runner that authenticates with the given token" do
     token = SecureRandom.urlsafe_base64(32)
     runner = Runner.ensure_from_token!(name: "env-runner", token: token, kinds: %w[curl])

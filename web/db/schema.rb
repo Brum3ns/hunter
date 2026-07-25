@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_19_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_23_030001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -26,6 +26,210 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_000001) do
     t.bigint "user_id", null: false
     t.index ["token_digest"], name: "index_api_tokens_on_token_digest", unique: true
     t.index ["user_id"], name: "index_api_tokens_on_user_id"
+  end
+
+  create_table "control_center_ansible_credentials", force: :cascade do |t|
+    t.string "auth_type", null: false
+    t.text "become_password"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.datetime "last_used_at"
+    t.string "name", null: false
+    t.text "private_key"
+    t.text "private_key_passphrase"
+    t.string "public_key_fingerprint"
+    t.text "ssh_password"
+    t.datetime "updated_at", null: false
+    t.string "username", null: false
+    t.index "lower((name)::text)", name: "idx_ansible_credentials_lower_name", unique: true
+    t.index ["created_by_id"], name: "index_control_center_ansible_credentials_on_created_by_id"
+  end
+
+  create_table "control_center_ansible_executor_tasks", force: :cascade do |t|
+    t.datetime "claim_deadline", null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.string "error_code"
+    t.text "error_detail"
+    t.text "execution_payload"
+    t.datetime "heartbeat_at"
+    t.bigint "inventory_id"
+    t.string "kind", null: false
+    t.string "lease_digest"
+    t.datetime "lease_expires_at"
+    t.bigint "playbook_id"
+    t.jsonb "result", default: {}, null: false
+    t.bigint "runner_id"
+    t.datetime "started_at"
+    t.string "status", default: "queued", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_control_center_ansible_executor_tasks_on_created_by_id"
+    t.index ["inventory_id"], name: "index_control_center_ansible_executor_tasks_on_inventory_id"
+    t.index ["playbook_id"], name: "index_control_center_ansible_executor_tasks_on_playbook_id"
+    t.index ["runner_id"], name: "index_control_center_ansible_executor_tasks_on_runner_id"
+    t.index ["status", "created_at"], name: "idx_ansible_executor_tasks_claim_order"
+  end
+
+  create_table "control_center_ansible_inventories", force: :cascade do |t|
+    t.string "checksum", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.bigint "default_credential_id"
+    t.text "description"
+    t.jsonb "host_key_fingerprints", default: {}, null: false
+    t.text "known_hosts"
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.text "yaml_content", null: false
+    t.index "lower((name)::text)", name: "idx_ansible_inventories_lower_name", unique: true
+    t.index ["created_by_id"], name: "index_control_center_ansible_inventories_on_created_by_id"
+    t.index ["default_credential_id"], name: "idx_on_default_credential_id_e97a9f9e8e"
+  end
+
+  create_table "control_center_ansible_inventory_variable_sets", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "inventory_id", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "variable_set_id", null: false
+    t.index ["inventory_id", "variable_set_id"], name: "idx_ansible_inventory_variable_sets_unique", unique: true
+    t.index ["inventory_id"], name: "idx_on_inventory_id_ab4dc86d2f"
+    t.index ["variable_set_id"], name: "idx_on_variable_set_id_37a6f0fa33"
+  end
+
+  create_table "control_center_ansible_playbook_variable_sets", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "playbook_id", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "variable_set_id", null: false
+    t.index ["playbook_id", "variable_set_id"], name: "idx_ansible_playbook_variable_sets_unique", unique: true
+    t.index ["playbook_id"], name: "idx_on_playbook_id_cb52d9ddb7"
+    t.index ["variable_set_id"], name: "idx_on_variable_set_id_a2f486ee66"
+  end
+
+  create_table "control_center_ansible_playbooks", force: :cascade do |t|
+    t.string "checksum", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.text "yaml_content", null: false
+    t.index "lower((name)::text)", name: "idx_ansible_playbooks_lower_name", unique: true
+    t.index ["created_by_id"], name: "index_control_center_ansible_playbooks_on_created_by_id"
+  end
+
+  create_table "control_center_ansible_run_events", force: :cascade do |t|
+    t.bigint "counter", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "event_data", default: {}, null: false
+    t.datetime "event_time"
+    t.string "event_type", null: false
+    t.string "event_uuid", null: false
+    t.string "host"
+    t.string "parent_uuid"
+    t.string "play"
+    t.bigint "run_id", null: false
+    t.bigint "runner_id"
+    t.text "stdout"
+    t.string "task"
+    t.boolean "truncated", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.index ["run_id", "counter"], name: "idx_ansible_run_events_counter", unique: true
+    t.index ["run_id", "event_uuid"], name: "idx_ansible_run_events_uuid", unique: true
+    t.index ["run_id"], name: "index_control_center_ansible_run_events_on_run_id"
+    t.index ["runner_id"], name: "index_control_center_ansible_run_events_on_runner_id"
+  end
+
+  create_table "control_center_ansible_run_groups", force: :cascade do |t|
+    t.datetime "cancel_requested_at"
+    t.datetime "completed_at"
+    t.integer "concurrency_limit", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.bigint "credential_id"
+    t.string "execution_mode", default: "sequential", null: false
+    t.text "execution_payload"
+    t.string "failure_policy", default: "stop", null: false
+    t.bigint "inventory_id"
+    t.jsonb "launch_snapshot", default: {}, null: false
+    t.datetime "started_at"
+    t.string "status", default: "queued", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_control_center_ansible_run_groups_on_created_by_id"
+    t.index ["credential_id"], name: "index_control_center_ansible_run_groups_on_credential_id"
+    t.index ["inventory_id"], name: "index_control_center_ansible_run_groups_on_inventory_id"
+    t.index ["status", "created_at"], name: "idx_ansible_run_groups_status_created"
+  end
+
+  create_table "control_center_ansible_runs", force: :cascade do |t|
+    t.datetime "cancel_requested_at"
+    t.integer "changed_count", default: 0, null: false
+    t.boolean "check_mode", default: false, null: false
+    t.datetime "claim_deadline"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.string "credential_fingerprint"
+    t.string "credential_name", null: false
+    t.string "error_code"
+    t.text "error_detail"
+    t.integer "exit_status"
+    t.integer "failed_count", default: 0, null: false
+    t.datetime "heartbeat_at"
+    t.string "host_limit"
+    t.string "inventory_name", null: false
+    t.text "inventory_yaml", null: false
+    t.text "known_hosts", null: false
+    t.string "lease_digest"
+    t.datetime "lease_expires_at"
+    t.integer "ok_count", default: 0, null: false
+    t.bigint "playbook_id"
+    t.string "playbook_name", null: false
+    t.text "playbook_yaml", null: false
+    t.integer "position", null: false
+    t.datetime "queued_at"
+    t.bigint "run_group_id", null: false
+    t.bigint "runner_id"
+    t.jsonb "secret_variable_names", default: [], null: false
+    t.datetime "started_at"
+    t.string "status", default: "queued", null: false
+    t.bigint "stored_event_bytes", default: 0, null: false
+    t.integer "timeout_seconds", null: false
+    t.boolean "truncated", default: false, null: false
+    t.integer "unreachable_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "variable_audit", default: {}, null: false
+    t.index ["playbook_id"], name: "index_control_center_ansible_runs_on_playbook_id"
+    t.index ["run_group_id", "position"], name: "idx_ansible_runs_group_position", unique: true
+    t.index ["run_group_id"], name: "index_control_center_ansible_runs_on_run_group_id"
+    t.index ["runner_id"], name: "index_control_center_ansible_runs_on_runner_id"
+    t.index ["status", "queued_at", "id"], name: "idx_ansible_runs_claim_order"
+  end
+
+  create_table "control_center_ansible_variable_sets", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "lower((name)::text)", name: "idx_ansible_variable_sets_lower_name", unique: true
+    t.index ["created_by_id"], name: "index_control_center_ansible_variable_sets_on_created_by_id"
+  end
+
+  create_table "control_center_ansible_variables", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "secret", default: false, null: false
+    t.text "serialized_value", null: false
+    t.datetime "updated_at", null: false
+    t.string "value_type", null: false
+    t.bigint "variable_set_id", null: false
+    t.index ["variable_set_id", "name"], name: "idx_ansible_variables_set_name", unique: true
+    t.index ["variable_set_id", "position"], name: "idx_ansible_variables_set_position"
+    t.index ["variable_set_id"], name: "index_control_center_ansible_variables_on_variable_set_id"
   end
 
   create_table "control_center_jobs", force: :cascade do |t|
@@ -260,6 +464,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_000001) do
   end
 
   add_foreign_key "api_tokens", "users"
+  add_foreign_key "control_center_ansible_credentials", "users", column: "created_by_id"
+  add_foreign_key "control_center_ansible_executor_tasks", "control_center_ansible_inventories", column: "inventory_id", on_delete: :nullify
+  add_foreign_key "control_center_ansible_executor_tasks", "control_center_ansible_playbooks", column: "playbook_id", on_delete: :nullify
+  add_foreign_key "control_center_ansible_executor_tasks", "runners", on_delete: :nullify
+  add_foreign_key "control_center_ansible_executor_tasks", "users", column: "created_by_id"
+  add_foreign_key "control_center_ansible_inventories", "control_center_ansible_credentials", column: "default_credential_id"
+  add_foreign_key "control_center_ansible_inventories", "users", column: "created_by_id"
+  add_foreign_key "control_center_ansible_inventory_variable_sets", "control_center_ansible_inventories", column: "inventory_id"
+  add_foreign_key "control_center_ansible_inventory_variable_sets", "control_center_ansible_variable_sets", column: "variable_set_id"
+  add_foreign_key "control_center_ansible_playbook_variable_sets", "control_center_ansible_playbooks", column: "playbook_id"
+  add_foreign_key "control_center_ansible_playbook_variable_sets", "control_center_ansible_variable_sets", column: "variable_set_id"
+  add_foreign_key "control_center_ansible_playbooks", "users", column: "created_by_id"
+  add_foreign_key "control_center_ansible_run_events", "control_center_ansible_runs", column: "run_id"
+  add_foreign_key "control_center_ansible_run_events", "runners", on_delete: :nullify
+  add_foreign_key "control_center_ansible_run_groups", "control_center_ansible_credentials", column: "credential_id", on_delete: :nullify
+  add_foreign_key "control_center_ansible_run_groups", "control_center_ansible_inventories", column: "inventory_id", on_delete: :nullify
+  add_foreign_key "control_center_ansible_run_groups", "users", column: "created_by_id"
+  add_foreign_key "control_center_ansible_runs", "control_center_ansible_playbooks", column: "playbook_id", on_delete: :nullify
+  add_foreign_key "control_center_ansible_runs", "control_center_ansible_run_groups", column: "run_group_id"
+  add_foreign_key "control_center_ansible_runs", "runners", on_delete: :nullify
+  add_foreign_key "control_center_ansible_variable_sets", "users", column: "created_by_id"
+  add_foreign_key "control_center_ansible_variables", "control_center_ansible_variable_sets", column: "variable_set_id"
   add_foreign_key "favorites", "users"
   add_foreign_key "monitor_configs", "users"
   add_foreign_key "program_changes", "scope_runs"

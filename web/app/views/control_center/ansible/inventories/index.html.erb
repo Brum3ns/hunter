@@ -1,0 +1,10 @@
+<% content_for :title, "hunter — Ansible inventories" %>
+<% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
+
+<%= render "control_center/ansible/header" %>
+<%= render "control_center/ansible/authoring_shell",
+      resource_label: "Inventory",
+      resource_type: "inventory",
+      index_url: api_v1_control_center_ansible_inventories_path,
+      validate_url: validate_api_v1_control_center_ansible_inventories_path %>
+<%= render "control_center/ansible/inventory_tools" %>

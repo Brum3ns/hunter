@@ -9,6 +9,7 @@ env:
   REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
   WEB_IMAGE: ${{ gitea.repository }}-web
   RUNNER_IMAGE: ${{ gitea.repository }}-runner
+  ANSIBLE_EXECUTOR_IMAGE: ${{ gitea.repository }}-ansible-executor
 
 jobs:
   build:
@@ -64,3 +65,13 @@ jobs:
           tags: |
             ${{ env.REGISTRY_HOST }}/${{ env.RUNNER_IMAGE }}:latest
             ${{ env.REGISTRY_HOST }}/${{ env.RUNNER_IMAGE }}:${{ gitea.sha }}
+
+      - name: Build and push Ansible executor
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ansible_executor/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_HOST }}/${{ env.ANSIBLE_EXECUTOR_IMAGE }}:latest
+            ${{ env.REGISTRY_HOST }}/${{ env.ANSIBLE_EXECUTOR_IMAGE }}:${{ gitea.sha }}

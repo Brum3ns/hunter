@@ -1,0 +1,16 @@
+<% sections = [
+  [ "Playbooks", control_center_ansible_playbooks_path, "playbooks" ],
+  [ "Inventories", control_center_ansible_inventories_path, "inventories" ],
+  [ "Variable Sets", control_center_ansible_variable_sets_path, "variable_sets" ],
+  [ "Runs", control_center_ansible_runs_path, "runs" ]
+] %>
+<nav class="mt-4 flex flex-wrap items-center gap-2" aria-label="Ansible sections">
+  <% sections.each do |name, href, section_controller| %>
+    <% active = controller_name == section_controller %>
+    <%= link_to name, href,
+          "aria-current": (active ? "page" : nil),
+          class: "rounded-md px-3 py-1.5 text-sm font-medium #{active ?
+            'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' :
+            'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'}" %>
+  <% end %>
+</nav>

@@ -1,0 +1,69 @@
+<% content_for :title, "hunter — Ansible variable sets" %>
+<% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
+
+<%= render "control_center/ansible/header" %>
+
+<section class="mt-6" data-controller="ansible-variable-sets"
+         data-ansible-variable-sets-index-url-value="<%= api_v1_control_center_ansible_variable_sets_path %>">
+  <div class="mb-4 flex flex-wrap gap-2">
+    <input type="search" placeholder="Search variable sets" data-action="input->ansible-variable-sets#search"
+           class="min-w-56 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <button type="button" data-action="ansible-variable-sets#newSet"
+            class="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900">New variable set</button>
+  </div>
+
+  <div class="grid gap-5 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,2fr)]">
+    <aside data-ansible-variable-sets-target="list"
+           class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]"></aside>
+    <form data-ansible-variable-sets-target="form" data-action="submit->ansible-variable-sets#save"
+          class="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#111315]">
+      <h2 class="text-base font-semibold">Variable set editor</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="text-sm font-medium">Name
+          <input required data-ansible-variable-sets-target="name" class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-normal dark:border-zinc-700 dark:bg-zinc-900">
+        </label>
+        <label class="text-sm font-medium">Description
+          <input data-ansible-variable-sets-target="description" class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-normal dark:border-zinc-700 dark:bg-zinc-900">
+        </label>
+      </div>
+
+      <div class="mt-5 flex items-center justify-between">
+        <h3 class="text-sm font-semibold">Ordered variables</h3>
+        <button type="button" data-action="ansible-variable-sets#addVariable" class="text-sm font-medium underline">Add variable</button>
+      </div>
+      <div data-ansible-variable-sets-target="variables" class="mt-2 space-y-2"></div>
+
+      <template data-ansible-variable-sets-target="variableTemplate">
+        <div class="grid gap-2 rounded-md border border-zinc-200 p-3 md:grid-cols-[1fr_9rem_1fr_auto] dark:border-zinc-800" data-variable-row>
+          <label class="text-xs font-medium">Name
+            <input data-field="name" class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          </label>
+          <label class="text-xs font-medium">Type
+            <select data-field="value-type" class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+              <option value="string">String</option>
+              <option value="number">Number</option>
+              <option value="boolean">Boolean</option>
+              <option value="list">List</option>
+              <option value="dictionary">Dictionary</option>
+            </select>
+          </label>
+          <label class="text-xs font-medium">Write-only value
+            <input data-field="value" autocomplete="off" class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          </label>
+          <div class="flex items-end gap-1">
+            <label class="mb-1.5 flex items-center gap-1 text-xs"><input type="checkbox" data-field="secret"> Secret</label>
+            <button type="button" aria-label="Move variable up" data-action="ansible-variable-sets#moveUp" class="rounded p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">↑</button>
+            <button type="button" aria-label="Move variable down" data-action="ansible-variable-sets#moveDown" class="rounded p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">↓</button>
+            <button type="button" aria-label="Delete variable" data-action="ansible-variable-sets#deleteVariable" class="rounded p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950">×</button>
+          </div>
+        </div>
+      </template>
+
+      <div aria-live="polite" data-ansible-variable-sets-target="status" class="mt-3 min-h-6 text-sm"></div>
+      <div class="mt-4 flex gap-2">
+        <button type="submit" class="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900">Save</button>
+        <button type="button" data-action="ansible-variable-sets#deleteSet" class="ml-auto rounded-md border border-rose-300 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-900 dark:text-rose-300">Delete set</button>
+      </div>
+    </form>
+  </div>
+</section>

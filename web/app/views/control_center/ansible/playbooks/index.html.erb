@@ -1,0 +1,9 @@
+<% content_for :title, "hunter — Ansible playbooks" %>
+<% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
+
+<%= render "control_center/ansible/header" %>
+<%= render "control_center/ansible/authoring_shell",
+      resource_label: "Playbook",
+      resource_type: "playbook",
+      index_url: api_v1_control_center_ansible_playbooks_path,
+      validate_url: validate_api_v1_control_center_ansible_playbooks_path %>

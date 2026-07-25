@@ -1,6 +1,25 @@
 <% content_for :title, "hunter — Control Center templates" %>
 <% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
 
+<%
+  template_dork_groups = [
+    ["Fields", [
+      ["name:nuclei-*", "template name"],
+      ["kind:cmdscript", "cmdscript or workflow"],
+      ["tag:cve", "exact tag"],
+      ["command:nuclei", "executable or arguments"],
+      ["creator:alice", "creator username"]
+    ]],
+    ["Combine", [
+      ["a b", "implicit AND"],
+      ["a AND b", "both match"],
+      ["a OR b", "either matches"],
+      ["(a OR b) AND c", "group with parentheses"],
+      ['command:"httpx -silent"', "quote values containing spaces"]
+    ]]
+  ]
+%>
+
 <header class="flex items-center gap-3">
   <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Control Center</h1>
   <span class="rounded border border-zinc-300 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">beta</span>
@@ -11,46 +30,20 @@
 <%= render "layouts/department_tabs", label: "Control Center sections" %>
 
 <section class="mt-6"
+         data-template-workspace
          data-controller="control-center-templates"
+         data-action="dragenter@window->control-center-templates#dragEnter dragover@window->control-center-templates#dragOver dragleave@window->control-center-templates#dragLeave drop@window->control-center-templates#dropFiles dragend@window->control-center-templates#dragEnd"
          data-control-center-templates-index-url-value="<%= api_v1_control_center_templates_path %>"
          data-control-center-templates-validate-url-value="<%= validate_api_v1_control_center_templates_path %>"
          data-control-center-templates-jobs-url-value="<%= api_v1_control_center_jobs_path %>"
          data-control-center-templates-validate-yaml-url-value="<%= validate_yaml_api_v1_control_center_templates_path %>">
 
-  <div class="mb-3 flex items-center justify-between">
-    <button type="button" data-action="control-center-templates#refresh"
-            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
-      <%= heroicon "clock", classes: "h-4 w-4" %> Refresh
-    </button>
-    <button type="button" data-action="control-center-templates#newTemplate"
-            class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
-      New template
-    </button>
-  </div>
-
-  <%# --- list --- %>
-  <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
-    <table class="w-full text-left text-sm">
-      <thead class="border-b border-zinc-100 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        <tr>
-          <th class="px-4 py-2 font-medium">Name</th>
-          <th class="px-4 py-2 font-medium">Kind</th>
-          <th class="px-4 py-2 font-medium">Commands</th>
-          <th class="px-4 py-2 font-medium">Tags</th>
-          <th class="px-4 py-2"></th>
-        </tr>
-      </thead>
-      <tbody data-control-center-templates-target="rows" class="divide-y divide-zinc-100 dark:divide-zinc-800/70"></tbody>
-    </table>
-    <div data-control-center-templates-target="empty" class="hidden px-4 py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
-      No templates yet. Create one to get started.
-    </div>
-  </div>
-
-  <%# --- editor panel (hidden until New/Edit) --- %>
-  <div data-control-center-templates-target="editor"
-       class="mt-4 hidden rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
-    <div class="mb-3 flex items-center gap-2">
+  <%# --- editor pane (permanent, above the library) --- %>
+  <div data-template-editor-pane
+       data-control-center-templates-target="editor"
+       data-action="input->control-center-templates#markEditorDirty change->control-center-templates#markEditorDirty"
+       class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
+    <div class="mb-3 flex flex-wrap items-center gap-2">
       <div class="inline-flex overflow-hidden rounded-md border border-zinc-300 dark:border-zinc-700">
         <button type="button" data-control-center-templates-target="modeStructured" data-action="control-center-templates#showStructured"
                 class="px-3 py-1 text-sm font-medium bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">Structured</button>
@@ -212,9 +205,94 @@
     </div>
   </div>
 
-  <%# --- send-job dialog (hidden until Send) --- %>
-  <div data-control-center-templates-target="sendDialog"
-       class="mt-4 hidden rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
+  <%# --- library pane (search + toolbar + independently scrolling table) --- %>
+  <div data-template-library-pane class="mt-4 flex flex-col">
+    <div class="shrink-0 rounded-t-lg border border-b-0 border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-[#111315]">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="relative min-w-[16rem] flex-1">
+          <label for="template-search" class="sr-only">Search templates</label>
+          <input id="template-search" type="search" autocomplete="off"
+                 placeholder="Search or dork… name:nuclei-* tag:cve"
+                 data-control-center-templates-target="searchInput"
+                 data-action="input->control-center-templates#searchChanged search->control-center-templates#searchChanged"
+                 class="w-full rounded-md border border-zinc-300 bg-white py-2 pl-3 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-300">
+          <div class="group absolute right-1.5 top-1/2 -translate-y-1/2">
+            <button type="button" aria-label="Template search syntax help"
+                    class="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 outline-none hover:bg-zinc-100 hover:text-zinc-700 focus:bg-zinc-100 focus:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+              <%= heroicon "question-mark-circle", classes: "h-4 w-4" %>
+            </button>
+            <div class="invisible absolute right-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-3rem)] rounded-md border border-zinc-200 bg-white p-3 opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-zinc-800 dark:bg-[#111315]">
+              <% template_dork_groups.each_with_index do |(title, rows), index| %>
+                <p class="text-[10.5px] font-medium uppercase tracking-[0.12em] text-zinc-400 <%= index.zero? ? "mb-2" : "mt-3 mb-2 border-t border-zinc-200 pt-2 dark:border-zinc-800" %>"><%= title %></p>
+                <dl class="space-y-1.5 font-mono">
+                  <% rows.each do |dork, hint| %>
+                    <div>
+                      <dt class="break-all text-[11.5px] text-zinc-800 dark:text-zinc-200"><%= dork %></dt>
+                      <dd class="pl-3 text-[10.5px] text-zinc-500 dark:text-zinc-400"><%= hint %></dd>
+                    </div>
+                  <% end %>
+                </dl>
+              <% end %>
+              <p class="mt-3 border-t border-zinc-200 pt-2 text-[10.5px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">Case-insensitive · plain text searches names, descriptions, tags, commands, and arguments.</p>
+            </div>
+          </div>
+        </div>
+
+        <span data-control-center-templates-target="resultCount" aria-live="polite"
+              class="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">0 of 0 templates</span>
+        <button type="button" data-control-center-templates-target="clearSearch"
+                data-action="control-center-templates#clearSearch"
+                class="hidden rounded-md border border-zinc-300 px-2.5 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">Clear</button>
+      </div>
+
+      <p data-control-center-templates-target="listError" role="status" aria-live="polite"
+         class="mt-2 hidden rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"></p>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-2 border-x border-zinc-200 bg-white px-3 pb-3 dark:border-zinc-800 dark:bg-[#111315]">
+      <button type="button" data-action="control-center-templates#refresh"
+              class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">
+        <%= heroicon "clock", classes: "h-4 w-4" %> Refresh
+      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 focus-within:ring-2 focus-within:ring-zinc-400 focus-within:ring-offset-2 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:focus-within:ring-zinc-500 dark:focus-within:ring-offset-[#0a0a0a]">
+          <%= heroicon "arrow-up-tray", classes: "h-4 w-4" %> Import YAML
+          <input type="file" multiple accept=".yaml,.yml,text/yaml,application/yaml" class="sr-only"
+                 data-control-center-templates-target="batchFileInput"
+                 data-action="change->control-center-templates#batchFilesSelected">
+        </label>
+        <button type="button" data-action="control-center-templates#newTemplate"
+                class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
+          New template
+        </button>
+      </div>
+    </div>
+
+    <div data-template-library-scroll class="overflow-auto rounded-b-lg border border-zinc-200 bg-white slim-scroll dark:border-zinc-800 dark:bg-[#111315] lg:max-h-[65vh]">
+      <table class="w-full text-left text-sm">
+        <thead class="sticky top-0 z-10 border-b border-zinc-100 bg-white text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-[#111315] dark:text-zinc-400">
+          <tr>
+            <th class="px-4 py-2 font-medium">Name</th>
+            <th class="px-4 py-2 font-medium">Kind</th>
+            <th class="px-4 py-2 font-medium">Commands</th>
+            <th class="px-4 py-2 font-medium">Tags</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody data-control-center-templates-target="rows" class="divide-y divide-zinc-100 dark:divide-zinc-800/70"></tbody>
+      </table>
+      <div data-control-center-templates-target="empty" class="hidden px-4 py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
+        No templates yet. Create one to get started.
+      </div>
+      <div data-control-center-templates-target="noMatches" class="hidden px-4 py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
+        No templates match this search.
+      </div>
+    </div>
+  </div>
+
+  <%# --- send-job dialog (modal, does not hide the permanent editor) --- %>
+  <dialog data-control-center-templates-target="sendDialog"
+          class="fixed inset-0 z-50 m-auto w-[min(48rem,calc(100vw-2rem))] rounded-xl border border-zinc-200 bg-white p-4 text-zinc-900 shadow-2xl backdrop:bg-zinc-950/60 dark:border-zinc-700 dark:bg-[#111315] dark:text-zinc-100">
     <p class="text-sm font-medium text-zinc-800 dark:text-zinc-100">Send job:
       <span data-control-center-templates-target="sendName" class="font-mono"></span></p>
     <div class="mt-3 grid gap-3 sm:grid-cols-3">
@@ -244,5 +322,61 @@
       <button type="button" data-action="control-center-templates#closeSend"
               class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">Close</button>
     </div>
+  </dialog>
+
+  <%# --- page-wide YAML drop affordance --- %>
+  <div data-control-center-templates-target="dropOverlay" aria-hidden="true"
+       class="pointer-events-none fixed inset-0 z-[60] hidden bg-zinc-950/55 p-5 backdrop-blur-sm">
+    <div class="flex h-full items-center justify-center rounded-2xl border-2 border-dashed border-white/70 bg-zinc-950/30">
+      <div class="rounded-2xl border border-white/15 bg-zinc-950/80 px-10 py-9 text-center text-white shadow-2xl">
+        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
+          <%= heroicon "arrow-up-tray", classes: "h-7 w-7" %>
+        </div>
+        <p class="mt-4 text-lg font-semibold">Drop YAML templates to import</p>
+        <p class="mt-1 text-sm text-zinc-300">Each .yaml or .yml file becomes a separate template.</p>
+      </div>
+    </div>
   </div>
+
+  <%# --- batch import progress + conflict resolution --- %>
+  <dialog data-control-center-templates-target="importDialog"
+          data-action="cancel->control-center-templates#preventImportClose"
+          class="fixed inset-0 z-[70] m-auto w-[min(42rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-zinc-200 bg-white p-0 text-zinc-900 shadow-2xl backdrop:bg-zinc-950/60 dark:border-zinc-700 dark:bg-[#111315] dark:text-zinc-100">
+    <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+      <h2 class="text-base font-semibold">Import YAML templates</h2>
+      <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Files are validated and imported in selection order.</p>
+    </div>
+
+    <div class="max-h-[55vh] overflow-y-auto px-5 py-4">
+      <ul data-control-center-templates-target="importRows" aria-live="polite" class="space-y-2"></ul>
+
+      <div data-control-center-templates-target="conflictPanel" role="alertdialog" aria-label="Template name conflict" aria-live="assertive"
+           class="mt-4 hidden rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700/70 dark:bg-amber-950/30">
+        <p class="text-sm font-semibold text-amber-950 dark:text-amber-100">Template name conflict</p>
+        <p class="mt-1 text-sm text-amber-900 dark:text-amber-200">
+          <span data-control-center-templates-target="conflictFile" class="font-mono"></span>
+          matches <span data-control-center-templates-target="conflictName" class="font-semibold"></span>.
+        </p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button type="button" data-decision="update" data-action="control-center-templates#chooseImportConflict"
+                  class="rounded-md bg-amber-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100">Update</button>
+          <button type="button" data-decision="update_all" data-action="control-center-templates#chooseImportConflict"
+                  class="rounded-md border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-950 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/40">Update all</button>
+          <button type="button" data-decision="skip" data-action="control-center-templates#chooseImportConflict"
+                  class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-white dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">Skip</button>
+          <button type="button" data-decision="skip_all" data-action="control-center-templates#chooseImportConflict"
+                  class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-white dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">Skip all</button>
+        </div>
+      </div>
+
+      <p data-control-center-templates-target="importSummary" aria-live="polite"
+         class="mt-4 hidden rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"></p>
+    </div>
+
+    <div class="flex justify-end border-t border-zinc-200 px-5 py-3 dark:border-zinc-800">
+      <button type="button" disabled data-control-center-templates-target="importClose"
+              data-action="control-center-templates#closeImport"
+              class="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">Close</button>
+    </div>
+  </dialog>
 </section>

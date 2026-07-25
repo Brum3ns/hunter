@@ -19,6 +19,9 @@ development:
     class: Sitemap::SyncJob
     queue: background
     schedule: every 30 minutes
+  control_center_ansible_reaper:
+    command: "ControlCenter::Ansible::RunReaper.call"
+    schedule: every minute
 
 production:
   clear_solid_queue_finished_jobs:
@@ -32,3 +35,6 @@ production:
     class: Sitemap::SyncJob
     queue: background
     schedule: every 30 minutes
+  control_center_ansible_reaper:
+    command: "ControlCenter::Ansible::RunReaper.call"
+    schedule: every minute
