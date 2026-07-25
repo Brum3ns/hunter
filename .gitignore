@@ -53,6 +53,15 @@ bower.json
 # Ignore node_modules
 node_modules/
 
+# Ignore local Python environments and generated cache artifacts.
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+# Claude Code stores workstation-specific permissions here.
+.claude/settings.local.json
+
 # Ignore precompiled javascript packs
 /public/packs
 /public/packs-test

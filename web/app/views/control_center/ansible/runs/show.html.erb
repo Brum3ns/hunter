@@ -1,0 +1,71 @@
+<% content_for :title, "hunter — Ansible run #{@run_group.id}" %>
+<% content_for :container, "mx-auto max-w-screen-2xl px-6 py-10" %>
+
+<%= render "control_center/ansible/header" %>
+
+<section class="mt-6" data-controller="ansible-runs"
+         data-ansible-runs-group-url-value="<%= api_v1_control_center_ansible_run_group_path(@run_group) %>"
+         data-ansible-runs-run-url-value="<%= api_v1_control_center_ansible_run_path(@run) if @run %>"
+         data-ansible-runs-events-url-value="<%= api_v1_control_center_ansible_run_events_path(@run) if @run %>"
+         data-ansible-runs-cancel-url-value="<%= cancel_api_v1_control_center_ansible_run_group_path(@run_group) %>"
+         data-ansible-runs-status-value="<%= @run_group.status %>">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <%= link_to "← Run history", control_center_ansible_runs_path, class: "text-sm text-zinc-500 hover:underline" %>
+      <h2 class="mt-2 text-xl font-semibold"><%= @run&.playbook_name || "Run group ##{@run_group.id}" %></h2>
+      <p class="mt-1 text-sm text-zinc-500"><%= @run&.inventory_name || @run_group.launch_snapshot.dig("inventory", "name") %> · <%= @run&.credential_name || @run_group.launch_snapshot.dig("credential", "name") %></p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span data-ansible-runs-target="status" class="rounded-full border border-zinc-300 px-3 py-1 text-sm font-medium dark:border-zinc-700"><%= @run_group.status %></span>
+      <% unless @run_group.terminal? %>
+        <button type="button" data-ansible-runs-target="cancel" data-action="ansible-runs#cancel"
+                class="rounded-md border border-rose-300 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-900 dark:text-rose-300">Cancel</button>
+      <% end %>
+    </div>
+  </div>
+
+  <div data-ansible-runs-target="error" class="mt-4 hidden rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" role="alert"></div>
+  <button type="button" data-ansible-runs-target="retry" data-action="ansible-runs#retry"
+          class="mt-2 hidden rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium dark:border-zinc-700">Retry live updates</button>
+
+  <% if @run %>
+    <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <% { "OK" => @run.ok_count, "Changed" => @run.changed_count, "Failed" => @run.failed_count, "Unreachable" => @run.unreachable_count }.each do |label, value| %>
+        <div class="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-[#111315]">
+          <p class="text-xs uppercase tracking-wide text-zinc-500"><%= label %></p>
+          <p class="mt-1 text-2xl font-semibold" data-ansible-runs-target="count" data-count-name="<%= label.downcase %>"><%= value %></p>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="mt-6 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#111315]">
+      <h3 class="text-sm font-semibold">Execution snapshot</h3>
+      <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <div><dt class="text-zinc-500">Child status</dt><dd data-ansible-runs-target="childStatus" class="font-medium"><%= @run.status %></dd></div>
+        <div><dt class="text-zinc-500">Check mode</dt><dd class="font-medium"><%= @run.check_mode ? "Enabled" : "Disabled" %></dd></div>
+        <div><dt class="text-zinc-500">Host limit</dt><dd class="font-medium"><%= @run.host_limit.presence || "All inventory hosts" %></dd></div>
+        <div><dt class="text-zinc-500">Timeout</dt><dd class="font-medium"><%= @run.timeout_seconds %> seconds</dd></div>
+      </dl>
+      <% if @run.truncated %><p class="mt-3 text-xs font-medium text-amber-700 dark:text-amber-300">Stored output was truncated at the configured safety limit.</p><% end %>
+    </div>
+
+    <div class="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-[#111315]">
+      <div class="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800"><h3 class="text-sm font-semibold">Events</h3></div>
+      <div data-ansible-runs-target="events" class="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <% if @events.empty? %>
+          <p data-empty-events class="px-5 py-12 text-center text-sm text-zinc-500">No executor events yet.</p>
+        <% else %>
+          <% @events.each do |event| %>
+            <article data-event-counter="<%= event.counter %>" class="grid gap-2 px-5 py-4 text-sm md:grid-cols-[5rem_1fr_1fr]">
+              <span class="font-mono text-xs text-zinc-500">#<%= event.counter %></span>
+              <span><strong><%= event.task.presence || event.event_type %></strong><span class="block text-xs text-zinc-500"><%= event.play %> <%= "· #{event.host}" if event.host.present? %></span></span>
+              <pre class="overflow-x-auto whitespace-pre-wrap font-mono text-xs"><%= event.stdout %></pre>
+            </article>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <p class="mt-6 rounded-md border border-amber-300 px-4 py-3 text-sm">This group has no child run.</p>
+  <% end %>
+</section>

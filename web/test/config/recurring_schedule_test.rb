@@ -19,4 +19,14 @@ class RecurringScheduleTest < ActiveSupport::TestCase
   test "the scheduled class resolves to a real job" do
     assert_equal Cves::SyncJob, "Cves::SyncJob".constantize
   end
+
+  %w[development production].each do |env|
+    test "#{env} schedules Ansible stale-work reaping every minute" do
+      entry = CONFIG.dig(env, "control_center_ansible_reaper")
+
+      assert entry, "expected an Ansible reaper recurring entry under #{env}"
+      assert_equal "ControlCenter::Ansible::RunReaper.call", entry["command"]
+      assert_equal "every minute", entry["schedule"]
+    end
+  end
 end

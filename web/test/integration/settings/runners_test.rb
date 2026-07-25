@@ -30,6 +30,22 @@ class Settings::RunnersTest < ActionDispatch::IntegrationTest
     assert_equal Digest::SHA256.hexdigest(token), runner.token_digest
   end
 
+  test "settings offers every supported runner capability" do
+    sign_in_as(@user)
+    get settings_path
+    assert_response :success
+    Runner::KINDS.each do |kind|
+      assert_select "input[name='kinds[]'][value='#{kind}']", count: 1
+    end
+  end
+
+  test "settings can mint an ansible-only runner" do
+    sign_in_as(@user)
+    post settings_runners_path, params: { name: "ansible-executor", kinds: [ "ansible" ] }
+    assert_redirected_to settings_path
+    assert_equal %w[ansible], Runner.find_by!(name: "ansible-executor").kinds
+  end
+
   test "duplicate name shows an alert and mints nothing" do
     sign_in_as(@user)
     Runner.generate(name: "dup", kinds: %w[curl])

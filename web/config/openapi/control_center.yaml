@@ -1,4 +1,619 @@
 paths:
+  /api/v1/control_center/ansible/credentials:
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "List Ansible credential metadata"
+      responses:
+        "200":
+          description: "Credential metadata without secret values."
+          content: { application/json: { schema: { type: object, properties: { credentials: { type: array, items: { $ref: "#/components/schemas/CcAnsibleCredential" } } }, required: [credentials] } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Create an encrypted Ansible credential"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CcAnsibleCredentialInput" } } } }
+      responses:
+        "201": { description: "Created.", content: { application/json: { schema: { $ref: "#/components/schemas/CcAnsibleCredential" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+  /api/v1/control_center/ansible/credentials/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Get Ansible credential metadata"
+      responses:
+        "200": { description: "Credential metadata.", content: { application/json: { schema: { $ref: "#/components/schemas/CcAnsibleCredential" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an encrypted Ansible credential"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CcAnsibleCredentialInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/CcAnsibleCredential" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+    put:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an encrypted Ansible credential (PUT alias)"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CcAnsibleCredentialInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/CcAnsibleCredential" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+    delete:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Delete an Ansible credential"
+      responses:
+        "204": { description: "Deleted." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/playbooks:
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "List saved Ansible playbooks"
+      responses:
+        "200": { description: "Playbooks.", content: { application/json: { schema: { type: object, properties: { playbooks: { type: array, items: { $ref: "#/components/schemas/AnsiblePlaybook" } } }, required: [playbooks] } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Create an Ansible playbook"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsiblePlaybookInput" } } } }
+      responses:
+        "201": { description: "Created.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsiblePlaybook" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+  /api/v1/control_center/ansible/playbooks/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Get an Ansible playbook"
+      responses:
+        "200": { description: "Playbook.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsiblePlaybook" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an Ansible playbook"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsiblePlaybookInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsiblePlaybook" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+    put:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an Ansible playbook (PUT alias)"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsiblePlaybookInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsiblePlaybook" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+    delete:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Delete an Ansible playbook"
+      responses:
+        "204": { description: "Deleted." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/playbooks/validate:
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Safely validate playbook YAML without saving"
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { yaml_content: { type: string } }, required: [yaml_content] } } } }
+      responses:
+        "200": { description: "Validation result.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleValidationResult" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+  /api/v1/control_center/ansible/playbooks/export:
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Download selected saved playbooks as a ZIP"
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { ids: { type: array, items: { type: integer }, minItems: 1 } }, required: [ids] } } } }
+      responses:
+        "200": { description: "ZIP archive containing exact saved YAML.", content: { application/zip: { schema: { type: string, format: binary } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+  /api/v1/control_center/ansible/inventories:
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "List saved Ansible inventories"
+      responses:
+        "200": { description: "Inventories.", content: { application/json: { schema: { type: object, properties: { inventories: { type: array, items: { $ref: "#/components/schemas/AnsibleInventory" } } }, required: [inventories] } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Create an Ansible inventory"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleInventoryInput" } } } }
+      responses:
+        "201": { description: "Created.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleInventory" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+  /api/v1/control_center/ansible/inventories/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Get an Ansible inventory"
+      responses:
+        "200": { description: "Inventory.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleInventory" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an Ansible inventory"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleInventoryInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleInventory" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+    put:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an Ansible inventory (PUT alias)"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleInventoryInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleInventory" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+    delete:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Delete an Ansible inventory"
+      responses:
+        "204": { description: "Deleted." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/inventories/validate:
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Safely validate inventory YAML without saving"
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { yaml_content: { type: string } }, required: [yaml_content] } } } }
+      responses:
+        "200": { description: "Validation result.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleValidationResult" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+  /api/v1/control_center/ansible/variable_sets:
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "List Ansible variable sets"
+      responses:
+        "200": { description: "Variable sets.", content: { application/json: { schema: { type: object, properties: { variable_sets: { type: array, items: { $ref: "#/components/schemas/AnsibleVariableSet" } } }, required: [variable_sets] } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Create an Ansible variable set"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableSetInput" } } } }
+      responses:
+        "201": { description: "Created.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableSet" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+  /api/v1/control_center/ansible/variable_sets/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Get an Ansible variable set"
+      responses:
+        "200": { description: "Variable set.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableSet" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an Ansible variable set"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableSetInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableSet" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+    put:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an Ansible variable set (PUT alias)"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableSetInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableSet" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+    delete:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Delete an Ansible variable set"
+      responses:
+        "204": { description: "Deleted." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables:
+    parameters:
+      - { name: variable_set_id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Create an encrypted typed variable"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableInput" } } } }
+      responses:
+        "201": { description: "Created.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariable" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+  /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}:
+    parameters:
+      - { name: variable_set_id, in: path, required: true, schema: { type: integer } }
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an encrypted typed variable"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariable" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+    put:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Update an encrypted typed variable (PUT alias)"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariableInput" } } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleVariable" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "Validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+    delete:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Delete an Ansible variable"
+      responses:
+        "204": { description: "Deleted." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/inventories/{id}/syntax_check:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Queue an isolated syntax check"
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { playbook_id: { type: integer } }, required: [playbook_id] } } } }
+      responses:
+        "202": { description: "Task queued.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleExecutorTask" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+  /api/v1/control_center/ansible/inventories/{id}/host_key_scan:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Queue an isolated host-key scan"
+      responses:
+        "202": { description: "Task queued; returned candidates remain untrusted.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleExecutorTask" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+  /api/v1/control_center/ansible/inventories/{id}/confirm_host_keys:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Confirm scanned host keys against out-of-band fingerprints"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleHostKeyConfirmationInput" } } } }
+      responses:
+        "200": { description: "Inventory with approved fingerprint metadata.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleInventory" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+  /api/v1/control_center/ansible/inventories/{id}/connectivity_test:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Queue an isolated SSH connectivity test"
+      requestBody: { content: { application/json: { schema: { type: object, properties: { credential_id: { type: integer } } } } } }
+      responses:
+        "202": { description: "Task queued.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleExecutorTask" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/CcUnprocessable" }
+  /api/v1/control_center/ansible/inventories/{id}/executor_tasks/{task_id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: task_id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Poll safe utility-task status and result"
+      responses:
+        "200": { description: "Task status without execution payload or lease.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleExecutorTask" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/run_groups:
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "List Ansible run groups newest first"
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        "200": { description: "Run history.", content: { application/json: { schema: { type: object, properties: { run_groups: { type: array, items: { $ref: "#/components/schemas/AnsibleRunGroupSummary" } }, pagination: { type: object, additionalProperties: true } }, required: [run_groups, pagination] } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Launch one saved playbook"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleLaunchInput" } } } }
+      responses:
+        "201": { description: "Queued run group.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleRunGroup" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "422": { description: "Launch validation failed.", content: { application/json: { schema: { $ref: "#/components/schemas/ValidationError" } } } }
+  /api/v1/control_center/ansible/run_groups/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Get a run group and child summaries"
+      responses:
+        "200": { description: "Run group detail.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleRunGroup" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/run_groups/{id}/cancel:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Request run-group cancellation"
+      responses:
+        "200": { description: "Cancellation requested.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleRunGroup" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "The group is already terminal." }
+  /api/v1/control_center/ansible/runs/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Get one immutable child run"
+      responses:
+        "200": { description: "Run detail.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleRun" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/runs/{id}/cancel:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Request child-run cancellation"
+      responses:
+        "200": { description: "Cancellation requested.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleRun" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "The run is already terminal." }
+  /api/v1/control_center/ansible/runs/{run_id}/events:
+    parameters:
+      - { name: run_id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "List redacted run events after a counter"
+      parameters:
+        - { name: after_counter, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 100 } }
+      responses:
+        "200": { description: "Ordered redacted events.", content: { application/json: { schema: { type: object, properties: { events: { type: array, items: { $ref: "#/components/schemas/AnsibleRunEvent" } }, next_counter: { type: integer } }, required: [events, next_counter] } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/control_center/ansible/executor_health:
+    get:
+      tags: ["Control Center / Ansible"]
+      x-api-scope: control_center
+      summary: "Get Ansible executor availability metadata"
+      responses:
+        "200": { description: "Executor health without token data.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleExecutorHealth" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+  /api/v1/ansible_executor/tasks/claim:
+    post:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Atomically claim the oldest utility task"
+      responses:
+        "200": { description: "One-time lease and decrypted utility payload.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineTaskClaim" } } } }
+        "204": { description: "No utility task is currently claimable." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+  /api/v1/ansible_executor/tasks/{id}/heartbeat:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: X-Ansible-Lease, in: header, required: true, schema: { type: string, minLength: 32 } }
+    post:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Extend a utility-task lease"
+      responses:
+        "200": { description: "Updated lease state.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineTaskState" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "The lease is stale or owned by another executor." }
+  /api/v1/ansible_executor/tasks/{id}/result:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: X-Ansible-Lease, in: header, required: true, schema: { type: string, minLength: 32 } }
+    post:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Submit an idempotent terminal utility-task result"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineTaskResult" } } } }
+      responses:
+        "200": { description: "Stored terminal task state.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineTaskState" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "Lease or terminal-result conflict." }
+  /api/v1/ansible_executor/runs/claim:
+    post:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Atomically claim the oldest queued Ansible run"
+      responses:
+        "200": { description: "One-time lease and decrypted run payload.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineRunClaim" } } } }
+        "204": { description: "No run is currently claimable." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+  /api/v1/ansible_executor/runs/{id}/start:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: X-Ansible-Lease, in: header, required: true, schema: { type: string, minLength: 32 } }
+    post:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Transition a syntax-validated run to running"
+      responses:
+        "200": { description: "Updated run state.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineRunState" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "The lease is stale or the run state is invalid." }
+  /api/v1/ansible_executor/runs/{id}/heartbeat:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: X-Ansible-Lease, in: header, required: true, schema: { type: string, minLength: 32 } }
+    post:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Extend an active run lease"
+      responses:
+        "200": { description: "Updated run state.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineRunState" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "The lease is stale or owned by another executor." }
+  /api/v1/ansible_executor/runs/{id}/control:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: X-Ansible-Lease, in: header, required: true, schema: { type: string, minLength: 32 } }
+    get:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Poll the active run cancellation state"
+      responses:
+        "200": { description: "Current cancellation state.", content: { application/json: { schema: { type: object, properties: { id: { type: integer }, status: { type: string }, cancel_requested: { type: boolean } }, required: [id, status, cancel_requested] } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "The lease is stale or owned by another executor." }
+  /api/v1/ansible_executor/runs/{id}/events:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: X-Ansible-Lease, in: header, required: true, schema: { type: string, minLength: 32 } }
+    post:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Append an idempotent batch of redacted run events"
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { events: { type: array, minItems: 1, maxItems: 100, items: { $ref: "#/components/schemas/AnsibleMachineRunEvent" } } }, required: [events] } } } }
+      responses:
+        "200": { description: "Accepted event identities.", content: { application/json: { schema: { type: object, properties: { accepted: { type: integer }, last_counter: { type: [integer, "null"] } }, required: [accepted] } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "Lease or event-identity conflict." }
+  /api/v1/ansible_executor/runs/{id}/result:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: X-Ansible-Lease, in: header, required: true, schema: { type: string, minLength: 32 } }
+    post:
+      tags: ["Ansible Executor Protocol"]
+      security: [ { runnerBearerAuth: [] } ]
+      summary: "Submit an idempotent terminal run result"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineRunResult" } } } }
+      responses:
+        "200": { description: "Stored terminal run state.", content: { application/json: { schema: { $ref: "#/components/schemas/AnsibleMachineRunState" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "Lease or terminal-result conflict." }
   /api/v1/control_center/templates:
     get:
       tags: ["Control Center"]
@@ -166,6 +781,340 @@ components:
   # (the service merges only paths + schemas from fragments). This fragment
   # only $ref's it.
   schemas:
+    AnsibleMachineTaskClaim:
+      type: object
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [syntax_check, host_key_scan, connectivity_test] }
+        lease: { type: string, format: password, writeOnly: true }
+        lease_expires_at: { type: string, format: date-time }
+        payload: { type: object, additionalProperties: true, writeOnly: true, description: "One-time decrypted execution payload; never returned by human APIs." }
+      required: [id, kind, lease, lease_expires_at, payload]
+    AnsibleMachineRunClaim:
+      type: object
+      properties:
+        id: { type: integer }
+        run_group_id: { type: integer }
+        lease: { type: string, format: password, writeOnly: true }
+        lease_expires_at: { type: string, format: date-time }
+        payload: { type: object, additionalProperties: true, writeOnly: true, description: "One-time decrypted execution payload; never returned by human APIs." }
+      required: [id, run_group_id, lease, lease_expires_at, payload]
+    AnsibleMachineTaskState:
+      type: object
+      properties:
+        id: { type: integer }
+        kind: { type: string }
+        status: { type: string }
+        heartbeat_at: { type: [string, "null"], format: date-time }
+        lease_expires_at: { type: [string, "null"], format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+      required: [id, kind, status]
+    AnsibleMachineRunState:
+      type: object
+      properties:
+        id: { type: integer }
+        status: { type: string }
+        heartbeat_at: { type: [string, "null"], format: date-time }
+        lease_expires_at: { type: [string, "null"], format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+      required: [id, status]
+    AnsibleMachineTaskResult:
+      type: object
+      properties:
+        status: { type: string, enum: [succeeded, failed, canceled] }
+        result: { type: object, additionalProperties: true }
+        error_code: { type: [string, "null"] }
+        error_detail: { type: [string, "null"], maxLength: 4096 }
+      required: [status, result]
+    AnsibleMachineRunResult:
+      type: object
+      properties:
+        status: { type: string, enum: [succeeded, failed, canceled] }
+        exit_status: { type: [integer, "null"] }
+        ok_count: { type: integer, minimum: 0 }
+        changed_count: { type: integer, minimum: 0 }
+        failed_count: { type: integer, minimum: 0 }
+        unreachable_count: { type: integer, minimum: 0 }
+        error_code: { type: [string, "null"] }
+        error_detail: { type: [string, "null"], maxLength: 4096 }
+      required: [status, ok_count, changed_count, failed_count, unreachable_count]
+    AnsibleMachineRunEvent:
+      type: object
+      properties:
+        event_uuid: { type: string }
+        parent_uuid: { type: [string, "null"] }
+        counter: { type: integer, minimum: 0 }
+        event_type: { type: string }
+        play: { type: [string, "null"] }
+        task: { type: [string, "null"] }
+        host: { type: [string, "null"] }
+        event_time: { type: [string, "null"], format: date-time }
+        stdout: { type: [string, "null"], description: "Executor-redacted output; Rails applies a second redaction boundary." }
+        event_data: { type: object, additionalProperties: true }
+      required: [event_uuid, counter, event_type]
+    CcAnsibleCredential:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        auth_type: { type: string, enum: [private_key, password] }
+        username: { type: string }
+        public_key_fingerprint: { type: [string, "null"] }
+        private_key_configured: { type: boolean }
+        ssh_password_configured: { type: boolean }
+        private_key_passphrase_configured: { type: boolean }
+        become_password_configured: { type: boolean }
+        last_used_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, name, auth_type, username, private_key_configured, ssh_password_configured, private_key_passphrase_configured, become_password_configured]
+    CcAnsibleCredentialInput:
+      type: object
+      properties:
+        name: { type: string }
+        auth_type: { type: string, enum: [private_key, password] }
+        username: { type: string }
+        private_key: { type: string, writeOnly: true }
+        ssh_password: { type: string, writeOnly: true }
+        private_key_passphrase: { type: string, writeOnly: true }
+        become_password: { type: string, writeOnly: true }
+        clear_private_key: { type: boolean, default: false }
+        clear_ssh_password: { type: boolean, default: false }
+        clear_private_key_passphrase: { type: boolean, default: false }
+        clear_become_password: { type: boolean, default: false }
+      required: [name, auth_type, username]
+    AnsiblePlaybook:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: [string, "null"] }
+        yaml_content: { type: string }
+        checksum: { type: string }
+        variable_set_ids: { type: array, items: { type: integer } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, name, yaml_content, checksum, variable_set_ids, created_at, updated_at]
+    AnsiblePlaybookInput:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: [string, "null"] }
+        yaml_content: { type: string, maxLength: 262144 }
+        variable_set_ids: { type: array, items: { type: integer }, uniqueItems: true }
+      required: [name, yaml_content]
+    AnsibleInventory:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: [string, "null"] }
+        yaml_content: { type: string }
+        checksum: { type: string }
+        default_credential_id: { type: [integer, "null"] }
+        variable_set_ids: { type: array, items: { type: integer } }
+        known_hosts_configured: { type: boolean }
+        host_key_fingerprints: { type: object, additionalProperties: { type: string } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, name, yaml_content, checksum, variable_set_ids, known_hosts_configured, host_key_fingerprints, created_at, updated_at]
+    AnsibleInventoryInput:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: [string, "null"] }
+        yaml_content: { type: string, maxLength: 262144 }
+        default_credential_id: { type: [integer, "null"] }
+        variable_set_ids: { type: array, items: { type: integer }, uniqueItems: true }
+      required: [name, yaml_content]
+    AnsibleVariableSet:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: [string, "null"] }
+        variables: { type: array, items: { $ref: "#/components/schemas/AnsibleVariable" } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, name, variables, created_at, updated_at]
+    AnsibleVariableSetInput:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: [string, "null"] }
+      required: [name]
+    AnsibleVariable:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        value_type: { type: string, enum: [string, number, boolean, list, dictionary] }
+        secret: { type: boolean }
+        configured: { type: boolean }
+        value:
+          type: [string, number, integer, boolean, array, object, "null"]
+          readOnly: true
+          description: "Typed value for non-secret variables; always null when secret is true."
+        position: { type: integer, minimum: 0 }
+      required: [id, name, value_type, secret, configured, value, position]
+    AnsibleVariableInput:
+      type: object
+      properties:
+        name: { type: string, pattern: "^[A-Za-z_][A-Za-z0-9_]*$" }
+        value_type: { type: string, enum: [string, number, boolean, list, dictionary] }
+        secret: { type: boolean }
+        value: { description: "Typed value or a safe YAML/JSON fragment for lists and dictionaries.", writeOnly: true }
+        position: { type: integer, minimum: 0 }
+        clear_value: { type: boolean, default: false }
+      required: [name, value_type, value]
+    AnsibleValidationResult:
+      type: object
+      properties:
+        valid: { type: boolean }
+        errors: { type: array, items: { type: string } }
+      required: [valid, errors]
+    ValidationError:
+      type: object
+      properties:
+        error: { type: string, const: unprocessable_entity }
+        details:
+          type: object
+          additionalProperties: { type: array, items: { type: string } }
+      required: [error, details]
+    AnsibleLaunchInput:
+      type: object
+      properties:
+        playbook_id: { type: integer }
+        inventory_id: { type: integer }
+        credential_id: { type: [integer, "null"] }
+        variable_set_ids: { type: array, items: { type: integer }, uniqueItems: true }
+        overrides:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              value_type: { type: string, enum: [string, number, boolean, list, dictionary] }
+              value: { writeOnly: true }
+              secret: { type: boolean }
+            required: [name, value_type, value, secret]
+        host_limit: { type: [string, "null"] }
+        check_mode: { type: boolean, default: false }
+        timeout_seconds: { type: integer, minimum: 60, maximum: 86400, default: 3600 }
+      required: [playbook_id, inventory_id]
+    AnsibleExecutorTask:
+      type: object
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [syntax_check, host_key_scan, connectivity_test] }
+        status: { type: string, enum: [queued, running, succeeded, failed, canceled] }
+        result: { type: object, additionalProperties: true }
+        error_code: { type: [string, "null"] }
+        error_detail: { type: [string, "null"] }
+        started_at: { type: [string, "null"], format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, kind, status, result, created_at, updated_at]
+    AnsibleHostKeyConfirmationInput:
+      type: object
+      properties:
+        candidates:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              host: { type: string }
+              port: { type: integer, minimum: 1, maximum: 65535 }
+              known_hosts_line: { type: string }
+              scanned_fingerprint: { type: string }
+              expected_fingerprint: { type: string, description: "Entered from an independent trusted channel." }
+            required: [host, port, known_hosts_line, scanned_fingerprint, expected_fingerprint]
+      required: [candidates]
+    AnsibleRunGroupSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [queued, running, succeeded, failed, partially_succeeded, canceling, canceled] }
+        execution_mode: { type: string, enum: [sequential, parallel] }
+        failure_policy: { type: string, enum: [stop, continue] }
+        concurrency_limit: { type: integer }
+        inventory_id: { type: [integer, "null"] }
+        credential_id: { type: [integer, "null"] }
+        launch_snapshot: { type: object, additionalProperties: true }
+        cancel_requested_at: { type: [string, "null"], format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, status, execution_mode, failure_policy, concurrency_limit, launch_snapshot, created_at, updated_at]
+    AnsibleRunGroup:
+      allOf:
+        - { $ref: "#/components/schemas/AnsibleRunGroupSummary" }
+        - type: object
+          properties:
+            runs: { type: array, items: { $ref: "#/components/schemas/AnsibleRun" } }
+          required: [runs]
+    AnsibleRun:
+      type: object
+      properties:
+        id: { type: integer }
+        run_group_id: { type: integer }
+        playbook_id: { type: [integer, "null"] }
+        position: { type: integer }
+        status: { type: string, enum: [waiting, queued, validating, running, succeeded, failed, canceling, canceled, skipped] }
+        playbook_name: { type: string }
+        inventory_name: { type: string }
+        credential_name: { type: string }
+        credential_fingerprint: { type: [string, "null"] }
+        variable_audit: { type: object, additionalProperties: true }
+        secret_variable_names: { type: array, items: { type: string } }
+        host_limit: { type: [string, "null"] }
+        check_mode: { type: boolean }
+        timeout_seconds: { type: integer }
+        error_code: { type: [string, "null"] }
+        error_detail: { type: [string, "null"] }
+        exit_status: { type: [integer, "null"] }
+        ok_count: { type: integer }
+        changed_count: { type: integer }
+        failed_count: { type: integer }
+        unreachable_count: { type: integer }
+        stored_event_bytes: { type: integer }
+        truncated: { type: boolean }
+        queued_at: { type: [string, "null"], format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+        cancel_requested_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, position, status, playbook_name, inventory_name, credential_name, check_mode, timeout_seconds, truncated]
+    AnsibleRunEvent:
+      type: object
+      properties:
+        id: { type: integer }
+        event_uuid: { type: string }
+        parent_uuid: { type: [string, "null"] }
+        counter: { type: integer }
+        event_type: { type: string }
+        play: { type: [string, "null"] }
+        task: { type: [string, "null"] }
+        host: { type: [string, "null"] }
+        event_time: { type: [string, "null"], format: date-time }
+        stdout: { type: [string, "null"], description: "Redacted output." }
+        event_data: { type: object, additionalProperties: true, description: "Redacted structured event data." }
+        truncated: { type: boolean }
+        created_at: { type: string, format: date-time }
+      required: [id, event_uuid, counter, event_type, event_data, truncated, created_at]
+    AnsibleExecutorHealth:
+      type: object
+      properties:
+        configured_runners: { type: integer }
+        active_runners: { type: integer }
+        last_seen_at: { type: [string, "null"], format: date-time }
+        oldest_queued_age_seconds: { type: [integer, "null"] }
+      required: [configured_runners, active_runners]
     CcTemplate:
       type: object
       properties:

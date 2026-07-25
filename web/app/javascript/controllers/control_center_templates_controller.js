@@ -1,9 +1,12 @@
 import { Controller } from "@hotwired/stimulus"
 import { apiFetch } from "lib/api_fetch"
+import { TemplateBatchImporter } from "lib/template_batch_importer"
 import {
   EditorView, EditorState, basicSetup, yaml, oneDark,
   keymap, indentWithTab, placeholder, Compartment,
 } from "codemirror"
+import { filterTemplates } from "lib/template_search"
+import { TemplateEditorSession } from "lib/template_editor_session"
 
 // Templates tab: list/create/edit/delete templates and dispatch jobs. All rows
 // and cells are built with createElement/textContent so template-supplied
@@ -16,15 +19,25 @@ export default class extends Controller {
     "fTargetType", "fTargetSep", "fTargetSepCustom", "fTargetOutput", "targetFields", "targetSepCustomWrap",
     "sendDialog", "sendName", "sendTargets", "sendQueue", "sendChunk", "sendDelay", "sendResult",
     "modeStructured", "modeYaml", "modeSplit", "splitWrap", "structuredPanel", "yamlPanel", "yamlEditor", "yamlErrors", "yamlValid", "fileInput",
+    "batchFileInput", "dropOverlay", "importDialog", "importRows", "importSummary", "importClose",
+    "conflictPanel", "conflictFile", "conflictName",
+    "searchInput", "resultCount", "clearSearch", "listError", "noMatches",
   ]
 
   connect() {
-    this.editingId = null
+    this.templates = []
+    this.listLoaded = false
+    this.editorSession = new TemplateEditorSession()
     this.sendTemplate = null
     this.mode = "structured"
     this.lastEdited = "structured"
     this._syncing = false
     this._mountEditor()
+    this._dragDepth = 0
+    this._importActive = false
+    this._importRowViews = new Map()
+    this._pendingConflict = null
+    this._resetEditor({ guard: false, focus: false })
     this.refresh()
   }
 
@@ -32,8 +45,13 @@ export default class extends Controller {
     clearTimeout(this._valTimer)
     clearTimeout(this._yamlTimer)
     clearTimeout(this._flashTimer)
+    clearTimeout(this._searchTimer)
     this._themeObserver?.disconnect()
     this.editorView?.destroy()
+    this._dragDepth = 0
+    this.dropOverlayTarget.classList.add("hidden")
+    if (this._pendingConflict) this._pendingConflict("skip_all")
+    this._pendingConflict = null
   }
 
   // --- CodeMirror YAML editor ----------------------------------------------
@@ -55,7 +73,11 @@ export default class extends Controller {
             ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", minHeight: "16rem", maxHeight: "26rem", overflow: "auto" },
           }),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged && !this._syncing) { this.lastEdited = "yaml"; this.validateYaml() }
+            if (u.docChanged && !this._syncing) {
+              this.editorSession.markDirty()
+              this.lastEdited = "yaml"
+              this.validateYaml()
+            }
           }),
         ],
       }),
@@ -85,18 +107,60 @@ export default class extends Controller {
 
   async refresh() {
     const { ok, data } = await apiFetch(this.indexUrlValue)
-    const templates = ok && data ? data.templates : []
-    this.render(templates)
+    if (!ok || !Array.isArray(data?.templates)) {
+      this.listErrorTarget.textContent = this.listLoaded
+        ? "Could not refresh templates. Showing the last available list."
+        : "Could not load templates."
+      this.listErrorTarget.classList.remove("hidden")
+      this.render()
+      return false
+    }
+
+    this.templates = data.templates
+    this.listLoaded = true
+    this.listErrorTarget.textContent = ""
+    this.listErrorTarget.classList.add("hidden")
+    this.render()
+    return true
   }
 
-  render(templates) {
+  render() {
+    const query = this.searchInputTarget.value.trim()
+    const filtered = filterTemplates(this.templates, query)
     this.rowsTarget.replaceChildren()
-    this.emptyTarget.classList.toggle("hidden", templates.length > 0)
-    templates.forEach((t) => this.rowsTarget.appendChild(this.rowFor(t)))
+    filtered.forEach((template) => this.rowsTarget.appendChild(this.rowFor(template)))
+    this.resultCountTarget.textContent = `${filtered.length} of ${this.templates.length} templates`
+    this.clearSearchTarget.classList.toggle("hidden", query.length === 0)
+    this.emptyTarget.classList.toggle("hidden", !this.listLoaded || this.templates.length > 0)
+    this.noMatchesTarget.classList.toggle("hidden", query.length === 0 || this.templates.length === 0 || filtered.length > 0)
+  }
+
+  searchChanged() {
+    clearTimeout(this._searchTimer)
+    this._searchTimer = setTimeout(() => this.render(), 100)
+  }
+
+  clearSearch() {
+    clearTimeout(this._searchTimer)
+    this.searchInputTarget.value = ""
+    this.render()
+    this.searchInputTarget.focus()
   }
 
   rowFor(t) {
     const tr = document.createElement("tr")
+    tr.tabIndex = 0
+    tr.dataset.templateId = t.id
+    tr.setAttribute("aria-selected", String(this.editorSession.isEditing(t.id)))
+    tr.className = "cursor-pointer outline-none transition-colors hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zinc-400 dark:hover:bg-zinc-800/50"
+    tr.classList.toggle("bg-zinc-100", this.editorSession.isEditing(t.id))
+    tr.classList.toggle("dark:bg-zinc-800", this.editorSession.isEditing(t.id))
+    tr.addEventListener("click", () => this.selectTemplate(t))
+    tr.addEventListener("keydown", (event) => {
+      if (event.target !== tr || !["Enter", " "].includes(event.key)) return
+      event.preventDefault()
+      this.selectTemplate(t)
+    })
     tr.appendChild(this.cell(t.name, "px-4 py-2 font-medium text-zinc-900 dark:text-zinc-100"))
     tr.appendChild(this.cell(t.kind, "px-4 py-2 text-zinc-500 dark:text-zinc-400"))
     const summary = (t.commands || []).map((c) => c.command).join(" ")
@@ -106,7 +170,7 @@ export default class extends Controller {
     const actions = document.createElement("td")
     actions.className = "px-4 py-2 text-right whitespace-nowrap"
     actions.appendChild(this.button("Send", () => this.openSend(t)))
-    actions.appendChild(this.button("Edit", () => this.openEditor(t)))
+    actions.appendChild(this.button("Edit", () => this.selectTemplate(t)))
     actions.appendChild(this.button("Delete", () => this.destroy(t), "text-rose-600"))
     tr.appendChild(actions)
     return tr
@@ -124,51 +188,274 @@ export default class extends Controller {
     b.type = "button"
     b.textContent = label
     b.className = `ml-3 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white ${extra}`
-    b.addEventListener("click", onClick)
+    b.addEventListener("click", (event) => {
+      event.stopPropagation()
+      onClick(event)
+    })
     return b
+  }
+
+  // --- batch YAML import ---------------------------------------------------
+
+  batchFilesSelected(event) {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ""
+    this.startBatchImport(files)
+  }
+
+  dragEnter(event) {
+    if (!this._isFileDrag(event)) return
+    event.preventDefault()
+    this._dragDepth += 1
+    this.dropOverlayTarget.classList.remove("hidden")
+  }
+
+  dragOver(event) {
+    if (!this._isFileDrag(event)) return
+    event.preventDefault()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy"
+  }
+
+  dragLeave(event) {
+    if (this._dragDepth === 0) return
+    this._dragDepth = Math.max(0, this._dragDepth - 1)
+    if (this._dragDepth === 0) this.dropOverlayTarget.classList.add("hidden")
+  }
+
+  dropFiles(event) {
+    if (!this._isFileDrag(event)) return
+    event.preventDefault()
+    const files = Array.from(event.dataTransfer?.files || [])
+    this.dragEnd()
+    this.startBatchImport(files)
+  }
+
+  dragEnd() {
+    this._dragDepth = 0
+    this.dropOverlayTarget.classList.add("hidden")
+  }
+
+  _isFileDrag(event) {
+    return Array.from(event.dataTransfer?.types || []).includes("Files")
+  }
+
+  async startBatchImport(files) {
+    if (!files.length || this._importActive) return
+    this._importActive = true
+    this._openImportDialog(files)
+
+    const indexResponse = await apiFetch(this.indexUrlValue)
+    if (!indexResponse.ok || !Array.isArray(indexResponse.data?.templates)) {
+      const results = files.map((file, index) => ({
+        index,
+        fileName: file.name,
+        templateName: null,
+        status: "failed",
+        errors: ["Could not load existing templates."],
+      }))
+      results.forEach((result) => this._renderImportStatus(result))
+      this._finishImport(results)
+      return
+    }
+
+    const importer = new TemplateBatchImporter({
+      maxBytes: 64000,
+      validateYaml: (yaml) => this._validateImportYaml(yaml),
+      createTemplate: (yaml) => this._createImportedTemplate(yaml),
+      updateTemplate: (id, yaml) => this._updateImportedTemplate(id, yaml),
+      resolveConflict: (conflict) => this._resolveImportConflict(conflict),
+      onStatus: (result) => this._renderImportStatus(result),
+    })
+
+    const results = await importer.run(files, indexResponse.data.templates)
+    await this.refresh()
+    this._finishImport(results)
+  }
+
+  _openImportDialog(files) {
+    this.importRowsTarget.replaceChildren()
+    this.importSummaryTarget.classList.add("hidden")
+    this.importSummaryTarget.textContent = ""
+    this.importCloseTarget.disabled = true
+    this.conflictPanelTarget.classList.add("hidden")
+    this._importRowViews = new Map()
+
+    files.forEach((file, index) => {
+      const row = document.createElement("li")
+      row.className = "rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800"
+
+      const line = document.createElement("div")
+      line.className = "flex items-center gap-3"
+      const name = document.createElement("span")
+      name.className = "min-w-0 flex-1 truncate font-mono text-sm"
+      name.textContent = file.name
+      const badge = document.createElement("span")
+      badge.className = this._importBadgeClasses("waiting")
+      badge.textContent = "waiting"
+      line.append(name, badge)
+
+      const detail = document.createElement("p")
+      detail.className = "mt-1 hidden text-xs text-zinc-500 dark:text-zinc-400"
+      row.append(line, detail)
+      this.importRowsTarget.appendChild(row)
+      this._importRowViews.set(index, { badge, detail })
+    })
+
+    if (!this.importDialogTarget.open) this.importDialogTarget.showModal()
+  }
+
+  _renderImportStatus(result) {
+    const view = this._importRowViews.get(result.index)
+    if (!view) return
+    view.badge.textContent = result.status
+    view.badge.className = this._importBadgeClasses(result.status)
+    const details = []
+    if (result.templateName) details.push(result.templateName)
+    if (result.errors?.length) details.push(result.errors.join("; "))
+    view.detail.textContent = details.join(" — ")
+    view.detail.classList.toggle("hidden", details.length === 0)
+  }
+
+  _importBadgeClasses(status) {
+    const base = "shrink-0 rounded px-2 py-0.5 text-xs font-medium"
+    const colors = {
+      waiting: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+      validating: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
+      imported: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
+      updated: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
+      skipped: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+      failed: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+    }
+    return `${base} ${colors[status] || colors.waiting}`
+  }
+
+  async _validateImportYaml(yaml) {
+    const { ok, data } = await apiFetch(this.validateYamlUrlValue, { method: "POST", body: { yaml } })
+    const valid = ok && data?.valid
+    return {
+      ok: valid,
+      template: data?.template,
+      errors: valid ? [] : this._importApiErrors(data, "Validation failed."),
+    }
+  }
+
+  async _createImportedTemplate(yaml) {
+    const { ok, data } = await apiFetch(this.indexUrlValue, { method: "POST", body: { yaml } })
+    return { ok, template: ok ? data : null, errors: ok ? [] : this._importApiErrors(data, "Import failed.") }
+  }
+
+  async _updateImportedTemplate(id, yaml) {
+    const { ok, data } = await apiFetch(`${this.indexUrlValue}/${id}`, { method: "PATCH", body: { yaml } })
+    return { ok, template: ok ? data : null, errors: ok ? [] : this._importApiErrors(data, "Update failed.") }
+  }
+
+  _importApiErrors(data, fallback) {
+    const errors = data?.errors || data?.detail
+    if (Array.isArray(errors)) return errors.map(String)
+    return errors ? [String(errors)] : [fallback]
+  }
+
+  _resolveImportConflict({ fileName, templateName }) {
+    this.conflictFileTarget.textContent = fileName
+    this.conflictNameTarget.textContent = templateName
+    this.conflictPanelTarget.classList.remove("hidden")
+    this.conflictPanelTarget.scrollIntoView({ block: "nearest" })
+    this.conflictPanelTarget.querySelector("button")?.focus()
+    return new Promise((resolve) => { this._pendingConflict = resolve })
+  }
+
+  chooseImportConflict(event) {
+    if (!this._pendingConflict) return
+    const resolve = this._pendingConflict
+    this._pendingConflict = null
+    this.conflictPanelTarget.classList.add("hidden")
+    resolve(event.currentTarget.dataset.decision)
+  }
+
+  _finishImport(results) {
+    const counts = { imported: 0, updated: 0, skipped: 0, failed: 0 }
+    results.forEach((result) => { if (result.status in counts) counts[result.status] += 1 })
+    this.importSummaryTarget.textContent =
+      `Imported ${counts.imported} · Updated ${counts.updated} · Skipped ${counts.skipped} · Failed ${counts.failed}`
+    this.importSummaryTarget.classList.remove("hidden")
+    this.importCloseTarget.disabled = false
+    this._importActive = false
+    this.importCloseTarget.focus()
+  }
+
+  preventImportClose(event) {
+    if (this._importActive) event.preventDefault()
+  }
+
+  closeImport() {
+    if (!this._importActive) this.importDialogTarget.close()
   }
 
   // --- editor --------------------------------------------------------------
 
-  newTemplate() {
-    this.editingId = null
-    this.fNameTarget.value = ""
-    this.fKindTarget.value = "cmdscript"
-    this.fOutputTarget.value = ""
-    this.fTagsTarget.value = ""
-    this.fDescriptionTarget.value = ""
-    this.commandsTarget.replaceChildren()
-    this.addCommand()
-    this._setTarget(null)
+  newTemplate() { this._resetEditor() }
+
+  openEditor(template) { this.selectTemplate(template) }
+
+  selectTemplate(template) {
+    if (this.editorSession.isEditing(template.id)) return
+    if (!this._confirmEditorReplacement()) return
+    this._populateEditor(template)
+  }
+
+  _confirmEditorReplacement() {
+    return this.editorSession.mayReplace(() => window.confirm("Discard unsaved template changes?"))
+  }
+
+  _populateEditor(template) {
+    this._syncGuard(() => {
+      this.fNameTarget.value = template.name || ""
+      this.fKindTarget.value = template.kind || "cmdscript"
+      this.fOutputTarget.value = template.output || ""
+      this.fTagsTarget.value = (template.tags || []).join(", ")
+      this.fDescriptionTarget.value = template.description || ""
+      this.commandsTarget.replaceChildren()
+      ;(template.commands || []).forEach((command) => this.addCommand(command))
+      if (!(template.commands || []).length) this.addCommand()
+      this._setTarget(template.target)
+      this._setYamlValue(template.yaml || "")
+    })
     this.errorsTarget.classList.add("hidden")
-    this.editorTarget.classList.remove("hidden")
-    this.sendDialogTarget.classList.add("hidden")
-    this.validate()
-    this._setYamlValue("")
+    if (this.sendDialogTarget.open) this.sendDialogTarget.close()
     this.lastEdited = "structured"
+    this.editorSession.markClean(template.id)
     this.applyStoredMode()
+    this.render()
+    this.fNameTarget.focus()
   }
 
-  openEditor(t) {
-    this.editingId = t.id
-    this.fNameTarget.value = t.name || ""
-    this.fKindTarget.value = t.kind || "cmdscript"
-    this.fOutputTarget.value = t.output || ""
-    this.fTagsTarget.value = (t.tags || []).join(", ")
-    this.fDescriptionTarget.value = t.description || ""
-    this.commandsTarget.replaceChildren()
-    ;(t.commands || []).forEach((c) => this.addCommand(c))
-    if (!(t.commands || []).length) this.addCommand()
-    this._setTarget(t.target)
-    this.editorTarget.classList.remove("hidden")
-    this.sendDialogTarget.classList.add("hidden")
-    this.validate()
-    this._setYamlValue(t.yaml || "")
+  _resetEditor({ guard = true, focus = true } = {}) {
+    if (guard && !this._confirmEditorReplacement()) return false
+    this._syncGuard(() => {
+      this.fNameTarget.value = ""
+      this.fKindTarget.value = "cmdscript"
+      this.fOutputTarget.value = ""
+      this.fTagsTarget.value = ""
+      this.fDescriptionTarget.value = ""
+      this.commandsTarget.replaceChildren()
+      this.addCommand()
+      this._setTarget(null)
+      this._setYamlValue("")
+    })
+    this.errorsTarget.classList.add("hidden")
     this.lastEdited = "structured"
+    this.editorSession.markClean(null)
     this.applyStoredMode()
+    this.render()
+    if (focus) this.fNameTarget.focus()
+    return true
   }
 
-  closeEditor() { this.editorTarget.classList.add("hidden") }
+  closeEditor() { this._resetEditor() }
+
+  markEditorDirty() {
+    if (!this._syncing) this.editorSession.markDirty()
+  }
 
   // --- editor mode + yaml ---------------------------------------------------
 
@@ -211,6 +498,7 @@ export default class extends Controller {
     reader.onload = () => {
       this._setYamlValue(String(reader.result || ""))
       this.lastEdited = "yaml"
+      this.editorSession.markDirty()
       this.showYaml()
     }
     reader.readAsText(file)
@@ -328,7 +616,10 @@ export default class extends Controller {
     })
   }
 
-  addCommand(command = null) {
+  addCommand(commandOrEvent = null) {
+    const fromUser = typeof Event !== "undefined" && commandOrEvent instanceof Event
+    const command = fromUser ? null : commandOrEvent
+    if (fromUser && !this._syncing) this.editorSession.markDirty()
     const row = this.commandRowTarget.content.firstElementChild.cloneNode(true)
     if (command) {
       row.querySelector('[data-field=command]').value = command.command || ""
@@ -340,6 +631,7 @@ export default class extends Controller {
 
   removeCommand(event) {
     event.target.closest("[data-row]").remove()
+    this.editorSession.markDirty()
     this.validate()
   }
 
@@ -454,14 +746,19 @@ export default class extends Controller {
     } else {
       body = this._structuredBody()
     }
-    const url = this.editingId ? `${this.indexUrlValue}/${this.editingId}` : this.indexUrlValue
-    const method = this.editingId ? "PATCH" : "POST"
+    const editingId = this.editorSession.editingId
+    const url = editingId ? `${this.indexUrlValue}/${editingId}` : this.indexUrlValue
+    const method = editingId ? "PATCH" : "POST"
     const { ok, data } = await apiFetch(url, { method, body })
     if (ok) {
-      if (data && data.id) this.editingId = data.id
-      this.refresh()
-      if (close) this.closeEditor()
-      else this._flashSaved()
+      const savedId = data?.id ?? editingId
+      this.editorSession.markClean(savedId)
+      await this.refresh()
+      if (close) this._resetEditor({ guard: false })
+      else {
+        this.render()
+        this._flashSaved()
+      }
     } else if (source === "yaml") {
       this._renderYamlErrors((data && data.detail) || ["save failed"])
     } else {
@@ -475,10 +772,14 @@ export default class extends Controller {
     this._flashTimer = setTimeout(() => this.savedFlashTarget.classList.add("hidden"), 1500)
   }
 
-  async destroy(t) {
-    if (!window.confirm(`Delete template "${t.name}"?`)) return
-    await apiFetch(`${this.indexUrlValue}/${t.id}`, { method: "DELETE" })
-    this.refresh()
+  async destroy(template) {
+    if (!window.confirm(`Delete template "${template.name}"?`)) return
+    const { ok } = await apiFetch(`${this.indexUrlValue}/${template.id}`, { method: "DELETE" })
+    if (!ok) return
+
+    const deletedSelection = this.editorSession.isEditing(template.id)
+    await this.refresh()
+    if (deletedSelection) this._resetEditor({ guard: false })
   }
 
   // --- send job ------------------------------------------------------------
@@ -492,11 +793,10 @@ export default class extends Controller {
     this.sendDelayTarget.value = "0"
     this.sendResultTarget.classList.add("hidden")
     this.sendResultTarget.textContent = ""
-    this.sendDialogTarget.classList.remove("hidden")
-    this.editorTarget.classList.add("hidden")
+    if (!this.sendDialogTarget.open) this.sendDialogTarget.showModal()
   }
 
-  closeSend() { this.sendDialogTarget.classList.add("hidden") }
+  closeSend() { this.sendDialogTarget.close() }
 
   async submitJob() {
     const body = {

@@ -8,7 +8,7 @@
        aria-label="<%= local_assigns.fetch(:label, "Sections") %>">
     <% department_tabs.each do |tab| %>
       <% href = send(tab[:path]) %>
-      <% active = current_page?(href) %>
+      <% active = current_page?(href) || (tab[:prefix].present? && request.path.start_with?(tab[:prefix])) %>
       <%= link_to tab[:name], href,
             "aria-current": (active ? "page" : nil),
             class: "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors #{
