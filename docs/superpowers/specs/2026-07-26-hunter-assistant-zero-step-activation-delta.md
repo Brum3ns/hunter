@@ -1,0 +1,227 @@
+# Threat-model delta — zero-step Assistant activation (2026-07-26)
+
+Status: **APPROVED**
+
+Base documents:
+
+- `docs/superpowers/specs/2026-07-25-hunter-assistant-security-design.md`
+- `docs/security/hunter-assistant-threat-model.md`
+- `docs/security/hunter-assistant-production-checklist.md`
+- `AGENTS.md` — "Assistant capability change rule"
+
+## Operator requirement driving this delta
+
+Install the provider token file(s) on the host, run `docker compose up`, and the
+chat feature works — safely, with no further manual step. Everything else must
+be derived or generated.
+
+## Deployment shape: one codebase
+
+There is no dev/prod code variant. `docker-compose.yaml` and
+`docker-compose.prod.yaml` differ only in image source (`build:` versus a
+registry reference), `RAILS_ENV`/Procfile selection, published ports, and
+`RAILS_LOG_TO_STDOUT`. Everything else — services, credential generation,
+activation derivation, mounts — is identical between them.
+
+Consequently `secrets/{dev,prod,disabled}` collapses to a single `secrets/`
+directory used by both compose files. There is no `disabled` variant to fall
+back to and no separate `prod` subpath; presence and validity of the files
+directly under `secrets/` is what is evaluated everywhere.
+
+## What the operator supplies after this delta
+
+Exactly one thing: one or both provider key files in `secrets/`.
+
+- `secrets/assistant_openai_api_key`
+- `secrets/assistant_anthropic_api_key`
+
+Mode `0600` or `0400`, owned `1000:1000`. A missing file behaves identically to
+an empty file: that provider is disabled and the chat says so. Neither case is
+ever a boot failure. No other file, flag, rake task, or UI action is required.
+
+## Change 1 — internal service credentials are generated, not operator-provided
+
+Today `ops/assistant/generate_secrets.sh` must be run by hand, and
+`assistant_mcp_hunter_token` requires `rake assistant:service_tokens:create`,
+which **prints a raw token** for the operator to paste into a file.
+
+A new `assistant-bootstrap` one-shot service generates, idempotently, only files
+that are absent:
+
+| Secret | Source |
+|---|---|
+| `assistant_rabbitmq_provision_password` | 32-byte CSPRNG, base64url |
+| `assistant_rails_amqp_password` | 32-byte CSPRNG, base64url |
+| `assistant_gateway_amqp_password` | 32-byte CSPRNG, base64url |
+| `assistant_validator_amqp_password` | 32-byte CSPRNG, base64url |
+| `assistant_gateway_mcp_token` | 32-byte CSPRNG, base64url |
+| `assistant_mcp_hunter_token` | `Assistant::ServiceIdentity.generate!(role: mcp_reader)`, raw value written straight to file |
+
+Written to a dedicated `assistant_secrets` Docker volume mounted at
+`/run/assistant/secrets`, mode `0400`, owner `1000:1000`, mounted read-only by
+every consumer. The operator never sees or manages these six values.
+
+### New exposure
+
+- Secret material is generated inside a container and persisted in a Docker
+  volume rather than provisioned by a human onto the host filesystem.
+- The volume is a new at-rest location for credentials, included in any host
+  backup that captures Docker volumes.
+
+### Mitigations
+
+- The bootstrap service holds no provider key, no network egress, and no Hunter
+  HTTP client beyond the local database connection needed to mint the service
+  identity.
+- Generation is create-only: an existing file is never read, rewritten, or
+  logged. The raw MCP token is written with `umask 077` and never printed,
+  returned, or stored — only its digest persists, unchanged from today.
+- Rotation remains operator-driven: delete the file and restart, or use the
+  existing rotation runbook. `ASSISTANT_RABBITMQ_REPROVISION=true` still forces
+  broker re-provisioning.
+- The volume is documented in the credential matrix and the backup-retention
+  section of the production checklist as secret-bearing.
+
+### Residual risk
+
+Accepted: a host-level attacker who can read Docker volumes can read these
+internal credentials. That attacker can already read host-mounted secret files
+today, so the delta does not change the attacker's required position. Provider
+API keys remain operator-provided and are **not** generated or relocated.
+
+## Change 2 — activation is derived from provider-key presence and validity alone
+
+Today activation requires three separate manual acts: `ASSISTANT_ENABLED=true`,
+the database `Assistant::Setting#assistant_enabled?`, and a per-profile
+`reviewed_at` set through the admin UI.
+
+After this delta a provider profile is enabled if and only if a valid,
+non-placeholder key file for it is present in `secrets/` with an accepted mode
+and owner. There is no in-repo approval metadata, no catalog `approved` field,
+and no reviewed-through-git gate: presence and validity of the key file are the
+entire activation condition. A missing key file is treated identically to an
+empty one — the provider stays disabled and the chat says so, and neither is
+ever a boot failure.
+
+### Provider keys reach the gateway through a read-only bind mount, not Compose secrets
+
+The `assistant-gateway` service mounts `./secrets` read-only at `/run/secrets` —
+a plain Docker bind mount, not a Compose `secrets:` file-backed secret. Compose
+refuses to start a service when a file-backed secret's source file is absent,
+which would turn "provider not configured" into a boot failure and defeat the
+zero-step goal. A bind mount carries no such requirement: an absent file under
+`/run/secrets` is simply absent, and it is the gateway's own logic — not
+Compose — that decides an absent or empty key means "this provider is
+disabled," never a fatal condition.
+
+### The gateway gains an idle mode
+
+Today `assistant/gateway/cmd/hunter-assistant-gateway/main.go` calls
+`log.Fatal` when either provider key is missing, so it demands both keys just
+to start. After this delta the gateway:
+
+- starts regardless of which, if any, provider keys are present or valid;
+- reports not-ready on its health endpoint when no valid provider key exists;
+- does not consume the turn queue when no valid provider key exists; and
+- supports a single configured provider (previously both keys were mandatory).
+
+### `ASSISTANT_ENABLED` is repurposed as a kill override
+
+`ASSISTANT_ENABLED` no longer opts the feature in. Unset means the derived
+state above applies; `false` forces every profile off regardless of any valid
+key file present. Setting it to `true` is equivalent to leaving it unset — it
+does not itself enable anything a key file does not already justify.
+
+### What is preserved
+
+- **Retention posture stays disclosed in the chat before the first turn.** It
+  is not a blocking gate — the operator is informed, not asked to click
+  approve.
+- **The runtime kill switch is retained.** `Assistant::Setting#assistant_enabled?`
+  (the Settings admin off-switch) still gates every browser and machine path
+  and still disables the feature without a redeploy, independently of
+  `ASSISTANT_ENABLED`.
+- Session-administrator restriction, CSRF protection, grant binding, tool
+  catalog, context sanitizers, and every bound in the base design are
+  unchanged.
+- **The broker architecture is unchanged.** RabbitMQ and the MCP broker stay
+  exactly as designed; this delta was not an opportunity to simplify that
+  architecture and does not propose doing so. Only credential provisioning and
+  the activation mechanism change.
+
+### New exposure
+
+- Placing a valid key file on the host now activates provider egress with no
+  distinct human decision made at that moment. A copied `secrets/` directory or
+  a restored backup activates the corresponding provider.
+
+### Mitigations
+
+- Fail-closed preflight refuses activation and names the offending file,
+  without printing any value, when a key is zero-length, matches a checked-in
+  example or placeholder, has an unaccepted mode or owner, or is a symlink.
+- Activation emits a metadata-only audit event and a startup log line recording
+  which profiles became enabled and why, so derived activation is never silent.
+- `secrets/` ships empty — no example or placeholder key is committed — so
+  cloning the repository cannot activate anything by itself.
+- The production checklist still requires recorded independent review before
+  the feature is considered releasable; this delta changes the activation
+  *mechanism*, not the review obligation.
+
+### Residual risk
+
+Accepted, and the core trade the operator is choosing: possession of a valid
+provider key file on the host is treated as the operator's intent to enable
+that provider. A restored backup or a copied secrets directory activates
+provider egress. Compensating controls are the retained kill switch, mandatory
+activation auditing, and the startup log line.
+
+## Explicitly out of scope
+
+This delta does **not** introduce, widen, or relax:
+
+- any Assistant context type, tool, provider feature, user role, write action, or
+  execution action
+- any generic network, search, shell, filesystem, credential, write, send,
+  schedule, or execution tool
+- any wildcard scope for a service or turn-grant identity
+- the six-tool MCP catalog, or any bound, limit, retention window, or sanitizer
+
+No capability surface changes. Only credential provisioning and the activation
+mechanism change.
+
+## Required verification evidence
+
+1. Adversarial preflight tests with stable outcomes: missing, zero-length,
+   placeholder, example-derived, wrong-mode, wrong-owner, and symlinked key
+   files each land in the disabled/fail-closed state with a redacted, stable
+   error or log line — never a boot failure.
+2. Bootstrap idempotence tests: repeat runs never rewrite an existing secret,
+   never print a value, and mint exactly one enabled `mcp_reader` identity.
+3. Activation-derivation tests: no key file present stays disabled; a present,
+   valid key file enables exactly that profile and writes a metadata-only audit
+   event; `ASSISTANT_ENABLED=false` forces every profile off regardless of key
+   presence.
+4. Kill-switch regression: a disabled setting blocks every browser and machine
+   path regardless of key presence.
+5. Gateway idle-mode tests: the gateway starts with zero, one, or two valid
+   keys present; its health endpoint reports not-ready and it does not consume
+   the turn queue when no valid key exists; a single configured provider is
+   fully functional on its own.
+6. Secret-leak gate over Git history, image layers, resolved Compose output,
+   and logs, including the new volume and bootstrap service.
+7. A live `docker compose up` on a Docker-capable host, from provider key files
+   only (including the zero-key-files case reaching a cleanly disabled state),
+   reaching a successful chat turn when a valid key is present — run by the
+   operator.
+
+Items 1–5 are automated. Items 6–7 are release gates recorded in the production
+checklist.
+
+## Approval
+
+- Operator approval: **APPROVED 2026-07-26**
+- Threat-model delta reviewed by: **UNSET**
+- Date: **UNSET**
+
+Implementation must not begin until operator approval is recorded here.
