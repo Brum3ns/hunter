@@ -1272,6 +1272,19 @@ Rails/`assistant-events` join only queue and MCP-Rails assistant networks in add
 
 Set numeric non-root users, `read_only: true`, `cap_drop: [ALL]`, `no-new-privileges`, service-specific default-deny seccomp profiles, AppArmor profiles on supported Linux deployments, `init: true`, bounded `tmpfs` with `noexec,nosuid,nodev`, memory/CPU/PID limits, health checks with status-only output, and restart policies. Build each syscall allowlist from observed startup/contract-test calls, then prove forbidden `mount`, `ptrace`, `unshare`, `keyctl`, `bpf`, raw-socket, and unneeded socket-family operations are denied; the validator alone receives the exact process syscalls needed for its fixed Ansible subprocess. Add no host bind mount except read-only secret sources. Keep the feature disabled by default. Build/publish all new images in the existing Gitea workflow with immutable commit tags.
 
+> **Correction (2026-07-26).** The `security_opt: apparmor=...` lines described
+> here were never actually applied: they name custom profiles that must be
+> loaded into the host kernel with `apparmor_parser` before `docker compose up`,
+> and nothing in this stack did that, so a fresh host failed to start with
+> `unable to apply apparmor profile: ... no such file or directory`. The four
+> `apparmor=...` lines were removed from both compose files; the profile files
+> themselves remain under `ops/assistant/apparmor/` (fixed and marked
+> not-applied-by-default) for an operator who wants to load one manually.
+> Docker's built-in `docker-default` AppArmor profile applies instead, layered
+> over the seccomp profiles this step also describes, which are unaffected. See
+> `docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md`
+> for the full reasoning and residual risk.
+
 - [ ] **Step 6: Run resolved-Compose and service isolation checks**
 
 Run: `docker compose config >/tmp/hunter-compose.resolved.yml && docker compose -f docker-compose.prod.yaml config >/tmp/hunter-compose-prod.resolved.yml`

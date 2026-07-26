@@ -56,7 +56,7 @@ mutable “latest” results.
 | Rails, JavaScript, Go race suites | Complete logs | UNSET | Not run |
 | MCP conformance and adversarial fixtures | Complete logs | UNSET | Not run |
 | Resolved development/production Compose | Redacted configs | UNSET | Not run |
-| Runtime hardening/AppArmor/seccomp | Verification output | UNSET | Not run |
+| Runtime hardening/seccomp (Docker default AppArmor) | Verification output | UNSET | Not run |
 | Network denial | DNS and direct-IP denial output | UNSET | Not run |
 | Secret leakage | Git/history/config/log/layer/SBOM scan output | UNSET | Not run |
 | Dependency audit | Brakeman, bundle-audit, govulncheck | UNSET | Not run |
@@ -87,8 +87,14 @@ mutable “latest” results.
 - [ ] Production networks match the tested matrix; no Assistant port, Docker
       socket, host mount, database path, executor path, or direct Internet path
       was added.
-- [ ] AppArmor profiles are loaded and service-specific seccomp denial probes
-      pass on the deployment kernel/runtime.
+- [ ] Service-specific seccomp denial probes pass on the deployment
+      kernel/runtime for all four assistant services, and each still declares
+      its `seccomp=` profile in the resolved Compose configuration. The four
+      services run under Docker's built-in `docker-default` AppArmor profile;
+      the custom profiles under `ops/assistant/apparmor/` are shipped but not
+      loaded or referenced by Compose (removed 2026-07-26 — see
+      `docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md`),
+      which is the accepted baseline, not a gap to close here.
 - [ ] Transcript/audit/backup retention and immediate-delete wording were
       reviewed against deployment policy, including any host backup process
       that captures Docker volumes: the `assistant_secrets` volume is now an

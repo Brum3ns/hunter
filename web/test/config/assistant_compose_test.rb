@@ -128,6 +128,32 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
+  # The four custom AppArmor profiles under ops/assistant/apparmor/ are kept in
+  # the repository (for an operator who wants to load one manually) but are no
+  # longer wired into Compose: apparmor_parser is never run automatically, so a
+  # security_opt referencing an unloaded profile made `docker compose up` fail
+  # outright (see docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md).
+  # Docker's built-in docker-default profile applies to these services instead.
+  # This asserts the seccomp half of that hardening is untouched and that
+  # apparmor= cannot silently reappear in either compose file without a
+  # deliberate decision.
+  def test_neither_compose_file_declares_a_custom_apparmor_profile
+    each_compose do |filename, config|
+      services = config.fetch("services")
+
+      UNTRUSTED_SERVICES.each do |name|
+        options = services.fetch(name).fetch("security_opt")
+        assert options.any? { |option| option.start_with?("seccomp=") },
+          "#{filename}: #{name} has no seccomp profile"
+      end
+    end
+
+    COMPOSE_FILES.each do |filename|
+      refute_match(/apparmor=/, ROOT.join(filename).read,
+        "#{filename}: still declares a custom AppArmor profile")
+    end
+  end
+
   # No service declares a Compose file-backed secret any more: the six machine
   # credentials moved to the assistant_secrets volume (Task 9), and the two
   # provider keys were never Compose secrets (bind-mounted directly instead).
@@ -670,7 +696,6 @@ class AssistantComposeTest < Minitest::Test
   def assert_security_options(filename, name, options)
     assert_includes options, "no-new-privileges:true", "#{filename}: #{name} allows privilege escalation"
     assert options.any? { |option| option.start_with?("seccomp=") }, "#{filename}: #{name} has no seccomp profile"
-    assert options.any? { |option| option.start_with?("apparmor=") }, "#{filename}: #{name} has no AppArmor profile"
   end
 
   def assert_bounded_tmpfs(filename, name, mounts)

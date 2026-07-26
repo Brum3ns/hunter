@@ -25,17 +25,34 @@ chmod 0600 "$temporary_dir/development.yml" "$temporary_dir/production.yml"
 cd "$repository_root/web"
 bundle exec ruby test/config/assistant_compose_test.rb
 
-for profile in \
-  hunter-assistant-gateway \
-  hunter-mcp \
-  hunter-assistant-validator \
-  hunter-assistant-egress
-do
-  if [ -r /sys/kernel/security/apparmor/profiles ] &&
-      ! grep -q "^$profile " /sys/kernel/security/apparmor/profiles; then
-    echo "AppArmor profile is not loaded: $profile" >&2
-    exit 1
-  fi
+# The four assistant services no longer reference a custom AppArmor profile
+# (Docker's built-in docker-default profile applies instead; see
+# docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md).
+# What remains a real, host-independent guarantee is each service's seccomp
+# profile: it must still be declared in the resolved security_opt and the
+# referenced JSON file must exist on disk.
+cd "$repository_root"
+for resolved in "$temporary_dir/development.yml" "$temporary_dir/production.yml"; do
+  ruby -ryaml -e '
+    resolved_path, repository_root = ARGV
+    services = YAML.safe_load(File.read(resolved_path)).fetch("services")
+    seccomp_profiles = {
+      "assistant-gateway" => "gateway",
+      "hunter-mcp" => "mcp",
+      "assistant-validator" => "validator",
+      "assistant-egress" => "egress"
+    }
+
+    seccomp_profiles.each do |service_name, profile_name|
+      options = services.fetch(service_name).fetch("security_opt", [])
+      option = options.find { |entry| entry.start_with?("seccomp=") }
+      abort "#{resolved_path}: #{service_name} has no seccomp profile in security_opt" unless option
+
+      path = option.split("=", 2).last
+      resolved_json = File.expand_path(path, repository_root)
+      abort "#{resolved_path}: #{service_name} seccomp profile #{path} does not exist" unless File.exist?(resolved_json)
+    end
+  ' "$resolved" "$repository_root"
 done
 
 echo "Resolved development and production Compose security checks passed."

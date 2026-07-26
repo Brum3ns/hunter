@@ -330,6 +330,67 @@ is read-only, the read is bounded to a short prefix per call, no reason code
 or log line this delta adds ever includes file contents, and the existing
 kill switch and audit trail for administrator enable/disable are unaffected.
 
+## Change 4 — custom AppArmor profiles removed; Docker's default profile applies
+
+A live `docker compose up` on the operator's host failed outright with
+`unable to apply apparmor profile: ... no such file or directory`. The four
+assistant services (`assistant-gateway`, `hunter-mcp`, `assistant-validator`,
+`assistant-egress`) each declared `security_opt: apparmor=<name>` referencing a
+custom profile under `ops/assistant/apparmor/` that must be loaded into the
+host kernel with `apparmor_parser` — a manual, root, per-host step that
+nothing in this stack performed. These profiles were previously gated behind
+Compose `profiles:` and never actually started, so the requirement was
+invisible until the feature was turned on by default under Change 2.
+
+The operator decided to remove the four `apparmor=...` `security_opt` lines
+from both compose files rather than add a host-preparation step, on this
+reasoning:
+
+- Most of what the custom profiles enforced is already covered by other
+  controls: `deny network raw` is redundant given `cap_drop: ALL` already
+  removes `CAP_NET_RAW`; `deny mount`/`umount` is redundant without
+  `CAP_SYS_ADMIN`; `deny ptrace` is near-redundant for single-process
+  containers running with `no-new-privileges`.
+- The genuinely additive parts of the custom profiles were a secret
+  read-allowlist and an executable allowlist. The strongest case was
+  `assistant-validator`, the only container that spawns subprocesses
+  (`ansible-playbook`, `python3`) on model-authored content — but its seccomp
+  profile is a real default-deny allowlist (`defaultAction: SCMP_ACT_ERRNO`,
+  116 permitted syscalls), which already constrains that subprocess at the
+  syscall level, needs no host preparation, and is applied by file path
+  (unaffected by this change).
+- Removing the custom profiles does not leave containers unconfined on an
+  AppArmor-enabled host: Docker automatically applies its built-in
+  `docker-default` profile. The change is custom MAC → baseline MAC, still
+  layered over seccomp, `read_only`, `cap_drop: ALL`, non-root uid 1000, and
+  network isolation.
+- Requiring `apparmor_parser` as root before every fresh host defeats the
+  plain-`docker compose up` requirement this whole delta exists to satisfy,
+  and a profile that is shipped but never loaded is worse than none: it
+  creates a false impression of enforcement.
+
+The four profile files remain in the repository under
+`ops/assistant/apparmor/` — corrected to read machine credentials from
+`/run/assistant/secrets/` (where Change 1 relocated them) rather than the
+stale `/run/secrets/` paths they were written against, and each now carries a
+header stating it is not applied by default and how an operator would load it.
+`ops/assistant/verify_compose_security.sh` and
+`web/test/config/assistant_compose_test.rb` no longer check for loaded
+AppArmor profiles; they now assert each of the four services still declares
+its `seccomp=` profile and that no `apparmor=` line has silently reappeared in
+either compose file.
+
+### Residual risk
+
+Accepted: the four assistant services run under Docker's baseline
+`docker-default` AppArmor profile instead of the custom, service-specific one.
+This is a real reduction in mandatory-access-control specificity, compensated
+by the seccomp profiles (the only custom-profile content judged genuinely
+additive), `cap_drop: ALL`, `read_only`, non-root uid 1000, and network
+isolation, none of which this change touches. An operator who wants the
+stricter custom profile on a host they control can still load one manually
+following the header of the corresponding file under `ops/assistant/apparmor/`.
+
 ## Explicitly out of scope
 
 This delta does **not** introduce, widen, or relax:

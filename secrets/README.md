@@ -115,20 +115,24 @@ through the read-only bind mount of this directory described above, so their
 host-side mode and owner (`0600`, `1000:1000`) are what the gateway actually
 sees; there is no separate in-container secret mode for Compose to enforce.
 `ops/assistant/verify_compose_security.sh` checks the resolved development and
-production Compose configuration and the loaded AppArmor profiles, not secret
-file mode directly — the gateway's own `safeSecretMode` check is what rejects
-a key file with an unaccepted mode at read time. If a deployment's Compose
-implementation cannot provide a genuinely read-only bind mount to the
-configured numeric service user, force every profile off with
-`ASSISTANT_ENABLED=false` and use a supported secret backend instead of
-widening file permissions.
+production Compose configuration and each of the four assistant services'
+seccomp profile, not secret file mode directly — the gateway's own
+`safeSecretMode` check is what rejects a key file with an unaccepted mode at
+read time. If a deployment's Compose implementation cannot provide a
+genuinely read-only bind mount to the configured numeric service user, force
+every profile off with `ASSISTANT_ENABLED=false` and use a supported secret
+backend instead of widening file permissions.
 
-On AppArmor-enabled deployment hosts, load the checked-in profiles before
-creating the assistant containers:
-
-```sh
-sudo apparmor_parser -r ops/assistant/apparmor/hunter-assistant-gateway
-sudo apparmor_parser -r ops/assistant/apparmor/hunter-mcp
-sudo apparmor_parser -r ops/assistant/apparmor/hunter-assistant-validator
-sudo apparmor_parser -r ops/assistant/apparmor/hunter-assistant-egress
-```
+The four assistant services (`assistant-gateway`, `hunter-mcp`,
+`assistant-validator`, `assistant-egress`) run under Docker's default
+AppArmor profile plus their own default-deny seccomp profiles
+(`ops/assistant/seccomp/*.json`) — no host preparation is required for either.
+Custom AppArmor profiles for these services exist under
+`ops/assistant/apparmor/` but are not loaded or referenced by either compose
+file; a profile referencing a name that is not loaded into the host kernel
+makes `docker compose up` fail outright, which defeats the "install a key
+file and `docker compose up`" requirement this stack is built around. See
+`docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md`
+for the reasoning and residual risk, and the header of each file under
+`ops/assistant/apparmor/` for how to enable one manually if a deployment host
+wants the stricter, custom profile in addition to the baseline.

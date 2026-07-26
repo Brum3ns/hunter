@@ -467,7 +467,6 @@ services:
     security_opt:
       - no-new-privileges:true
       - seccomp=./ops/assistant/seccomp/egress.json
-      - apparmor=hunter-assistant-egress
     init: true
     mem_limit: 128m
     cpus: "0.50"
@@ -511,7 +510,6 @@ services:
     security_opt:
       - no-new-privileges:true
       - seccomp=./ops/assistant/seccomp/mcp.json
-      - apparmor=hunter-mcp
     init: true
     mem_limit: 128m
     cpus: "0.50"
@@ -546,7 +544,6 @@ services:
     security_opt:
       - no-new-privileges:true
       - seccomp=./ops/assistant/seccomp/validator.json
-      - apparmor=hunter-assistant-validator
     init: true
     mem_limit: 256m
     cpus: "1.00"
@@ -587,7 +584,6 @@ services:
     security_opt:
       - no-new-privileges:true
       - seccomp=./ops/assistant/seccomp/gateway.json
-      - apparmor=hunter-assistant-gateway
     init: true
     mem_limit: 256m
     cpus: "1.00"

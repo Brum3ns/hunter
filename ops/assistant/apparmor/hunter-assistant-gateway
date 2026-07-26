@@ -1,3 +1,13 @@
+# NOT applied by default. Compose no longer references this profile (the
+# `apparmor=hunter-assistant-gateway` security_opt line was removed from both
+# docker-compose.yaml and docker-compose.prod.yaml on 2026-07-26 — see
+# docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md).
+# Enabling it requires loading it into the host kernel as root before
+# `docker compose up` (`apparmor_parser -r ops/assistant/apparmor/hunter-assistant-gateway`)
+# and re-adding the security_opt line; without that, Docker's built-in
+# `docker-default` AppArmor profile applies to this container instead, layered
+# over its seccomp profile, read_only root, dropped capabilities, and non-root
+# user as before.
 #include <tunables/global>
 
 profile hunter-assistant-gateway flags=(attach_disconnected,mediate_deleted) {
@@ -18,8 +28,8 @@ profile hunter-assistant-gateway flags=(attach_disconnected,mediate_deleted) {
   /hunter-assistant-gateway rix,
   /run/secrets/assistant_openai_api_key r,
   /run/secrets/assistant_anthropic_api_key r,
-  /run/secrets/assistant_gateway_mcp_token r,
-  /run/secrets/assistant_gateway_amqp_password r,
+  /run/assistant/secrets/assistant_gateway_mcp_token r,
+  /run/assistant/secrets/assistant_gateway_amqp_password r,
   /etc/hosts r,
   /etc/hostname r,
   /etc/resolv.conf r,
