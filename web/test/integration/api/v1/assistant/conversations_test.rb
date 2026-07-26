@@ -13,18 +13,25 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
   end
 
   # Every input Assistant::Activation.state consults is pinned here, in the order it
-  # consults them: the kill override first, then the required settings, then the
-  # credential directory. ASSISTANT_ENABLED especially must be pinned rather than
-  # inherited — docker-compose sets it to "false" by default, so an ambient value
-  # would short-circuit to disabled_by_environment and fail this assertion inside the
-  # operator's own container.
+  # consults them: the kill override, then the required settings, then the retention
+  # window, then the credential directory. Two of these must be pinned rather than
+  # inherited or the assertion below is decided by a path this test does not control:
+  # docker-compose defaults ASSISTANT_ENABLED to "false" (short-circuiting to
+  # disabled_by_environment inside the operator's own container), and an out-of-range
+  # ASSISTANT_TRANSCRIPT_DAYS or ASSISTANT_AUDIT_DAYS makes
+  # Assistant::Config.configuration_reasons return invalid_retention_window, which
+  # Activation.state reports before it ever consults credentials.
   test "the bootstrap payload discloses the disabled reason without leaking paths" do
     original_enabled = ENV["ASSISTANT_ENABLED"]
     original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     original_ansible_allowlist = ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"]
+    original_transcript_days = ENV["ASSISTANT_TRANSCRIPT_DAYS"]
+    original_audit_days = ENV["ASSISTANT_AUDIT_DAYS"]
     ENV["ASSISTANT_ENABLED"] = nil
     ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
+    ENV["ASSISTANT_TRANSCRIPT_DAYS"] = "7"
+    ENV["ASSISTANT_AUDIT_DAYS"] = "90"
 
     empty_directory = nil
     begin
@@ -38,6 +45,8 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
       ENV["ASSISTANT_ENABLED"] = original_enabled
       ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original_command_allowlist
       ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = original_ansible_allowlist
+      ENV["ASSISTANT_TRANSCRIPT_DAYS"] = original_transcript_days
+      ENV["ASSISTANT_AUDIT_DAYS"] = original_audit_days
     end
 
     assert_response :success
