@@ -1,3 +1,6 @@
 Rails.application.config.after_initialize do
-  Assistant::Config.validate_production! if Rails.env.production?
+  state = Assistant::Activation.state
+  Rails.logger.info(
+    "[assistant] active=#{state.active} reason=#{state.reason} providers=#{state.available_slugs.join(',')}"
+  )
 end

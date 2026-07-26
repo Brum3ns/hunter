@@ -9,6 +9,9 @@ module Assistant
     def state(directory: ProviderCredentials::DEFAULT_DIRECTORY)
       return State.new(active: false, available_slugs: [], reason: "disabled_by_environment") if killed?
 
+      reasons = Config.configuration_reasons
+      return State.new(active: false, available_slugs: [], reason: reasons.first) if reasons.any?
+
       slugs = ProviderCredentials.available_slugs(directory: directory)
       if slugs.empty?
         State.new(active: false, available_slugs: [], reason: "no_provider_credentials")

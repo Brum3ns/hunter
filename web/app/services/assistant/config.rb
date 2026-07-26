@@ -62,21 +62,27 @@ module Assistant
       bounded_ceiling("ASSISTANT_MAX_VALIDATIONS_PER_TURN", HARD_LIMITS[:max_validations_per_turn])
     end
 
-    def validate_production!
-      return unless enabled?
+    REQUIRED_SETTINGS = {
+      "ADMIN_USERNAME" => "missing_admin_username",
+      "CONTROL_CENTER_COMMAND_ALLOWLIST" => "missing_command_allowlist",
+      "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST" => "missing_ansible_module_allowlist"
+    }.freeze
 
-      errors = []
-      errors << "ADMIN_USERNAME must be set" if configured("ADMIN_USERNAME").to_s.strip.blank?
-      errors << "CONTROL_CENTER_COMMAND_ALLOWLIST must be set" if configured("CONTROL_CENTER_COMMAND_ALLOWLIST").to_s.strip.blank?
-      errors << "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST must be set" if configured("ASSISTANT_ANSIBLE_MODULE_ALLOWLIST").to_s.strip.blank?
-
-      %i[transcript_retention_days audit_retention_days].each do |reader|
-        public_send(reader)
-      rescue ArgumentError => error
-        errors << error.message
+    # Configuration problems disable the assistant with a stable reason. They never
+    # abort boot: an operator must still be able to reach the app and read why.
+    def configuration_reasons
+      reasons = REQUIRED_SETTINGS.filter_map do |key, reason|
+        reason if configured(key).to_s.strip.blank?
       end
 
-      raise "Invalid assistant production configuration: #{errors.join('; ')}" if errors.any?
+      begin
+        transcript_retention_days
+        audit_retention_days
+      rescue ArgumentError
+        reasons << "invalid_retention_window"
+      end
+
+      reasons
     end
 
     def configured(key)

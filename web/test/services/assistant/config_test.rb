@@ -1,4 +1,5 @@
 require "test_helper"
+require "tmpdir"
 
 class Assistant::ConfigTest < ActiveSupport::TestCase
   test "hard ceilings cannot be raised by environment configuration" do
@@ -60,29 +61,50 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
     end
   end
 
-  test "production validation fails closed when enabled security settings are missing" do
-    values = {}
+  test "missing configuration yields reason codes instead of raising" do
+    stub_methods(Assistant::Config, configured: ->(_key) { nil }) do
+      reasons = Assistant::Config.configuration_reasons
 
-    # Activation is derived from provider credentials now, so drive
-    # validate_production!'s "enabled" branch by stubbing enabled? directly
-    # rather than relying on ASSISTANT_ENABLED (a kill switch, not an opt-in).
-    stub_methods(Assistant::Config, configured: ->(key) { values[key] }, enabled?: true) do
-      error = assert_raises(RuntimeError) { Assistant::Config.validate_production! }
-      assert_includes error.message, "ADMIN_USERNAME must be set"
-      assert_includes error.message, "CONTROL_CENTER_COMMAND_ALLOWLIST must be set"
-      assert_includes error.message, "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST must be set"
+      assert_includes reasons, "missing_admin_username"
+      assert_includes reasons, "missing_command_allowlist"
+      assert_includes reasons, "missing_ansible_module_allowlist"
     end
   end
 
-  test "production validation accepts a complete enabled configuration" do
+  test "the initializer never raises on incomplete configuration" do
+    stub_methods(Assistant::Config, configured: ->(_key) { nil }) do
+      assert_nothing_raised { Assistant::Activation.state(directory: "/nonexistent") }
+    end
+  end
+
+  # Activation is derived from provider credentials now, but a configuration
+  # problem must still disable the assistant rather than silently activate it
+  # (ASSISTANT_ENABLED is a kill switch, not an opt-in — configuration
+  # completeness is checked independently of that override).
+  test "a configuration problem disables rather than activates" do
+    Dir.mktmpdir do |dir|
+      path = Pathname.new(dir).join("assistant_anthropic_api_key")
+      path.write("sk-live")
+      path.chmod(0o400)
+
+      stub_methods(Assistant::Config, configuration_reasons: -> { [ "missing_admin_username" ] }) do
+        state = Assistant::Activation.state(directory: dir)
+
+        refute_predicate state, :active
+        assert_equal "missing_admin_username", state.reason
+      end
+    end
+  end
+
+  test "a complete configuration yields no reason codes" do
     values = {
       "ADMIN_USERNAME" => "admin",
       "CONTROL_CENTER_COMMAND_ALLOWLIST" => "httpx,nuclei",
       "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST" => "ansible.builtin.uri"
     }
 
-    stub_methods(Assistant::Config, configured: ->(key) { values[key] }, enabled?: true) do
-      assert_nil Assistant::Config.validate_production!
+    stub_methods(Assistant::Config, configured: ->(key) { values[key] }) do
+      assert_empty Assistant::Config.configuration_reasons
     end
   end
 end
