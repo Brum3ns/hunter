@@ -434,6 +434,29 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
+  # Rails' ProviderCredentials calls a key with *internal* whitespace or control
+  # characters "valid" while the gateway's readSecret rejects it, so the gateway
+  # drops that provider and the chat still offers it — every turn then ends as
+  # provider_not_allowed with the cause visible only in the gateway log. Closing
+  # that needs a ninth reason code threaded through Rails, the client copy map
+  # and Go, judged disproportionate; the accepted alternative is that an
+  # operator hitting the symptom finds the cause wherever they happen to look.
+  # Only all three together deliver that, so pin all three.
+  def test_the_malformed_key_limitation_is_documented_everywhere_an_operator_looks
+    %w[
+      secrets/README.md
+      docs/runbooks/hunter-assistant-incident-response.md
+      docs/security/hunter-assistant-production-checklist.md
+    ].each do |name|
+      body = ROOT.join(name).read
+
+      assert_includes body, "provider_not_allowed",
+        "#{name} does not name the symptom of a malformed provider key"
+      assert_includes body, "control characters",
+        "#{name} does not name the cause of a malformed provider key"
+    end
+  end
+
   def test_neither_procfile_starts_a_second_assistant_event_consumer
     # The dedicated assistant-events service is no longer profile-gated, so a
     # Procfile entry would put two consumers on assistant.rails.events and turn
