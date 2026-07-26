@@ -7,6 +7,7 @@ module Assistant
       :provider,
       :model,
       :secret_ref,
+      :secret_file,
       :input_limit,
       :output_limit,
       :retention_posture
@@ -30,6 +31,7 @@ module Assistant
           provider: attributes.fetch("provider"),
           model: attributes.fetch("model"),
           secret_ref: attributes.fetch("secret_ref"),
+          secret_file: attributes.fetch("secret_file"),
           input_limit: Integer(attributes.fetch("input_limit")),
           output_limit: Integer(attributes.fetch("output_limit")),
           retention_posture: attributes.fetch("retention_posture")
