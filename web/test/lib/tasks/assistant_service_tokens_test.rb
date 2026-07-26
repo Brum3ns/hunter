@@ -1,5 +1,6 @@
 require "test_helper"
 require "rake"
+require "tmpdir"
 
 class AssistantServiceTokensTest < ActiveSupport::TestCase
   setup do
@@ -47,6 +48,33 @@ class AssistantServiceTokensTest < ActiveSupport::TestCase
     assert_not_nil records.first.rotated_at
   ensure
     clear_environment
+  end
+
+  test "bootstrap writes the mcp token to file without printing it" do
+    Dir.mktmpdir do |dir|
+      path = Pathname.new(dir).join("assistant_mcp_hunter_token")
+      output = capture_io do
+        Assistant::BootstrapServiceToken.call(path: path)
+      end.join
+
+      assert_path_exists path
+      assert_equal "400", (path.stat.mode & 0o777).to_s(8)
+      refute_includes output, path.read.strip, "the raw token was printed"
+      assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
+    end
+  end
+
+  test "bootstrap service token is idempotent" do
+    Dir.mktmpdir do |dir|
+      path = Pathname.new(dir).join("assistant_mcp_hunter_token")
+      Assistant::BootstrapServiceToken.call(path: path)
+      first = path.read
+
+      Assistant::BootstrapServiceToken.call(path: path)
+
+      assert_equal first, path.read, "an existing token file was rewritten"
+      assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
+    end
   end
 
   private
