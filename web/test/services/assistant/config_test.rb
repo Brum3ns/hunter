@@ -107,4 +107,19 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
       assert_empty Assistant::Config.configuration_reasons
     end
   end
+
+  # The three required settings are populated so this drives the retention
+  # branch specifically rather than collecting missing-setting reasons.
+  test "an out-of-range retention window yields its own reason code" do
+    values = {
+      "ADMIN_USERNAME" => "admin",
+      "CONTROL_CENTER_COMMAND_ALLOWLIST" => "httpx,nuclei",
+      "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST" => "ansible.builtin.uri",
+      "ASSISTANT_TRANSCRIPT_DAYS" => "31"
+    }
+
+    stub_methods(Assistant::Config, configured: ->(key) { values[key] }) do
+      assert_includes Assistant::Config.configuration_reasons, "invalid_retention_window"
+    end
+  end
 end
