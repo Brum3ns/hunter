@@ -147,8 +147,7 @@ the initial state, which the Settings off-switch can still override at runtime.
 > is recorded here so the variable has no undefined state, and because forcing
 > activation on without a valid key could only produce a state the gateway
 > cannot serve. The `APPROVED` stamp on this document does not extend to the
-> `true` row; changing it requires no new threat-model delta, as it grants no
-> capability the derived state does not already grant.
+> `true` row.
 
 ### What is preserved
 
