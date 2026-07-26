@@ -77,6 +77,21 @@ class AssistantServiceTokensTest < ActiveSupport::TestCase
     end
   end
 
+  test "bootstrap recovers from a stale temp file left by a crashed run" do
+    Dir.mktmpdir do |dir|
+      path = Pathname.new(dir).join("assistant_mcp_hunter_token")
+      stale = path.dirname.join(".#{path.basename}.#{Process.pid}")
+      stale.write("stale")
+
+      Assistant::BootstrapServiceToken.call(path: path)
+
+      assert_path_exists path
+      assert_equal "400", (path.stat.mode & 0o777).to_s(8)
+      refute_path_exists stale, "the stale temp file was left behind"
+      assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
+    end
+  end
+
   test "bootstrap rotates an existing enabled mcp reader identity off" do
     Dir.mktmpdir do |dir|
       seeded, = Assistant::ServiceIdentity.generate!(name: "hunter-mcp", role: "mcp_reader")

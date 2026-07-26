@@ -28,6 +28,7 @@ module Assistant
     def write_once(path, raw)
       path.dirname.mkpath
       temporary = path.dirname.join(".#{path.basename}.#{Process.pid}")
+      temporary.unlink if temporary.exist?
       File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o400) { |file| file.write(raw) }
       begin
         File.link(temporary.to_s, path.to_s)
