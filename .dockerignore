@@ -15,9 +15,13 @@ web/log
 web/node_modules
 
 # Never send local credentials to BuildKit, even when no Dockerfile currently
-# copies their containing directory.
+# copies their containing directory. The per-environment secrets/dev and
+# secrets/prod directories collapsed into a single secrets/ holding the
+# operator's live provider API keys, so the whole directory is excluded with
+# carve-outs for the checked-in documentation and inert examples.
 .env
 .env.*
 !.env.example
-secrets/dev
-secrets/prod
+secrets/
+!secrets/README.md
+!secrets/examples/

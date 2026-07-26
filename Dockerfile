@@ -32,7 +32,8 @@ RUN apt-get update -qq && \
       libyaml-dev \
       postgresql-client \
       git \
-      curl && \
+      curl \
+      openssl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -41,7 +42,19 @@ COPY web/Gemfile web/Gemfile.lock ./
 RUN bundle install && gem install foreman
 
 COPY web/ ./
-COPY ops/assistant/provision_rabbitmq.rb /app/ops/assistant/provision_rabbitmq.rb
+# The whole ops/assistant tree, not just the provisioner: assistant-secrets-init
+# and assistant-token-init execute bootstrap.sh and bootstrap_service_token.rb
+# from this path. bootstrap.sh is mode 0755 in Git, so COPY preserves its exec bit.
+COPY ops/assistant/ /app/ops/assistant/
+
+# Docker seeds a fresh named volume from the image's directory at the mount
+# point. assistant-secrets-init runs as 1000:1000 and must create files here, so
+# the directory has to exist in the image already owned by that uid — otherwise
+# Docker creates it root:root 0755, mktemp fails EACCES, and no other service can
+# repair it because they all mount the volume read-only.
+RUN mkdir -p /run/assistant/secrets && \
+    chown -R 1000:1000 /run/assistant && \
+    chmod 0700 /run/assistant/secrets
 
 COPY --from=whiterabbit-build /out/whiterabbit /usr/local/bin/whiterabbit
 ENV WHITERABBIT_BIN=/usr/local/bin/whiterabbit

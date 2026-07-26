@@ -44,6 +44,38 @@ services:
       retries: 15
       start_period: 5s
 
+  # One-shot: generates the machine credentials every assistant service reads
+  # (the four AMQP passwords and the gateway MCP token). Deliberately needs no
+  # database and no other service, so it runs first and unblocks `rabbitmq`
+  # without the broker inheriting a dependency on the Rails app. The
+  # database-backed half of bootstrapping is assistant-token-init, below `web`.
+  assistant-secrets-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        RAILS_ENV: development
+        BUNDLE_WITHOUT: ""
+    command: ["/app/ops/assistant/bootstrap.sh"]
+    environment:
+      HOME: /tmp
+      ASSISTANT_SECRET_TARGET: /run/assistant/secrets
+    volumes:
+      - assistant_secrets:/run/assistant/secrets
+    networks:
+      - default
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    mem_limit: 128m
+    cpus: "0.25"
+    pids_limit: 64
+    restart: "no"
+
   # Local broker so Control Center job submissions land on a visible channel.
   # Management UI at http://localhost:15672 (same credentials as below).
   rabbitmq:
@@ -75,17 +107,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    # assistant-bootstrap is the only writer of the machine-credential volume, and
     # rabbitmq's entrypoint hard-fails (exit 1, no retry) when the provision
-    # password file is absent. Starting rabbitmq only after bootstrap completes
-    # means it never attempts to boot before that file exists. This is *not* in
-    # the brief's explicit dependent list (which only names assistant-rabbitmq-init,
-    # hunter-mcp, assistant-gateway, assistant-validator, assistant-events) but is
-    # required for correctness once the secret becomes volume-backed instead of a
-    # pre-existing Compose file secret — see the docker-compose.yaml top-of-file
-    # note and the task report for the full reasoning.
+    # password file is absent, and that file is now generated at runtime rather
+    # than pre-existing as a Compose file secret. Gating on assistant-secrets-init
+    # — which needs no database — means the broker waits only for the credential
+    # it reads, never for the Rails app.
     depends_on:
-      assistant-bootstrap:
+      assistant-secrets-init:
         condition: service_completed_successfully
 
   web:
@@ -194,13 +222,11 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
-    # No rabbitmq dependency: assistant-bootstrap (which mints the machine
-    # credentials rabbitmq's entrypoint requires) depends on web being healthy,
-    # so web depending on rabbitmq in turn would be circular. web reads its AMQP
-    # password lazily when publishing, so it tolerates rabbitmq being unready.
-    # The healthcheck below exists so assistant-bootstrap can gate on it: Puma
-    # only binds :5000 after db:prepare/db:seed finish (see the command above),
-    # so a successful /up probe is proof the schema already exists.
+      rabbitmq:
+        condition: service_healthy
+    # Gates assistant-token-init: Puma only binds :5000 after db:prepare/db:seed
+    # finish (see the command above), so a successful /up probe is proof the
+    # schema the token bootstrap writes to already exists.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/up"]
       interval: 5s
@@ -210,19 +236,18 @@ services:
     tty: true
     stdin_open: true
 
-  # One-shot: generates the machine-credential files every assistant service
-  # reads (RabbitMQ/MCP), then mints the hunter-mcp service identity in
-  # Postgres. Runs after `web` reports healthy so the schema it writes to
-  # already exists (see the healthcheck note on `web`). `web` must not depend
-  # on this service — that would be circular.
-  assistant-bootstrap:
+  # One-shot: mints the hunter-mcp service identity in Postgres and writes its
+  # token to the shared volume. Split from assistant-secrets-init because this
+  # half needs a migrated database, so it must wait for `web` to be healthy —
+  # a dependency the broker must not inherit. Only hunter-mcp reads its output.
+  assistant-token-init:
     build:
       context: .
       dockerfile: Dockerfile
       args:
         RAILS_ENV: development
         BUNDLE_WITHOUT: ""
-    command: ["sh", "-c", "/app/ops/assistant/bootstrap.sh && bundle exec ruby /app/ops/assistant/bootstrap_service_token.rb"]
+    command: ["bundle", "exec", "ruby", "/app/ops/assistant/bootstrap_service_token.rb"]
     environment:
       HOME: /tmp
       RAILS_ENV: development
@@ -234,7 +259,6 @@ services:
       ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:-dev-primary-key-32-bytes-only-01}
       ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:-dev-deterministic-key-32-byte-01}
       ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:-dev-key-derivation-salt-32-byte01}
-      ASSISTANT_SECRET_TARGET: /run/assistant/secrets
       ASSISTANT_MCP_TOKEN_PATH: /run/assistant/secrets/assistant_mcp_hunter_token
     volumes:
       - assistant_secrets:/run/assistant/secrets
@@ -243,16 +267,23 @@ services:
     depends_on:
       web:
         condition: service_healthy
-    restart: "no"
     user: "1000:1000"
     read_only: true
+    # Booting Rails read-only needs the same writable paths assistant-events
+    # carries: Bootsnap caches under tmp/cache and the logger opens log/*.log,
+    # and both directories are .dockerignore'd so neither exists in the image.
     tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=0700,uid=1000,gid=1000
+      - /app/tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
+      - /app/log:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+      - /app/storage:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    mem_limit: 384m
+    cpus: "0.50"
     pids_limit: 64
+    restart: "no"
 
   runner:
     build:
@@ -342,7 +373,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      assistant-bootstrap:
+      assistant-secrets-init:
         condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
@@ -396,7 +427,7 @@ services:
         condition: service_started
       assistant-rabbitmq-init:
         condition: service_completed_successfully
-      assistant-bootstrap:
+      assistant-secrets-init:
         condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
@@ -460,10 +491,14 @@ services:
     networks:
       - assistant-gateway-mcp
       - assistant-mcp-rails
+    # Reads the gateway MCP token from assistant-secrets-init and its own Hunter
+    # service token from assistant-token-init, so it waits for both.
     depends_on:
       web:
         condition: service_started
-      assistant-bootstrap:
+      assistant-secrets-init:
+        condition: service_completed_successfully
+      assistant-token-init:
         condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
@@ -497,7 +532,7 @@ services:
     depends_on:
       assistant-rabbitmq-init:
         condition: service_completed_successfully
-      assistant-bootstrap:
+      assistant-secrets-init:
         condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
@@ -539,7 +574,7 @@ services:
         condition: service_healthy
       assistant-egress:
         condition: service_healthy
-      assistant-bootstrap:
+      assistant-secrets-init:
         condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
@@ -566,8 +601,8 @@ volumes:
   hunter_db:
   mongodb_data:
   rabbitmq_data:
-  # Bootstrap-generated machine credentials (RabbitMQ/MCP). assistant-bootstrap
-  # is the only read-write mount; every other consumer mounts it :ro.
+  # Bootstrap-generated machine credentials (RabbitMQ/MCP). The two init
+  # one-shots are the only read-write mounts; every consumer mounts it :ro.
   assistant_secrets:
 
 networks:
