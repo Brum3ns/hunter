@@ -31,6 +31,13 @@ const (
 // a genuine fault, unlike a provider key. This is a var rather than a const
 // only so tests can redirect it into a temp directory; a later task's
 // contract test asserts the default value is exactly "/run/assistant/secrets".
+//
+// Concurrency caveat: this is package-global mutable state, so a test that
+// redirects it is NOT safe under t.Parallel() — a parallel sibling would
+// observe the redirected directory, or the restore would race it. Tests in
+// this package run sequentially today and must keep doing so; anything
+// needing parallelism should thread the directory through as a parameter
+// instead of reassigning this var.
 var machineSecretDir = "/run/assistant/secrets"
 
 var defaultSecretFiles = map[string]string{

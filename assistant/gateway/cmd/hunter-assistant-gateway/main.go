@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -49,34 +48,24 @@ func main() {
 		}
 	}()
 
-	if len(settings.AvailableProfiles) == 0 {
-		log.Print("assistant gateway idle: no provider credentials installed")
+	var openAIAdapter, anthropicAdapter provider.Adapter
+	var activeProfiles []string
+	// Guarded so the zero-credential path never reaches
+	// NewRestrictedHTTPClient, whose failure is fatal — idling must not be able
+	// to exit through it.
+	if len(settings.AvailableProfiles) > 0 {
+		providerClient, err := provider.NewRestrictedHTTPClient()
+		if err != nil {
+			log.Fatal("provider transport configuration rejected")
+		}
+		openAIAdapter, anthropicAdapter, activeProfiles = resolveAdapters(settings, providerClient)
+	}
+	if len(activeProfiles) == 0 {
+		log.Print("assistant gateway idle: no usable provider credential installed")
 		serveHealthOnly(ctx, healthServer)
 		return
 	}
-	log.Printf("assistant gateway ready: profiles=%s", strings.Join(settings.AvailableProfiles, ","))
-
-	providerClient, err := provider.NewRestrictedHTTPClient()
-	if err != nil {
-		log.Fatal("provider transport configuration rejected")
-	}
-
-	var openAIAdapter provider.Adapter
-	if slices.Contains(settings.AvailableProfiles, "openai_primary") {
-		openAIKey, err := settings.ProviderSecrets.Resolve("openai_primary")
-		if err != nil {
-			log.Fatal("OpenAI credential unavailable")
-		}
-		openAIAdapter = provider.NewOpenAIAdapter(openAIKey, providerClient)
-	}
-	var anthropicAdapter provider.Adapter
-	if slices.Contains(settings.AvailableProfiles, "anthropic_primary") {
-		anthropicKey, err := settings.ProviderSecrets.Resolve("anthropic_primary")
-		if err != nil {
-			log.Fatal("Anthropic credential unavailable")
-		}
-		anthropicAdapter = provider.NewAnthropicAdapter(anthropicKey, providerClient)
-	}
+	log.Printf("assistant gateway ready: profiles=%s", strings.Join(activeProfiles, ","))
 
 	mcpClient, err := mcpclient.New(settings.GatewayMCPToken)
 	if err != nil {
@@ -97,6 +86,42 @@ func main() {
 	}
 	ready.Store(false)
 	shutdownHealthServer(healthServer)
+}
+
+// resolveAdapters builds an adapter for each profile the config preflight
+// reported available, dropping any whose value the stricter runtime read
+// rejects, and returns the profiles that actually ended up usable.
+//
+// The preflight (config.ProviderStatusIn) and the runtime read
+// (SecretResolver.Resolve) do not agree in every case, deliberately: the
+// preflight mirrors Rails' ProviderCredentials so the chat and the gateway
+// speak one reason vocabulary, while Resolve additionally rejects a value
+// containing NUL, CR, LF, tab or a space. A key with an internal space
+// therefore reports "valid" yet fails to resolve. That must disable the one
+// provider, never exit the process: exiting would crash-loop the container
+// under restart: unless-stopped, which is the exact failure this service was
+// changed to eliminate. Only the profile slug is logged, never the value.
+func resolveAdapters(settings config.Config, providerClient *http.Client) (provider.Adapter, provider.Adapter, []string) {
+	var openAIAdapter, anthropicAdapter provider.Adapter
+	active := make([]string, 0, len(settings.AvailableProfiles))
+	for _, reference := range settings.AvailableProfiles {
+		key, err := settings.ProviderSecrets.Resolve(reference)
+		if err != nil {
+			log.Printf("assistant gateway provider disabled: profile=%s reason=unusable_credential", reference)
+			continue
+		}
+		switch reference {
+		case "openai_primary":
+			openAIAdapter = provider.NewOpenAIAdapter(key, providerClient)
+		case "anthropic_primary":
+			anthropicAdapter = provider.NewAnthropicAdapter(key, providerClient)
+		default:
+			log.Printf("assistant gateway provider disabled: profile=%s reason=unknown_profile", reference)
+			continue
+		}
+		active = append(active, reference)
+	}
+	return openAIAdapter, anthropicAdapter, active
 }
 
 // serveHealthOnly is the idle path: no provider credential is installed, so
