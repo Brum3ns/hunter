@@ -11,6 +11,11 @@ generate() {
 
   temporary=$(mktemp "$target/.bootstrap.XXXXXX")
   openssl rand -base64 32 | tr -d '\n' > "$temporary"
+  if [ ! -s "$temporary" ]; then
+    rm -f "$temporary"
+    echo "failed to generate $1" >&2
+    exit 1
+  fi
   chmod 0400 "$temporary"
   if ! ln "$temporary" "$path" 2>/dev/null; then
     rm -f "$temporary"

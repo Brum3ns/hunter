@@ -77,6 +77,21 @@ class AssistantServiceTokensTest < ActiveSupport::TestCase
     end
   end
 
+  test "bootstrap rotates an existing enabled mcp reader identity off" do
+    Dir.mktmpdir do |dir|
+      seeded, = Assistant::ServiceIdentity.generate!(name: "hunter-mcp", role: "mcp_reader")
+      assert seeded.enabled?
+      assert_nil seeded.rotated_at
+
+      Assistant::BootstrapServiceToken.call(path: Pathname.new(dir).join("assistant_mcp_hunter_token"))
+
+      seeded.reload
+      assert_not seeded.enabled?, "the seeded identity was not rotated off"
+      assert_not_nil seeded.rotated_at, "the seeded identity has no rotation timestamp"
+      assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
+    end
+  end
+
   private
 
   def invoke_create
