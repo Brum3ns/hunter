@@ -10,7 +10,7 @@ module Assistant
 
     class << self
       def instance
-        first_or_create!(singleton_key: true)
+        first_or_create!(singleton_key: true, assistant_enabled: true)
       rescue ActiveRecord::RecordNotUnique
         find_by!(singleton_key: true)
       end

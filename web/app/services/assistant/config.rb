@@ -14,8 +14,8 @@ module Assistant
 
     module_function
 
-    def enabled?
-      ActiveModel::Type::Boolean.new.cast(configured("ASSISTANT_ENABLED") || "false")
+    def enabled?(directory: ProviderCredentials::DEFAULT_DIRECTORY)
+      Activation.state(directory: directory).active
     end
 
     def transcript_retention_days

@@ -63,7 +63,10 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
   test "production validation fails closed when enabled security settings are missing" do
     values = { "ASSISTANT_ENABLED" => "true" }
 
-    stub_methods(Assistant::Config, configured: ->(key) { values[key] }) do
+    # Activation is derived from provider credentials now, so drive
+    # validate_production!'s "enabled" branch by stubbing enabled? directly
+    # rather than relying on ASSISTANT_ENABLED (a kill switch, not an opt-in).
+    stub_methods(Assistant::Config, configured: ->(key) { values[key] }, enabled?: true) do
       error = assert_raises(RuntimeError) { Assistant::Config.validate_production! }
       assert_includes error.message, "ADMIN_USERNAME must be set"
       assert_includes error.message, "CONTROL_CENTER_COMMAND_ALLOWLIST must be set"
@@ -79,7 +82,7 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
       "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST" => "ansible.builtin.uri"
     }
 
-    stub_methods(Assistant::Config, configured: ->(key) { values[key] }) do
+    stub_methods(Assistant::Config, configured: ->(key) { values[key] }, enabled?: true) do
       assert_nil Assistant::Config.validate_production!
     end
   end

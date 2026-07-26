@@ -8,10 +8,12 @@ class AssistantEndToEndTest < ActionDispatch::IntegrationTest
   setup do
     @admin = users(:one)
     @original_admin_username = ENV["ADMIN_USERNAME"]
-    @original_assistant_enabled = ENV["ASSISTANT_ENABLED"]
     @original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     ENV["ADMIN_USERNAME"] = @admin.username
-    ENV["ASSISTANT_ENABLED"] = "true"
+    # Activation is now derived from provider credential files, not this env
+    # var, so stub Config.enabled? directly to simulate an installed key.
+    @original_config_enabled = Assistant::Config.method(:enabled?)
+    Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
     Assistant::Setting.instance.enable!
     sign_in_as(@admin)
@@ -19,7 +21,7 @@ class AssistantEndToEndTest < ActionDispatch::IntegrationTest
 
   teardown do
     ENV["ADMIN_USERNAME"] = @original_admin_username
-    ENV["ASSISTANT_ENABLED"] = @original_assistant_enabled
+    Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
     ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = @original_command_allowlist
   end
 

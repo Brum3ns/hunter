@@ -12,8 +12,10 @@ class Assistant::ValidationDispatcherTest < ActiveSupport::TestCase
 
   setup do
     @turn = assistant_turns(:created)
-    @original_enabled = ENV["ASSISTANT_ENABLED"]
-    ENV["ASSISTANT_ENABLED"] = "true"
+    # Activation is now derived from provider credential files, not this env
+    # var, so stub Config.enabled? directly to simulate an installed key.
+    @original_config_enabled = Assistant::Config.method(:enabled?)
+    Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     @service_identity, = Assistant::ServiceIdentity.generate!(
       name: "validator-test-mcp", role: "mcp_reader"
@@ -27,7 +29,7 @@ class Assistant::ValidationDispatcherTest < ActiveSupport::TestCase
   end
 
   teardown do
-    ENV["ASSISTANT_ENABLED"] = @original_enabled
+    Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = @original_allowlist
   end
 
