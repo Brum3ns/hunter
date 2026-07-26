@@ -61,7 +61,7 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
   end
 
   test "production validation fails closed when enabled security settings are missing" do
-    values = { "ASSISTANT_ENABLED" => "true" }
+    values = {}
 
     # Activation is derived from provider credentials now, so drive
     # validate_production!'s "enabled" branch by stubbing enabled? directly
@@ -76,7 +76,6 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
 
   test "production validation accepts a complete enabled configuration" do
     values = {
-      "ASSISTANT_ENABLED" => "true",
       "ADMIN_USERNAME" => "admin",
       "CONTROL_CENTER_COMMAND_ALLOWLIST" => "httpx,nuclei",
       "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST" => "ansible.builtin.uri"
