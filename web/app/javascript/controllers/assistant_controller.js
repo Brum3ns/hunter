@@ -6,6 +6,7 @@ import {
   appendMessage,
   LatestRequest,
   pollingDelay,
+  renderDisabledNotice,
   saveConfirmationText,
   terminalTurnStatus,
 } from "lib/assistant_ui"
@@ -15,7 +16,7 @@ export default class extends Controller {
     "bubble", "panel", "startScreen", "conversationScreen", "providerSelect",
     "retentionNotice", "conversationList", "profileName", "messages", "messageInput",
     "startButton", "sendButton", "cancelButton", "contextType", "contextQuery",
-    "contextResults", "disclosurePreview", "drafts", "status",
+    "contextResults", "disclosurePreview", "drafts", "status", "notice",
   ]
 
   connect() {
@@ -81,10 +82,22 @@ export default class extends Controller {
       this.populateProviders(response.data.provider_profiles || [])
       this.renderConversationList(response.data.conversations || [])
       this.showStartScreen()
+      this.renderDisabledState(response.data.settings || {})
       this.setStatus("")
     } catch (error) {
       if (error.name !== "AbortError") this.setStatus("Assistant could not be loaded.")
     }
+  }
+
+  renderDisabledState(settings) {
+    if (settings.effective_enabled) {
+      this.noticeTarget.hidden = true
+      this.noticeTarget.textContent = ""
+      return
+    }
+
+    renderDisabledNotice(this.noticeTarget, this.messageInputTarget, settings.disabled_reason)
+    this.noticeTarget.hidden = false
   }
 
   updateRetentionNotice() {

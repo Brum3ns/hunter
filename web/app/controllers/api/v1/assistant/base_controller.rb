@@ -109,15 +109,34 @@ module Api
         end
 
         def serialize_setting(setting)
+          state = ::Assistant::Activation.state
           {
             assistant_enabled: setting.assistant_enabled?,
-            infrastructure_enabled: ::Assistant::Config.enabled?,
-            effective_enabled: ::Assistant::Config.enabled? && setting.assistant_enabled?,
+            infrastructure_enabled: state.active,
+            effective_enabled: state.active && setting.assistant_enabled?,
+            disabled_reason: disabled_reason_for(setting, state),
+            providers: ::Assistant::ProviderCredentials.statuses.map do |status|
+              entry = ::Assistant::ProviderCatalog.fetch!(status.slug)
+              {
+                slug: status.slug,
+                model: entry.model,
+                retention_posture: entry.retention_posture,
+                available: status.available,
+                reason: status.reason
+              }
+            end,
             transcript_retention_days: setting.transcript_retention_days,
             audit_retention_days: setting.audit_retention_days,
             disabled_at: setting.disabled_at&.iso8601,
             disabled_by_id: setting.disabled_by_id
           }
+        end
+
+        def disabled_reason_for(setting, state)
+          return state.reason unless state.active
+          return "disabled_by_administrator" unless setting.assistant_enabled?
+
+          nil
         end
       end
     end

@@ -12,6 +12,33 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
     ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
+  test "the bootstrap payload discloses the disabled reason without leaking paths" do
+    original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
+    original_ansible_allowlist = ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"]
+    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
+    ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
+
+    empty_directory = nil
+    begin
+      Dir.mktmpdir do |dir|
+        empty_directory = dir
+        stub_const(Assistant::ProviderCredentials, :DEFAULT_DIRECTORY, dir) do
+          get "/api/v1/assistant/bootstrap", headers: { "Accept" => "application/json" }
+        end
+      end
+    ensure
+      ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original_command_allowlist
+      ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = original_ansible_allowlist
+    end
+
+    assert_response :success
+    payload = response.parsed_body.fetch("settings")
+    assert_equal "no_provider_credentials", payload.fetch("disabled_reason")
+    assert_equal %w[anthropic_primary openai_primary], payload.fetch("providers").map { |p| p["slug"] }.sort
+    refute_match(%r{/run/secrets}, response.body, "a secret path leaked to the browser")
+    refute_includes response.body, empty_directory, "a temp directory path leaked to the browser"
+  end
+
   test "conversation pins an enabled profile owned by the admin session" do
     Assistant::Setting.instance.enable!
 

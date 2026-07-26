@@ -15,7 +15,7 @@ class FakeElement {
     this._textContent = ""
   }
 
-  set textContent(value) { this._textContent = String(value) }
+  set textContent(value) { this._textContent = String(value); this.children = [] }
   get textContent() { return this._textContent + this.children.map((child) => child.textContent).join("") }
   set innerHTML(_value) { throw new Error("innerHTML must never be used") }
   append(...children) { this.children.push(...children) }
@@ -23,6 +23,15 @@ class FakeElement {
   replaceChildren(...children) { this.children = children }
   setAttribute(name, value) { this.attributes[name] = String(value) }
   addEventListener(name, handler) { this[`on${name}`] = handler }
+
+  querySelector(tagName) {
+    for (const child of this.children) {
+      if (child.tagName === tagName) return child
+      const nested = child.querySelector?.(tagName)
+      if (nested) return nested
+    }
+    return null
+  }
 }
 
 const fakeDocument = { createElement: (tagName) => new FakeElement(tagName) }
@@ -202,4 +211,30 @@ test("a current server-valid draft alone receives a save control", () => {
   assert(save)
   save.onclick()
   assert.equal(saves, 1)
+})
+
+test("a disabled assistant renders its reason as text", () => {
+  assert.equal(typeof ui.renderDisabledNotice, "function")
+  assert(Object.isFrozen(ui.DISABLED_COPY), "DISABLED_COPY must be a frozen map")
+
+  const notice = new FakeElement("p")
+  const composer = new FakeElement("textarea")
+
+  ui.renderDisabledNotice(notice, composer, "no_provider_credentials")
+
+  assert.equal(
+    notice.textContent,
+    "Assistant disabled: no provider credentials are installed."
+  )
+  assert.equal(composer.disabled, true)
+})
+
+test("an unknown reason falls back to a generic notice and never renders markup", () => {
+  const notice = new FakeElement("p")
+  const composer = new FakeElement("textarea")
+
+  ui.renderDisabledNotice(notice, composer, "<img src=x onerror=alert(1)>")
+
+  assert.equal(notice.querySelector("img"), null)
+  assert.equal(notice.textContent, "Assistant disabled.")
 })

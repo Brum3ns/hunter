@@ -21,6 +21,26 @@ export function safeDisplayText(value) {
   return String(value ?? "").replace(CONTROL_CHARACTERS, "�")
 }
 
+// The server sends a reason code only, never prose — see disabled_reason_for
+// in Api::V1::Assistant::BaseController. Looking the code up in this frozen
+// map (instead of interpolating the server string into the DOM) means an
+// unrecognised or adversarial code can only ever fall back to the generic
+// line below, never render as markup.
+export const DISABLED_COPY = Object.freeze({
+  no_provider_credentials: "Assistant disabled: no provider credentials are installed.",
+  disabled_by_environment: "Assistant disabled by deployment configuration.",
+  disabled_by_administrator: "Assistant disabled by an administrator.",
+  missing_admin_username: "Assistant disabled: deployment configuration is incomplete.",
+  missing_command_allowlist: "Assistant disabled: deployment configuration is incomplete.",
+  missing_ansible_module_allowlist: "Assistant disabled: deployment configuration is incomplete.",
+  invalid_retention_window: "Assistant disabled: retention configuration is invalid.",
+})
+
+export function renderDisabledNotice(noticeElement, composerElement, reason) {
+  noticeElement.textContent = DISABLED_COPY[reason] || "Assistant disabled."
+  composerElement.disabled = true
+}
+
 export function saveConfirmationText(draft) {
   const destination = draft.destination
     ? `${draft.destination.type} #${draft.destination.id} at version ${draft.destination.lock_version}`
