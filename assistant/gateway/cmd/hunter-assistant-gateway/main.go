@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -31,27 +33,6 @@ func main() {
 	if err != nil {
 		log.Fatal("assistant gateway configuration rejected")
 	}
-	openAIKey, err := settings.ProviderSecrets.Resolve("openai_primary")
-	if err != nil {
-		log.Fatal("OpenAI credential unavailable")
-	}
-	anthropicKey, err := settings.ProviderSecrets.Resolve("anthropic_primary")
-	if err != nil {
-		log.Fatal("Anthropic credential unavailable")
-	}
-	providerClient, err := provider.NewRestrictedHTTPClient()
-	if err != nil {
-		log.Fatal("provider transport configuration rejected")
-	}
-	mcpClient, err := mcpclient.New(settings.GatewayMCPToken)
-	if err != nil {
-		log.Fatal("MCP client configuration rejected")
-	}
-	gateway := provider.NewGateway(
-		provider.NewOpenAIAdapter(openAIKey, providerClient),
-		provider.NewAnthropicAdapter(anthropicKey, providerClient),
-	)
-	processor := &queue.Processor{Gateway: gateway, Connect: queue.ConnectMCP(mcpClient)}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -67,12 +48,68 @@ func main() {
 			stop()
 		}
 	}()
+
+	if len(settings.AvailableProfiles) == 0 {
+		log.Print("assistant gateway idle: no provider credentials installed")
+		serveHealthOnly(ctx, healthServer)
+		return
+	}
+	log.Printf("assistant gateway ready: profiles=%s", strings.Join(settings.AvailableProfiles, ","))
+
+	providerClient, err := provider.NewRestrictedHTTPClient()
+	if err != nil {
+		log.Fatal("provider transport configuration rejected")
+	}
+
+	var openAIAdapter provider.Adapter
+	if slices.Contains(settings.AvailableProfiles, "openai_primary") {
+		openAIKey, err := settings.ProviderSecrets.Resolve("openai_primary")
+		if err != nil {
+			log.Fatal("OpenAI credential unavailable")
+		}
+		openAIAdapter = provider.NewOpenAIAdapter(openAIKey, providerClient)
+	}
+	var anthropicAdapter provider.Adapter
+	if slices.Contains(settings.AvailableProfiles, "anthropic_primary") {
+		anthropicKey, err := settings.ProviderSecrets.Resolve("anthropic_primary")
+		if err != nil {
+			log.Fatal("Anthropic credential unavailable")
+		}
+		anthropicAdapter = provider.NewAnthropicAdapter(anthropicKey, providerClient)
+	}
+
+	mcpClient, err := mcpclient.New(settings.GatewayMCPToken)
+	if err != nil {
+		log.Fatal("MCP client configuration rejected")
+	}
+	// A profile not present in AvailableProfiles maps to a nil entry in this
+	// gateway's adapter table. Gateway.Handle checks for that nil explicitly
+	// and returns the stable "provider_not_allowed" event rather than
+	// dereferencing it, so a turn naming an unconfigured provider terminates
+	// cleanly instead of panicking.
+	gateway := provider.NewGateway(openAIAdapter, anthropicAdapter)
+	processor := &queue.Processor{Gateway: gateway, Connect: queue.ConnectMCP(mcpClient)}
+
 	ready.Store(true)
 	if err := queue.Run(ctx, settings.AMQPURL(), processor); err != nil && ctx.Err() == nil {
 		ready.Store(false)
 		log.Fatal("assistant gateway queue stopped")
 	}
 	ready.Store(false)
+	shutdownHealthServer(healthServer)
+}
+
+// serveHealthOnly is the idle path: no provider credential is installed, so
+// the gateway never opens the AMQP consumer and never calls queue.Run. It
+// blocks until the signal context is cancelled — /healthz keeps reporting 503
+// the whole time, because ready is never stored true — then shuts the health
+// server down through the same path the ready branch uses.
+func serveHealthOnly(ctx context.Context, healthServer *http.Server) {
+	<-ctx.Done()
+	shutdownHealthServer(healthServer)
+}
+
+func shutdownHealthServer(healthServer *http.Server) {
 	shutdownContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_ = healthServer.Shutdown(shutdownContext)
