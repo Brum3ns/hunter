@@ -127,10 +127,28 @@ to start. After this delta the gateway:
 
 ### `ASSISTANT_ENABLED` is repurposed as a kill override
 
-`ASSISTANT_ENABLED` no longer opts the feature in. Unset means the derived
-state above applies; `false` forces every profile off regardless of any valid
-key file present. Setting it to `true` is equivalent to leaving it unset — it
-does not itself enable anything a key file does not already justify.
+`ASSISTANT_ENABLED` no longer opts the feature in. The complete tri-state:
+
+| Value | Effect |
+|---|---|
+| unset | The derived state above applies. |
+| `true` | The derived state above applies — identical to unset. |
+| `false` | Every profile is forced off regardless of any valid key file present. |
+
+In no case does `ASSISTANT_ENABLED` enable anything a valid key file does not
+already justify, and in no case does it bypass the runtime kill switch
+described below: "the derived state applies" means key-file derivation decides
+the initial state, which the Settings off-switch can still override at runtime.
+
+> **Attribution.** The operator confirmed two of these three rows: unset means
+> derived, `false` means forced off. The `true` row is an **implementation
+> decision taken by the implementer while drafting this delta**, not an
+> operator-confirmed requirement — the operator was not asked about `true`. It
+> is recorded here so the variable has no undefined state, and because forcing
+> activation on without a valid key could only produce a state the gateway
+> cannot serve. The `APPROVED` stamp on this document does not extend to the
+> `true` row; changing it requires no new threat-model delta, as it grants no
+> capability the derived state does not already grant.
 
 ### What is preserved
 
