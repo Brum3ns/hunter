@@ -1,0 +1,115 @@
+<div data-controller="assistant"
+     data-action="keydown@window->assistant#handleKeydown">
+  <button type="button"
+          data-assistant-target="bubble"
+          data-action="assistant#open"
+          aria-label="Open Hunter assistant"
+          aria-expanded="false"
+          aria-controls="hunter-assistant-panel"
+          class="fixed bottom-4 right-4 z-[70] grid h-14 w-14 place-items-center rounded-full bg-cyan-600 text-white shadow-xl ring-1 ring-cyan-700/30 transition hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:ring-cyan-300/20">
+    <svg aria-hidden="true" viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 18.5 4 20l1.25-3.75A8 8 0 1 1 7.5 18.5Z" />
+      <path stroke-linecap="round" d="M8 10.5h8M8 14h5" />
+    </svg>
+  </button>
+
+  <section id="hunter-assistant-panel"
+           data-assistant-target="panel"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="hunter-assistant-title"
+           hidden
+           class="fixed inset-0 z-[75] flex h-dvh w-full flex-col overflow-hidden bg-white shadow-2xl sm:inset-auto sm:bottom-4 sm:right-4 sm:h-[min(760px,calc(100dvh-2rem))] sm:w-[min(430px,calc(100vw-2rem))] sm:rounded-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:ring-white/10">
+    <header class="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <div>
+        <h2 id="hunter-assistant-title" class="font-semibold text-zinc-900 dark:text-zinc-100">Hunter assistant</h2>
+        <p class="text-xs text-zinc-500 dark:text-zinc-400">Isolated drafting · human-confirmed saves</p>
+      </div>
+      <button type="button" data-action="assistant#close" aria-label="Close Hunter assistant"
+              class="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+        <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
+      </button>
+    </header>
+
+    <div class="grid min-h-0 flex-1 grid-cols-[7.5rem_1fr]">
+      <aside aria-label="Assistant conversations" class="min-h-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900/60">
+        <button type="button" data-action="assistant#showNewConversation"
+                class="w-full rounded-md bg-cyan-600 px-2 py-2 text-xs font-semibold text-white hover:bg-cyan-500">
+          New chat
+        </button>
+        <div data-assistant-target="conversationList" class="mt-2 space-y-1"></div>
+      </aside>
+
+      <div class="flex min-h-0 min-w-0 flex-col">
+        <p data-assistant-target="status" role="status" aria-live="polite" hidden
+           class="border-b border-zinc-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-zinc-800 dark:bg-amber-950/30 dark:text-amber-200"></p>
+
+        <div data-assistant-target="startScreen" class="min-h-0 flex-1 overflow-y-auto p-4">
+          <h3 class="font-semibold text-zinc-900 dark:text-zinc-100">Start a new conversation</h3>
+          <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Choose one reviewed provider profile. It cannot change after this conversation starts.</p>
+
+          <form data-action="submit->assistant#startConversation" class="mt-5 space-y-4">
+            <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Provider and model
+              <select data-assistant-target="providerSelect" data-action="change->assistant#updateRetentionNotice"
+                      required class="mt-1 block w-full rounded-md border-zinc-300 bg-white text-sm dark:border-zinc-700 dark:bg-zinc-900"></select>
+            </label>
+            <div data-assistant-target="retentionNotice" class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+              Retention details load before conversation creation. Local deletion cannot erase provider or backup copies.
+            </div>
+            <button type="submit" data-assistant-target="startButton"
+                    class="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white">
+              Start conversation
+            </button>
+          </form>
+        </div>
+
+        <div data-assistant-target="conversationScreen" hidden class="min-h-0 flex-1 flex flex-col">
+          <div class="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+            <p data-assistant-target="profileName" class="truncate text-xs text-zinc-500 dark:text-zinc-400"></p>
+            <div class="flex items-center gap-2">
+              <button type="button" data-assistant-target="cancelButton" data-action="assistant#cancelTurn" hidden
+                      class="text-xs font-medium text-amber-700 hover:text-amber-600 dark:text-amber-300">Cancel turn</button>
+              <button type="button" data-action="assistant#deleteConversation" class="text-xs font-medium text-rose-600 hover:text-rose-500">Delete</button>
+            </div>
+          </div>
+          <div data-assistant-target="messages" role="log" aria-live="polite" aria-label="Conversation messages"
+               class="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"></div>
+          <section aria-label="Attach Hunter context" class="border-t border-zinc-200 p-3 dark:border-zinc-800">
+            <div class="grid grid-cols-[8rem_1fr_auto] gap-2">
+              <label class="sr-only" for="hunter-assistant-context-type">Context type</label>
+              <select id="hunter-assistant-context-type" data-assistant-target="contextType"
+                      class="rounded-md border-zinc-300 bg-white text-xs dark:border-zinc-700 dark:bg-zinc-900">
+                <option value="target">Target</option>
+                <option value="program">Program</option>
+                <option value="cve">CVE</option>
+                <option value="vulnerability">Vulnerability</option>
+                <option value="whiterabbit_template">Whiterabbit template</option>
+                <option value="ansible_playbook">Ansible playbook</option>
+              </select>
+              <label class="sr-only" for="hunter-assistant-context-query">Find context</label>
+              <input id="hunter-assistant-context-query" data-assistant-target="contextQuery" type="search" maxlength="200"
+                     class="min-w-0 rounded-md border-zinc-300 bg-white text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                     placeholder="Find context">
+              <button type="button" data-action="assistant#findContexts"
+                      class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium dark:border-zinc-700">Find</button>
+            </div>
+            <div data-assistant-target="contextResults" class="mt-2 max-h-28 space-y-1 overflow-y-auto"></div>
+          </section>
+          <section data-assistant-target="disclosurePreview" aria-label="Selected context disclosure preview" hidden class="space-y-2 border-t border-zinc-200 p-3 dark:border-zinc-800"></section>
+          <section data-assistant-target="drafts" aria-label="Generated draft cards" aria-live="polite" class="space-y-2 px-3"></section>
+          <form data-action="submit->assistant#submitMessage" class="border-t border-zinc-200 p-3 dark:border-zinc-800">
+            <label class="sr-only" for="hunter-assistant-message">Message</label>
+            <textarea id="hunter-assistant-message" data-assistant-target="messageInput" rows="3" disabled
+                      class="block w-full resize-none rounded-md border-zinc-300 bg-white text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                      placeholder="Ask Hunter to draft a template or playbook"></textarea>
+            <button type="submit" data-assistant-target="sendButton" disabled
+                    class="mt-2 w-full rounded-md bg-cyan-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+              Send
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

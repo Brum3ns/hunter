@@ -23,6 +23,19 @@ class User < ApplicationRecord
   has_many :control_center_ansible_variable_sets,
     class_name: "ControlCenter::Ansible::VariableSet", foreign_key: :created_by_id,
     inverse_of: :created_by
+  has_many :assistant_provider_profiles,
+    class_name: "Assistant::ProviderProfile",
+    foreign_key: :created_by_id,
+    dependent: :restrict_with_error,
+    inverse_of: :created_by
+  has_many :assistant_conversations,
+    class_name: "Assistant::Conversation",
+    dependent: :destroy,
+    inverse_of: :user
+  has_many :assistant_turns,
+    class_name: "Assistant::Turn",
+    dependent: :delete_all,
+    inverse_of: :user
 
   normalizes :username, with: ->(u) { u.strip.downcase }
 

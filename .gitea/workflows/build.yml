@@ -10,10 +10,62 @@ env:
   WEB_IMAGE: ${{ gitea.repository }}-web
   RUNNER_IMAGE: ${{ gitea.repository }}-runner
   ANSIBLE_EXECUTOR_IMAGE: ${{ gitea.repository }}-ansible-executor
+  ASSISTANT_GATEWAY_IMAGE: ${{ gitea.repository }}-assistant-gateway
+  ASSISTANT_MCP_IMAGE: ${{ gitea.repository }}-assistant-mcp
+  ASSISTANT_VALIDATOR_IMAGE: ${{ gitea.repository }}-assistant-validator
+  ASSISTANT_EGRESS_IMAGE: ${{ gitea.repository }}-assistant-egress
+  ASSISTANT_RABBITMQ_IMAGE: ${{ gitea.repository }}-assistant-rabbitmq
 
 jobs:
+  # Supply-chain and secret-leak gates on source. These must pass before any
+  # image is built or pushed, so a critical/high dependency finding or a leaked
+  # provider/service/grant credential fails the pipeline closed.
+  security-source-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the secret scan can inspect every commit.
+          fetch-depth: 0
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: web
+          bundler-cache: true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.12"
+          cache: false
+
+      - name: Brakeman (Rails static analysis, fail on high-confidence findings)
+        working-directory: web
+        run: bundle exec brakeman --no-pager -w3 --exit-on-warn --exit-on-error
+
+      - name: bundle-audit (locked Ruby dependency advisories)
+        working-directory: web
+        run: |
+          gem install bundler-audit
+          bundle-audit check --update
+
+      - name: govulncheck (Go module vulnerability scan)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          for module in assistant/gateway assistant/mcp assistant/validator; do
+            echo "== govulncheck $module =="
+            ( cd "$module" && "$(go env GOPATH)/bin/govulncheck" ./... )
+          done
+
+      - name: gitleaks (working tree and full history secret scan)
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@latest
+          GITLEAKS="$(go env GOPATH)/bin/gitleaks"
+          "$GITLEAKS" dir --redact --no-banner --config ops/assistant/gitleaks.toml .
+          "$GITLEAKS" git --redact --no-banner --config ops/assistant/gitleaks.toml .
+
   build:
     runs-on: ubuntu-latest
+    needs: security-source-gates
     steps:
       - uses: actions/checkout@v4
 
@@ -75,3 +127,119 @@ jobs:
           tags: |
             ${{ env.REGISTRY_HOST }}/${{ env.ANSIBLE_EXECUTOR_IMAGE }}:latest
             ${{ env.REGISTRY_HOST }}/${{ env.ANSIBLE_EXECUTOR_IMAGE }}:${{ gitea.sha }}
+
+      - name: Build and push Assistant gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: assistant/gateway
+          file: assistant/gateway/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_GATEWAY_IMAGE }}:latest
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_GATEWAY_IMAGE }}:${{ gitea.sha }}
+
+      - name: Build and push Assistant MCP broker
+        uses: docker/build-push-action@v5
+        with:
+          context: assistant/mcp
+          file: assistant/mcp/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_MCP_IMAGE }}:latest
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_MCP_IMAGE }}:${{ gitea.sha }}
+
+      - name: Build and push Assistant validator
+        uses: docker/build-push-action@v5
+        with:
+          context: assistant/validator
+          file: assistant/validator/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_VALIDATOR_IMAGE }}:latest
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_VALIDATOR_IMAGE }}:${{ gitea.sha }}
+
+      - name: Build and push Assistant egress proxy
+        uses: docker/build-push-action@v5
+        with:
+          context: assistant/egress
+          file: assistant/egress/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_EGRESS_IMAGE }}:latest
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_EGRESS_IMAGE }}:${{ gitea.sha }}
+
+      - name: Build and push Assistant RabbitMQ control plane
+        uses: docker/build-push-action@v5
+        with:
+          context: ops/assistant/rabbitmq
+          file: ops/assistant/rabbitmq/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_RABBITMQ_IMAGE }}:latest
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_RABBITMQ_IMAGE }}:${{ gitea.sha }}
+
+  # Image-level supply-chain, secret-leak, and runtime-isolation gates. Runs only
+  # after images are built; SBOMs and scans use the exact pushed digests, and the
+  # Assistant isolation drills run against the resolved Compose stack.
+  security-image-gates:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.12"
+          cache: false
+
+      - name: Install syft and grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate CycloneDX and SPDX SBOMs per Assistant image
+        run: |
+          mkdir -p sbom
+          images="\
+            ${{ env.REGISTRY_HOST }}/${{ env.WEB_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_GATEWAY_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_MCP_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_VALIDATOR_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_EGRESS_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_RABBITMQ_IMAGE }}:${{ gitea.sha }}"
+          for image in $images; do
+            slug=$(printf '%s' "$image" | tr '/:' '__')
+            syft "$image" -o cyclonedx-json="sbom/${slug}.cyclonedx.json"
+            syft "$image" -o spdx-json="sbom/${slug}.spdx.json"
+          done
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: assistant-sboms
+          path: sbom/
+
+      - name: grype image vulnerability scan (fail on High and Critical)
+        run: |
+          images="\
+            ${{ env.REGISTRY_HOST }}/${{ env.WEB_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_GATEWAY_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_MCP_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_VALIDATOR_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_EGRESS_IMAGE }}:${{ gitea.sha }} \
+            ${{ env.REGISTRY_HOST }}/${{ env.ASSISTANT_RABBITMQ_IMAGE }}:${{ gitea.sha }}"
+          for image in $images; do
+            grype "$image" --fail-on high
+          done
+
+      - name: Repository, image-layer, and resolved-Compose secret-leak gate
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          ops/assistant/check_secret_leaks.sh
+
+      - name: Assistant live network-denial gate
+        run: ops/assistant/test_network_denials.sh
+
+      - name: Assistant credential-rotation drill
+        run: ops/assistant/rotation_drill.sh

@@ -46,7 +46,20 @@ class Api::V1::ControlCenter::Ansible::PlaybooksTest < ActionDispatch::Integrati
     patch "/api/v1/control_center/ansible/playbooks/#{body["id"]}",
       params: { name: "Updated", variable_set_ids: [ first.id ] }, as: :json
     assert_response :success
-    assert_equal [ first.id ], JSON.parse(response.body)["variable_set_ids"]
+    updated = JSON.parse(response.body)
+    assert_equal body.keys.sort, updated.keys.sort
+    assert_equal [ first.id ], updated["variable_set_ids"]
+
+    patch "/api/v1/control_center/ansible/playbooks/#{body["id"]}",
+      params: { yaml_content: "---\n- hosts: workers\n  connection: local\n",
+                variable_set_ids: [ second.id, first.id ] }, as: :json
+    assert_response :unprocessable_entity
+    error = JSON.parse(response.body)
+    assert_equal %w[details error], error.keys.sort
+    assert_equal "unprocessable_entity", error["error"]
+    playbook.reload
+    assert_equal YAML, playbook.yaml_content
+    assert_equal [ first.id ], playbook.variable_sets.map(&:id)
 
     delete "/api/v1/control_center/ansible/playbooks/#{body["id"]}"
     assert_response :no_content

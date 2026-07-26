@@ -19,6 +19,9 @@
     <p class="px-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Access</p>
     <a href="#runners" class="block rounded px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">Runners</a>
     <a href="#ansible-credentials" class="block rounded px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">Ansible credentials</a>
+    <% if @assistant_admin %>
+      <a href="#assistant" class="block rounded px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">Assistant</a>
+    <% end %>
 
     <p class="mt-4 px-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Programs · Scope</p>
     <a href="#credentials" class="block rounded px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">Platform credentials</a>
@@ -29,6 +32,12 @@
   <div class="min-w-0 flex-1 space-y-10">
     <%= render "settings/runners", runners: @runners %>
     <%= render "settings/ansible_credentials", credentials: @ansible_credentials %>
+    <% if @assistant_admin %>
+      <%= render "settings/assistant",
+        setting: @assistant_setting,
+        profiles: @assistant_profiles,
+        catalog_entries: @assistant_catalog_entries %>
+    <% end %>
     <%= render "settings/credentials" %>
     <%= render "settings/schedule", schedule: @schedule %>
     <%= render "settings/monitor", monitor_config: @monitor_config %>

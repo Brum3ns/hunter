@@ -1,0 +1,21 @@
+template_args:
+  - "--token=super-secret"
+  - "Authorization: Bearer abcdef"
+  - "https://user:password@example.test/path"
+  - "AKIAIOSFODNN7EXAMPLE"
+playbooks:
+  - |
+    - hosts: all
+      vars:
+        key: "-----BEGIN PRIVATE KEY----- private"
+      tasks: []
+  - |
+    - hosts: all
+      vars:
+        password: "secret-value"
+      tasks: []
+  - |
+    - hosts: all
+      vars:
+        vault: "$ANSIBLE_VAULT;1.1;AES256"
+      tasks: []

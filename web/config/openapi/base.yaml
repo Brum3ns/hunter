@@ -59,6 +59,15 @@ components:
       type: http
       scheme: bearer
       description: "A one-time Runner token whose identity has the ansible capability."
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session_id
+      description: "A signed Hunter browser session cookie. State-changing requests also require a valid CSRF token."
+    assistantServiceToken:
+      type: http
+      scheme: bearer
+      description: "Dedicated digest-backed MCP reader identity. It is invalid on every non-machine Hunter route and must be combined with X-Hunter-Turn-Grant."
   schemas:
     Error:
       type: object
@@ -85,6 +94,13 @@ components:
           type: integer
           description: "Page size actually applied (default 50, max 200)."
       required: ["count", "page", "limit"]
+  parameters:
+    AssistantTurnGrant:
+      name: X-Hunter-Turn-Grant
+      in: header
+      required: true
+      description: "Opaque short-lived exact-scope grant. Never log, persist outside its digest record, or reuse."
+      schema: { type: string, minLength: 32, maxLength: 256 }
   responses:
     Unauthorized:
       description: "Missing or invalid authentication."

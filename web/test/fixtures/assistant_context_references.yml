@@ -1,0 +1,9 @@
+_fixture:
+  model_class: Assistant::ContextReference
+
+program:
+  turn: created
+  resource_type: program
+  resource_id: bugcrowd-acme
+  label: Acme
+  serializer_version: v1

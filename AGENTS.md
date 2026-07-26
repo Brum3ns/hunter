@@ -115,3 +115,19 @@ Prefer namespace-by-convention over Rails engines unless the user asks.
 - **Commit author:** `Claude <noreply@anthropic.com>`.
 - **Commit messages:** a single sentence, no body.
 - Only commit when the user asks.
+
+## Assistant capability change rule
+
+Any new Assistant context type, tool, provider feature, user role, write action,
+or execution action requires an approved threat-model delta before
+implementation. The change must have a dedicated closed schema, dedicated
+authorization, clear UI disclosure, metadata-only audit coverage, adversarial
+tests with stable outcomes, and an explicit human-approval design for every
+effectful operation.
+
+Do not widen a generic tool to cover the new capability. Generic network,
+search, shell, filesystem, credential, write, send, schedule, or execution
+tools are prohibited. Wildcard scopes are prohibited for Assistant service and
+turn-grant identities. A capability must remain narrowly named and independently
+revocable, and production stays disabled until its review evidence is recorded
+in the Assistant production checklist.

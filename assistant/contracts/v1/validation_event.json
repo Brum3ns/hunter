@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hunter.invalid/contracts/v1/validation_event.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "validation_id", "correlation_id", "status", "codes"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "event_id": { "type": "string", "format": "uuid", "maxLength": 36 },
+    "validation_id": { "type": "string", "format": "uuid", "maxLength": 36 },
+    "correlation_id": { "type": "string", "format": "uuid", "maxLength": 36 },
+    "status": { "type": "string", "enum": ["valid", "invalid", "failed"] },
+    "codes": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 100 } }
+  }
+}

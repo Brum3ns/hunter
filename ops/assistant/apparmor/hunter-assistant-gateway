@@ -1,0 +1,33 @@
+#include <tunables/global>
+
+profile hunter-assistant-gateway flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  network unix stream,
+  network unix dgram,
+  network inet stream,
+  network inet dgram,
+  network inet6 stream,
+  network inet6 dgram,
+  deny network raw,
+  deny mount,
+  deny umount,
+  deny ptrace,
+
+  /dev/init rix,
+  /hunter-assistant-gateway rix,
+  /run/secrets/assistant_openai_api_key r,
+  /run/secrets/assistant_anthropic_api_key r,
+  /run/secrets/assistant_gateway_mcp_token r,
+  /run/secrets/assistant_gateway_amqp_password r,
+  /etc/hosts r,
+  /etc/hostname r,
+  /etc/resolv.conf r,
+  /etc/nsswitch.conf r,
+  /etc/ssl/certs/** r,
+  /proc/sys/net/core/somaxconn r,
+  /proc/sys/net/ipv4/ip_local_port_range r,
+  /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+  /tmp/ rw,
+  /tmp/** rw,
+}

@@ -7,7 +7,7 @@ services:
     volumes:
       - hunter_db:/var/lib/postgresql
     ports:
-      - "127.0.0.1:5433:5432"
+      - "0.0.0.0:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
       interval: 5s
@@ -31,7 +31,7 @@ services:
     volumes:
       - mongodb_data:/data/db
     ports:
-      - "127.0.0.1:27017:27017"
+      - "0.0.0.0:27017:27017"
     healthcheck:
       test:
         - CMD
@@ -47,21 +47,36 @@ services:
   # Local broker so Control Center job submissions land on a visible channel.
   # Management UI at http://localhost:15672 (same credentials as below).
   rabbitmq:
-    image: rabbitmq:4-management
+    build:
+      context: ./ops/assistant/rabbitmq
+      dockerfile: Dockerfile
     # Provision the broker user the web service authenticates as. These apply only
     # on first boot of an empty data dir, so the named volume below must be fresh
     # (or reset) for a credential change to take effect. The created user is a
     # full administrator, which also satisfies whiterabbit's -info management API.
     environment:
+      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
+      ASSISTANT_RABBITMQ_REPROVISION: ${ASSISTANT_RABBITMQ_REPROVISION:-false}
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-hunter}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-hunter}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    secrets:
+      - source: assistant_rabbitmq_provision_password
+        target: assistant_rabbitmq_provision_password
+        uid: "0"
+        gid: "0"
+        mode: 0400
+    networks:
+      - default
+      - assistant-queue
+      - assistant-gateway-queue
+      - assistant-validator-queue
     ports:
-      - "127.0.0.1:5673:5672"
-      - "127.0.0.1:15672:15672"
+      - "0.0.0.0:5673:5672"
+      - "0.0.0.0:15672:15672"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping && test -f /tmp/hunter-assistant-rabbitmq-ready"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -142,9 +157,35 @@ services:
       CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
       ANSIBLE_LEASE_SECONDS: ${ANSIBLE_LEASE_SECONDS:-45}
       ANSIBLE_CLAIM_TIMEOUT_SECONDS: ${ANSIBLE_CLAIM_TIMEOUT_SECONDS:-300}
+      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
+      ASSISTANT_AMQP_HOST: ${ASSISTANT_AMQP_HOST:-rabbitmq}
+      ASSISTANT_AMQP_PORT: ${ASSISTANT_AMQP_PORT:-5672}
+      ASSISTANT_AMQP_PASSWORD_FILE: /run/secrets/assistant_rails_amqp_password
+      ASSISTANT_ANSIBLE_MODULE_ALLOWLIST: ${ASSISTANT_ANSIBLE_MODULE_ALLOWLIST:-}
+      ASSISTANT_TRANSCRIPT_DAYS: "7"
+      ASSISTANT_AUDIT_DAYS: "90"
+      ASSISTANT_GRANT_TTL_SECONDS: "300"
+      ASSISTANT_MAX_RECORDS: "10"
+      ASSISTANT_MAX_TOOL_CALLS: "8"
+      ASSISTANT_MAX_RESULT_BYTES: "65536"
+      ASSISTANT_MAX_TOTAL_BYTES: "262144"
+      ASSISTANT_TURN_STARTS_PER_MINUTE: "10"
+      ASSISTANT_TURN_STARTS_PER_HOUR: "60"
+      ASSISTANT_MAX_CONCURRENT_TURNS: "2"
+      ASSISTANT_MAX_VALIDATIONS_PER_TURN: "1"
     volumes:
       # Mount source for live reload — code edits hot-reload in the container.
       - ./web:/app
+    secrets:
+      - source: assistant_rails_amqp_password
+        target: assistant_rails_amqp_password
+        uid: "0"
+        gid: "0"
+        mode: 0400
+    networks:
+      - default
+      - assistant-queue
+      - assistant-mcp-rails
     ports:
       - "0.0.0.0:5000:5000"
     depends_on:
@@ -221,7 +262,321 @@ services:
     init: true
     restart: unless-stopped
 
+  assistant-rabbitmq-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        RAILS_ENV: development
+        BUNDLE_WITHOUT: ""
+    command: ["bundle", "exec", "ruby", "/app/ops/assistant/provision_rabbitmq.rb"]
+    environment:
+      HOME: /tmp
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
+      RABBITMQ_PROVISION_USERNAME: assistant-provisioner
+      RABBITMQ_PROVISION_PASSWORD_FILE: /run/secrets/assistant_rabbitmq_provision_password
+      ASSISTANT_RAILS_AMQP_PASSWORD_FILE: /run/secrets/assistant_rails_amqp_password
+      ASSISTANT_GATEWAY_AMQP_PASSWORD_FILE: /run/secrets/assistant_gateway_amqp_password
+      ASSISTANT_VALIDATOR_AMQP_PASSWORD_FILE: /run/secrets/assistant_validator_amqp_password
+    secrets:
+      - source: assistant_rabbitmq_provision_password
+        target: assistant_rabbitmq_provision_password
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: assistant_rails_amqp_password
+        target: assistant_rails_amqp_password
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: assistant_gateway_amqp_password
+        target: assistant_gateway_amqp_password
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: assistant_validator_amqp_password
+        target: assistant_validator_amqp_password
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    networks:
+      - assistant-queue
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    mem_limit: 128m
+    cpus: "0.25"
+    pids_limit: 64
+    restart: "on-failure:3"
+
+  assistant-events:
+    profiles: ["assistant"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        RAILS_ENV: development
+        BUNDLE_WITHOUT: ""
+    command: ["bin/rails", "runner", "Assistant::EventConsumer.run"]
+    env_file:
+      - .env
+    environment:
+      HOME: /tmp
+      RAILS_ENV: development
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-hunter_development}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:-dev-primary-key-32-bytes-only-01}
+      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:-dev-deterministic-key-32-byte-01}
+      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:-dev-key-derivation-salt-32-byte01}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
+      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
+      ASSISTANT_AMQP_HOST: ${ASSISTANT_AMQP_HOST:-rabbitmq}
+      ASSISTANT_AMQP_PORT: ${ASSISTANT_AMQP_PORT:-5672}
+      ASSISTANT_AMQP_PASSWORD_FILE: /run/secrets/assistant_rails_amqp_password
+      ASSISTANT_ANSIBLE_MODULE_ALLOWLIST: ${ASSISTANT_ANSIBLE_MODULE_ALLOWLIST:-}
+      ASSISTANT_TRANSCRIPT_DAYS: "7"
+      ASSISTANT_AUDIT_DAYS: "90"
+    secrets:
+      - source: assistant_rails_amqp_password
+        target: assistant_rails_amqp_password
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    networks:
+      - default
+      - assistant-queue
+      - assistant-mcp-rails
+    depends_on:
+      web:
+        condition: service_started
+      assistant-rabbitmq-init:
+        condition: service_completed_successfully
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /app/tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
+      - /app/log:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+      - /app/storage:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    mem_limit: 384m
+    cpus: "0.50"
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  assistant-egress:
+    profiles: ["assistant"]
+    build:
+      context: ./assistant/egress
+      dockerfile: Dockerfile
+    networks:
+      - assistant-egress-in
+      - assistant-egress-out
+    user: "31:31"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=31,gid=31
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/egress.json
+      - apparmor=hunter-assistant-egress
+    init: true
+    mem_limit: 128m
+    cpus: "0.50"
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/usr/sbin/squid", "-k", "check", "-f", "/etc/squid/squid.conf"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  hunter-mcp:
+    profiles: ["assistant"]
+    build:
+      context: ./assistant/mcp
+      dockerfile: Dockerfile
+    environment:
+      ASSISTANT_HUNTER_URL: http://web:5000
+      ASSISTANT_HUNTER_ALLOWED_HOSTS: web:5000
+      ASSISTANT_MCP_ALLOWED_HOSTS: hunter-mcp:8080
+      ASSISTANT_MCP_ALLOWED_ORIGINS: http://assistant-gateway:8081
+    secrets:
+      - source: assistant_gateway_mcp_token
+        target: assistant_gateway_mcp_token
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: assistant_mcp_hunter_token
+        target: assistant_mcp_hunter_token
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    networks:
+      - assistant-gateway-mcp
+      - assistant-mcp-rails
+    depends_on:
+      web:
+        condition: service_started
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/mcp.json
+      - apparmor=hunter-mcp
+    init: true
+    mem_limit: 128m
+    cpus: "0.50"
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/hunter-mcp", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  assistant-validator:
+    profiles: ["assistant"]
+    build:
+      context: ./assistant/validator
+      dockerfile: Dockerfile
+    secrets:
+      - source: assistant_validator_amqp_password
+        target: assistant_validator_amqp_password
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    networks:
+      - assistant-validator-queue
+    depends_on:
+      assistant-rabbitmq-init:
+        condition: service_completed_successfully
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
+      - /work:rw,noexec,nosuid,nodev,size=64m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/validator.json
+      - apparmor=hunter-assistant-validator
+    init: true
+    mem_limit: 256m
+    cpus: "1.00"
+    pids_limit: 96
+    healthcheck:
+      test: ["CMD", "/hunter-assistant-validator", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  assistant-gateway:
+    profiles: ["assistant"]
+    build:
+      context: ./assistant/gateway
+      dockerfile: Dockerfile
+    volumes:
+      - ./secrets:/run/secrets:ro
+    secrets:
+      - source: assistant_gateway_mcp_token
+        target: assistant_gateway_mcp_token
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+      - source: assistant_gateway_amqp_password
+        target: assistant_gateway_amqp_password
+        uid: "1000"
+        gid: "1000"
+        mode: 0400
+    networks:
+      - assistant-gateway-queue
+      - assistant-gateway-mcp
+      - assistant-egress-in
+    depends_on:
+      assistant-rabbitmq-init:
+        condition: service_completed_successfully
+      hunter-mcp:
+        condition: service_healthy
+      assistant-egress:
+        condition: service_healthy
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/gateway.json
+      - apparmor=hunter-assistant-gateway
+    init: true
+    mem_limit: 256m
+    cpus: "1.00"
+    pids_limit: 96
+    healthcheck:
+      test: ["CMD", "/hunter-assistant-gateway", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
 volumes:
   hunter_db:
   mongodb_data:
   rabbitmq_data:
+
+networks:
+  assistant-queue:
+    internal: true
+  assistant-gateway-queue:
+    internal: true
+  assistant-gateway-mcp:
+    internal: true
+  assistant-mcp-rails:
+    internal: true
+  assistant-validator-queue:
+    internal: true
+  assistant-egress-in:
+    internal: true
+  assistant-egress-out: {}
+
+secrets:
+  assistant_gateway_mcp_token:
+    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_gateway_mcp_token
+  assistant_mcp_hunter_token:
+    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_mcp_hunter_token
+  assistant_rabbitmq_provision_password:
+    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_rabbitmq_provision_password
+  assistant_rails_amqp_password:
+    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_rails_amqp_password
+  assistant_gateway_amqp_password:
+    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_gateway_amqp_password
+  assistant_validator_amqp_password:
+    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_validator_amqp_password

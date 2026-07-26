@@ -1,0 +1,22 @@
+_fixture:
+  model_class: Assistant::Turn
+
+created:
+  conversation: one
+  user: one
+  provider_profile: openai
+  correlation_id: 6d261bce-cc98-48f5-a7bd-7f61885a835b
+  status: created
+  input_tokens: 0
+  output_tokens: 0
+  tool_call_count: 0
+
+other_user:
+  conversation: other_user
+  user: two
+  provider_profile: openai
+  correlation_id: d63c6b82-8b3c-4494-af39-6e8edbd120f7
+  status: created
+  input_tokens: 0
+  output_tokens: 0
+  tool_call_count: 0

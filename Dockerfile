@@ -41,6 +41,7 @@ COPY web/Gemfile web/Gemfile.lock ./
 RUN bundle install && gem install foreman
 
 COPY web/ ./
+COPY ops/assistant/provision_rabbitmq.rb /app/ops/assistant/provision_rabbitmq.rb
 
 COPY --from=whiterabbit-build /out/whiterabbit /usr/local/bin/whiterabbit
 ENV WHITERABBIT_BIN=/usr/local/bin/whiterabbit

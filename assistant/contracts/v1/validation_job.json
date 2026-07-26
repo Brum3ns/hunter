@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hunter.invalid/contracts/v1/validation_job.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "validation_id", "correlation_id", "turn_id", "source", "expires_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "validation_id": { "type": "string", "format": "uuid", "maxLength": 36 },
+    "correlation_id": { "type": "string", "format": "uuid", "maxLength": 36 },
+    "turn_id": { "type": "integer", "minimum": 1 },
+    "source": { "type": "string", "minLength": 1, "maxLength": 65536 },
+    "expires_at": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}

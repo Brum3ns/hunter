@@ -1,0 +1,15 @@
+openai_primary:
+  provider: openai
+  model: gpt-5
+  secret_ref: openai_primary
+  input_limit: 32768
+  output_limit: 8192
+  retention_posture: standard
+
+anthropic_primary:
+  provider: anthropic
+  model: claude-sonnet-5
+  secret_ref: anthropic_primary
+  input_limit: 32768
+  output_limit: 8192
+  retention_posture: standard

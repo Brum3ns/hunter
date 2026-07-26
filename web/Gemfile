@@ -22,6 +22,9 @@ gem "jbuilder"
 # MongoDB Ruby driver — reads/writes the vulnerabilities collection Raily populates
 gem "mongo", "~> 2.21"
 
+# Dedicated non-durable assistant RabbitMQ topology and manual-ack consumers.
+gem "bunny", "3.1.0"
+
 # Read OSV.dev per-ecosystem bulk dumps (all.zip) for the CVE module sync.
 gem "rubyzip", "~> 2.3", require: "zip"
 

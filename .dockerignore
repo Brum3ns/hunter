@@ -13,3 +13,11 @@ web/vendor/bundle
 web/tmp
 web/log
 web/node_modules
+
+# Never send local credentials to BuildKit, even when no Dockerfile currently
+# copies their containing directory.
+.env
+.env.*
+!.env.example
+secrets/dev
+secrets/prod

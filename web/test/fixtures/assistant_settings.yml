@@ -1,0 +1,8 @@
+_fixture:
+  model_class: Assistant::Setting
+
+default:
+  singleton_key: true
+  assistant_enabled: false
+  transcript_retention_days: 7
+  audit_retention_days: 90
