@@ -62,6 +62,8 @@ class Assistant::ProviderCredentialsTest < ActiveSupport::TestCase
   end
 
   def test_a_file_behind_an_unsearchable_directory_is_unreadable
+    skip "root bypasses directory permission checks" if Process.uid.zero?
+
     Dir.mktmpdir do |dir|
       secrets = Pathname.new(dir).join("secrets")
       secrets.mkpath
@@ -74,6 +76,14 @@ class Assistant::ProviderCredentialsTest < ActiveSupport::TestCase
         assert_equal "unreadable", status(secrets.to_s).reason
       ensure
         secrets.chmod(0o700)
+      end
+    end
+  end
+
+  def test_a_stat_failure_is_unreadable_regardless_of_uid
+    with_secret("sk-live-value", mode: 0o400) do |dir|
+      stub_methods(File, lstat: ->(_path) { raise Errno::EACCES }) do
+        assert_equal "unreadable", status(dir).reason
       end
     end
   end
