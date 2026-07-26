@@ -15,23 +15,35 @@ mount of this directory at `/run/secrets`, so an absent file is a supported
 disabled state rather than a boot failure — the chat reports why a provider
 is unavailable.
 
-The six machine-credential secrets (RabbitMQ, queue, and MCP tokens) still use
-the `ASSISTANT_SECRET_DIR`-selected, file-backed Compose secret scheme
-described below; only the two provider keys moved to this shared, bind-mounted
-directory.
+The six machine credentials (RabbitMQ passwords and MCP tokens) are no longer
+operator-supplied at all. `assistant-secrets-init` generates them on first boot
+into the `assistant_secrets` Docker volume at `/run/assistant/secrets`, and
+`assistant-token-init` mints the MCP service token there once the database is
+migrated. Only the two provider keys live in this directory.
 
 The hardened Compose services run as the fixed numeric identity `1000:1000`.
-File-backed Compose secrets preserve host ownership on standalone Compose, so
-the deployment secret files must also be owned by `1000:1000`. If the account
-that generated them has a different identity, an administrator must apply
+The provider key files must therefore also be owned by `1000:1000`. If the
+account that created them has a different identity, an administrator must apply
 `chown 1000:1000` while retaining mode `0600`. Credential readers accept that
 mode only when an attempted write is denied by the read-only secret mount.
 
-When `ASSISTANT_SECRET_DIR` is unset, Compose points at checked-in inert files
-under `secrets/disabled`. They exist only so the ordinary Hunter stack can boot
-with the assistant profile disabled; their permissions and values are rejected
-by every assistant credential reader. Never enable the feature or start the
-assistant profile with that directory.
+## Upgrading from an earlier build (one time)
+
+Docker seeds a named volume from the image only while the volume is still
+empty, so a host that ran a build predating the `assistant_secrets` volume has
+it owned `root:root` and `assistant-secrets-init` (uid 1000) cannot write it.
+Since `rabbitmq` — and therefore `web` — waits on that one-shot, the whole
+stack stays down, not just the assistant. Remove the stale volume once before
+the first `up` on the new images:
+
+```sh
+docker compose down
+docker volume rm <project>_assistant_secrets
+```
+
+Nothing is lost: every credential in it is regenerated on the next boot. See
+`docs/runbooks/hunter-assistant-credential-rotation.md` for the broker-side
+detail.
 
 Provider credentials are supplied by the deployment operator. Copy the inert
 examples into this directory, replace the placeholder with the real value

@@ -322,37 +322,33 @@ class AssistantComposeTest < Minitest::Test
 
   # Would have caught round 1's "bootstrap scripts are not in the image": the
   # command referenced /app/ops/assistant/bootstrap.sh, which the Dockerfile
-  # never copied. Maps in-image paths back to their build-context source and
-  # checks both that the file exists and that .dockerignore does not drop it.
-  def test_every_path_a_compose_command_executes_exists_in_the_build_context
+  # never copied. Resolves each referenced path through the actual COPY rules,
+  # so a COPY retargeted to a different destination fails here even though the
+  # source still exists in the context. Paths are scanned out of the whole
+  # command rather than matched at token start, so one wrapped in `sh -c "..."`
+  # is checked too.
+  IN_IMAGE_PATH = %r{/app/[A-Za-z0-9._/-]*[A-Za-z0-9._-]}
+
+  def test_every_path_a_compose_command_executes_exists_in_the_image
     ignored = ROOT.join(".dockerignore").read.lines.map(&:strip)
       .reject { |line| line.empty? || line.start_with?("#") }
+    negated = ignored.select { |rule| rule.start_with?("!") }.map { |rule| rule.delete_prefix("!") }
 
     each_compose do |filename, config|
       config.fetch("services").each do |service_name, service|
         next unless service.key?("build") || service.fetch("image", "").include?("-web:")
 
-        Array(service["command"]).each do |token|
-          next unless token.is_a?(String) && token.start_with?("/app/")
+        Array(service["command"]).grep(String).flat_map { |token| token.scan(IN_IMAGE_PATH) }.each do |path|
+          source = build_context_source_for(path)
 
-          relative = token.delete_prefix("/app/")
-          # /app is web/ plus the ops/assistant tree copied in alongside it.
-          source = relative.start_with?("ops/") ? relative : "web/#{relative}"
+          assert source,
+            "#{filename}: #{service_name} runs #{path}, which no Dockerfile COPY places in the image"
 
-          assert_path_exists ROOT.join(source),
-            "#{filename}: #{service_name} runs #{token}, missing from the build context at #{source}"
-          negated = ignored.select { |rule| rule.start_with?("!") }.map { |rule| rule.delete_prefix("!") }
+          relative = source.relative_path_from(ROOT).to_s
           dropped = ignored.reject { |rule| rule.start_with?("!") }.any? do |rule|
-            source.start_with?(rule.chomp("/")) && negated.none? { |keep| source.start_with?(keep.chomp("/")) }
+            relative.start_with?(rule.chomp("/")) && negated.none? { |keep| relative.start_with?(keep.chomp("/")) }
           end
-          refute dropped, "#{filename}: #{service_name} runs #{token}, but .dockerignore excludes #{source}"
-
-          # Present in the context is not the same as present in the image.
-          copied = dockerfile_copy_sources.any? do |copy_source|
-            source == copy_source || source.start_with?(copy_source.chomp("/") + "/")
-          end
-          assert copied,
-            "#{filename}: #{service_name} runs #{token}, but no Dockerfile COPY brings #{source} into the image"
+          refute dropped, "#{filename}: #{service_name} runs #{path}, but .dockerignore excludes #{relative}"
         end
       end
     end
@@ -388,18 +384,53 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  # The assistant must never be able to hold Control Center's broker hostage:
-  # web waits for rabbitmq, so no assistant one-shot may sit between them.
-  def test_web_waits_for_the_broker_and_no_assistant_one_shot_gates_it
-    each_compose do |filename, config|
-      web = config.fetch("services").fetch("web")
+  # Checks web's whole dependency *closure*, not just its direct edges: the real
+  # graph is assistant-secrets-init -> rabbitmq -> web, so an assistant service
+  # does transitively gate Rails and a direct-edge assertion would call that
+  # clean while Control Center was down.
+  #
+  # That one coupling is accepted deliberately. assistant-secrets-init is a
+  # shell-only one-shot that writes five random files: no database, no network
+  # peer, no Rails boot, and it exits non-zero only if the volume itself is
+  # unwritable — a condition that breaks the stack regardless. It is a very
+  # different risk from the full-Rails assistant-bootstrap an earlier design
+  # would have put in this position, whose migrations, encryption keys and boot
+  # sequence could each fail independently and take the broker with them.
+  # Everything database-backed lives in assistant-token-init, downstream of web.
+  # Any *other* assistant service appearing in this closure is a regression.
+  WEB_CLOSURE_ALLOWED_ASSISTANT_SERVICES = %w[assistant-secrets-init].freeze
 
-      assert_equal({ "condition" => "service_healthy" }, web.fetch("depends_on").fetch("rabbitmq"),
+  def test_no_assistant_service_beyond_the_secrets_one_shot_can_gate_control_center
+    each_compose do |filename, config|
+      services = config.fetch("services")
+
+      assert_equal({ "condition" => "service_healthy" },
+        services.fetch("web").fetch("depends_on").fetch("rabbitmq"),
         "#{filename}: web no longer waits for the broker to be healthy")
-      (ASSISTANT_SECRETS_VOLUME_RW + [ "assistant-rabbitmq-init" ]).each do |one_shot|
-        refute web.fetch("depends_on").key?(one_shot),
-          "#{filename}: web depends on #{one_shot}, giving the assistant veto power over Control Center"
-      end
+
+      closure = dependency_closure(services, "web")
+      gating = closure.select { |name| assistant_service?(name) }.sort
+
+      assert_equal WEB_CLOSURE_ALLOWED_ASSISTANT_SERVICES.sort, gating,
+        "#{filename}: web's dependency closure gates on #{gating.join(', ')}; only " \
+        "#{WEB_CLOSURE_ALLOWED_ASSISTANT_SERVICES.join(', ')} may hold up Control Center"
+    end
+  end
+
+  # The Dockerfile's ownership fix only reaches a volume Docker has yet to seed,
+  # so upgrading hosts need a one-line manual removal. Getting this wrong is a
+  # stack-wide outage, and Task 10 rewrites these documents, so pin the note.
+  def test_the_stale_volume_upgrade_step_is_documented_everywhere_an_operator_looks
+    %w[
+      secrets/README.md
+      docs/runbooks/hunter-assistant-credential-rotation.md
+      docker-compose.yaml
+      docker-compose.prod.yaml
+    ].each do |name|
+      body = ROOT.join(name).read
+
+      assert_includes body, "docker volume rm <project>_assistant_secrets",
+        "#{name} does not tell an upgrading operator to remove the stale secrets volume"
     end
   end
 
@@ -489,15 +520,62 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  # Build-context sources of every COPY in the root Dockerfile that is not a
-  # --from=stage copy, with `COPY web/ ./` normalised to the "web/" prefix.
-  def dockerfile_copy_sources
-    @dockerfile_copy_sources ||= ROOT.join("Dockerfile").read.lines.filter_map do |line|
-      next unless line.strip.start_with?("COPY ")
-      next if line.include?("--from=")
+  def assistant_service?(name)
+    name.start_with?("assistant-") || name == "hunter-mcp"
+  end
 
-      line.strip.delete_prefix("COPY ").split(/\s+/)[0..-2]
-    end.flatten
+  # Every service reachable from the given one through depends_on, transitively.
+  def dependency_closure(services, root)
+    seen = []
+    pending = services.fetch(root).fetch("depends_on", {})
+    pending = pending.is_a?(Hash) ? pending.keys : Array(pending)
+
+    until pending.empty?
+      name = pending.shift
+      next if seen.include?(name)
+
+      seen << name
+      edges = services.fetch(name, {}).fetch("depends_on", {})
+      pending.concat(edges.is_a?(Hash) ? edges.keys : Array(edges))
+    end
+    seen
+  end
+
+  # Each non-stage COPY in the root Dockerfile as [sources, destination,
+  # destination_is_directory], with destinations resolved against WORKDIR /app.
+  def dockerfile_copy_rules
+    @dockerfile_copy_rules ||= ROOT.join("Dockerfile").read.lines.filter_map do |line|
+      stripped = line.strip
+      next unless stripped.start_with?("COPY ")
+      next if stripped.include?("--from=")
+
+      parts = stripped.delete_prefix("COPY ").split(/\s+/)
+      raw_destination = parts.pop
+      [ parts, File.expand_path(raw_destination, "/app"), raw_destination.end_with?("/", ".") ]
+    end
+  end
+
+  # The build-context path that actually lands at in_image_path, or nil. Honours
+  # the COPY *destination*, so retargeting a COPY elsewhere stops resolving here
+  # even though the source file still exists in the context.
+  def build_context_source_for(in_image_path)
+    dockerfile_copy_rules.each do |sources, destination, destination_is_directory|
+      sources.each do |source|
+        context_path = ROOT.join(source.chomp("/"))
+
+        if source.end_with?("/") || context_path.directory?
+          prefix = "#{destination.chomp('/')}/"
+          next unless in_image_path.start_with?(prefix)
+
+          candidate = context_path.join(in_image_path.delete_prefix(prefix))
+          return candidate if candidate.exist?
+        else
+          landed = destination_is_directory ? File.join(destination, File.basename(source)) : destination
+          return context_path if landed == in_image_path && context_path.exist?
+        end
+      end
+    end
+    nil
   end
 
   def service_networks(service)

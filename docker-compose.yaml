@@ -603,6 +603,15 @@ volumes:
   rabbitmq_data:
   # Bootstrap-generated machine credentials (RabbitMQ/MCP). The two init
   # one-shots are the only read-write mounts; every consumer mounts it :ro.
+  #
+  # UPGRADING FROM AN EARLIER BUILD: Docker seeds a named volume from the image
+  # only while the volume is still empty, so a volume created before the image
+  # gained /run/assistant/secrets is owned root:root and assistant-secrets-init
+  # (uid 1000) cannot write it. Because rabbitmq — and therefore web — waits on
+  # that one-shot, the whole stack stays down, not just the assistant. Remove
+  # the stale volume once before the first `up` on the new images:
+  #     docker compose down && docker volume rm <project>_assistant_secrets
+  # Nothing is lost: every file in it is regenerated on the next boot.
   assistant_secrets:
 
 networks:

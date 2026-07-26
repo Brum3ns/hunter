@@ -17,6 +17,30 @@ Secret source files live outside Git and images. Compose mounts each only into
 the listed service under `/run/secrets`. Host source files are mode 0600.
 Processes must not print their contents, paths, digests, or request headers.
 
+## Upgrading onto the bootstrap volume (one time)
+
+The six machine credentials are generated at first boot by
+`assistant-secrets-init` into the `assistant_secrets` volume, replacing the
+file-backed Compose secrets. Docker seeds a named volume from the image only
+while that volume is still empty, so a host that ran an earlier build already
+has `assistant_secrets` owned `root:root 0755`. The new image layer does not
+change it, `assistant-secrets-init` runs as uid 1000 and cannot write it, and
+every other service mounts the volume read-only, so nothing repairs it in
+place. Because `rabbitmq` — and therefore `web` — waits on that one-shot, the
+result is a stack-wide outage rather than a degraded assistant.
+
+Before the first `up` on the new images, remove the stale volume once:
+
+```sh
+docker compose down
+docker volume rm <project>_assistant_secrets
+```
+
+Nothing is lost: every credential in it is regenerated on the next boot. The
+broker's stored password hashes are rotated to match by
+`assistant-rabbitmq-init`; set `ASSISTANT_RABBITMQ_REPROVISION=true` for that
+one boot if the broker's data volume is being kept.
+
 ## Planned rotation
 
 1. Set the database assistant setting false and confirm new turns return
