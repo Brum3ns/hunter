@@ -226,7 +226,7 @@ the initial state, which the Settings off-switch can still override at runtime.
 
 - Fail-closed preflight refuses activation and names the offending file,
   without printing any value, when a key is zero-length, matches a checked-in
-  example or placeholder, has an unaccepted mode or owner, or is a symlink.
+  example or placeholder, has an unaccepted mode, or is a symlink.
 - A startup log line records derived activation at deploy time — a reason code
   and provider slugs only, never a credential value or path — so derived
   activation is never silent. This is a boot-time log line, not a database
@@ -257,6 +257,77 @@ that provider. A restored backup or a copied secrets directory activates
 provider egress. Compensating controls are the retained kill switch, the
 startup log line recording derived activation, and the unchanged audit trail
 for administrator enable/disable actions.
+
+## Change 3 — Rails itself now mounts the provider secret directory
+
+This delta was drafted assuming Rails never needed the provider key files
+themselves, only a verdict about them. That assumption did not survive
+implementation: `Assistant::ProviderCredentials` and `Assistant::Config.enabled?`
+run inside the Rails codebase, and that codebase derives whether the
+Assistant is active from the *contents* of `secrets/`, not from a signal the
+gateway hands it. A prior draft of this branch mounted `./secrets:/run/secrets:ro`
+only on `assistant-gateway`, so `web` and `assistant-events` — the two Compose
+services that actually execute the Ruby code calling `Config.enabled?` —
+had no way to reach the directory their own read path names by default.
+Every provider classified `absent`, activation stayed permanently
+`no_provider_credentials`, and `assistant-events` looped on
+`sleep 5 until Assistant::Config.enabled?` forever. That is corrected here:
+`web` and `assistant-events` both now mount `./secrets:/run/secrets:ro`,
+identically to `assistant-gateway`.
+
+This is a straightforward reversal of the invariant recorded in
+`docs/superpowers/plans/2026-07-25-hunter-assistant-implementation.md:1265`
+("Rails never mounts provider or gateway-to-MCP secrets") as it applies to
+**provider** keys specifically. It is unavoidable, not a convenience: Rails is
+the layer that decides and discloses activation (the chat's disabled-reason
+copy, the Settings page badge, and the event consumer's wait loop all read
+`Assistant::Config.enabled?`), and that decision cannot be derived from
+directory contents Rails cannot see.
+
+- **Read-only.** Both new mounts are `:ro`, exactly like the gateway's. Rails
+  cannot write, rotate, or delete a provider key file.
+- **The read is bounded to a short prefix.** `enabled?` runs on every
+  assistant request, every Settings page render, and every 5 seconds in the
+  event consumer, so `ProviderCredentials#reason_for` no longer reads up to
+  `MAX_BYTES` (16 KiB) of live key material per call. It reads a 128-byte
+  prefix — ample to decide empty vs. placeholder vs. valid — while the
+  oversize decision is still made from `lstat` size before any read happens,
+  unchanged.
+- **The gateway-to-MCP token is still not mounted into Rails.** This change is
+  scoped to the two provider key files only. `assistant_gateway_mcp_token`,
+  `assistant_mcp_hunter_token`, and the other bootstrap-generated machine
+  credentials in the `assistant_secrets` volume are unaffected; the invariant
+  they were recorded under continues to hold for them.
+
+### New exposure
+
+- Rails — already the largest, most complex, and most externally-reachable
+  process in the stack (it serves the whole web app, not a single bounded
+  purpose) — now has read access to both provider key files, where previously
+  only `assistant-gateway` did. A vulnerability in Rails (or in any gem it
+  loads) that yields arbitrary file read now reaches live provider credentials
+  directly, rather than only through the narrower gateway process.
+- `web` runs with no `user:` override in either Compose file, so it keeps
+  running as root (the image sets no `USER`, and nothing else supplies one),
+  while every hardened Assistant service — including `assistant-gateway` —
+  pins `user: "1000:1000"`. Concretely, this means Rails reads the provider
+  key files as root and does so regardless of their `0400`/`0600` mode being
+  scoped to uid 1000: root bypasses the owner/group mode bits entirely. The
+  gateway's own `safeSecretMode` check — proving a `0600` file sits on a
+  genuinely read-only mount before trusting it — and the whole "accepted mode
+  is enforced against the fixed 1000:1000 identity" posture this design leans
+  on for the gateway do not apply to Rails' read path at all.
+
+### Residual risk
+
+Accepted, and now larger than before this delta: Rails is the largest attack
+surface in the stack, it runs as root, and it can now read both live provider
+keys. This is not mitigated further here — doing so (running `web` as a
+non-root user, for instance) is a substantially larger change than this delta
+covers and is left for separate work. The compensating facts are: the mount
+is read-only, the read is bounded to a short prefix per call, no reason code
+or log line this delta adds ever includes file contents, and the existing
+kill switch and audit trail for administrator enable/disable are unaffected.
 
 ## Explicitly out of scope
 

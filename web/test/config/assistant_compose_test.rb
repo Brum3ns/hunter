@@ -28,10 +28,16 @@ class AssistantComposeTest < Minitest::Test
   # secret, so a missing key is readable-as-absent rather than a fatal boot error.
   # hunter-mcp/assistant-validator/assistant-gateway also mount the bootstrap-
   # generated machine-credential volume read-only (assistant-egress needs neither).
+  # web and assistant-events run the same Rails codebase and derive activation
+  # from Assistant::Config.enabled?, which reads the same directory (Critical 1
+  # of the 2026-07-26 whole-branch review) — see
+  # test_the_provider_credential_read_path_and_its_compose_mounts_cannot_drift.
   ALLOWED_HOST_MOUNTS = {
     "assistant-gateway" => %w[./secrets:/run/secrets:ro assistant_secrets:/run/assistant/secrets:ro],
     "hunter-mcp" => %w[assistant_secrets:/run/assistant/secrets:ro],
-    "assistant-validator" => %w[assistant_secrets:/run/assistant/secrets:ro]
+    "assistant-validator" => %w[assistant_secrets:/run/assistant/secrets:ro],
+    "web" => %w[./secrets:/run/secrets:ro],
+    "assistant-events" => %w[./secrets:/run/secrets:ro]
   }.freeze
   NETWORKS = {
     "web" => %w[default assistant-queue assistant-mcp-rails],
@@ -522,6 +528,47 @@ class AssistantComposeTest < Minitest::Test
         "#{name} still references a per-environment secret directory")
       refute_match(/^  assistant_(openai|anthropic)_api_key:/m, body,
         "#{name} still defines a provider key as a file-backed Compose secret")
+    end
+  end
+
+  # Critical 1 of the 2026-07-26 whole-branch review: every existing test
+  # redirected Assistant::ProviderCredentials::DEFAULT_DIRECTORY to a
+  # Dir.mktmpdir, and the compose tests above only parsed YAML — nothing ever
+  # checked Rails' actual read path against what the compose files mount, so a
+  # branch where `web` never mounted /run/secrets still passed every test while
+  # activation stayed permanently disabled. This pins the two together: it
+  # reads the production directory straight out of the Ruby source (never
+  # hardcodes it), and asserts every compose service that runs Ruby code
+  # reaching Assistant::Config.enabled? — `web` (serves the controllers/views
+  # that call it) and `assistant-events` (its entry point calls it directly,
+  # see event_consumer.rb) — mounts that exact path. assistant-token-init also
+  # boots the full Rails environment but never calls Config.enabled? itself, so
+  # it is deliberately excluded.
+  def test_the_provider_credential_read_path_and_its_compose_mounts_cannot_drift
+    source = ROOT.join("web/app/services/assistant/provider_credentials.rb").read
+    directory = source[/DEFAULT_DIRECTORY\s*=\s*"([^"]+)"/, 1]
+    refute_nil directory, "cannot find ProviderCredentials::DEFAULT_DIRECTORY in the source"
+
+    callers = Dir.glob(ROOT.join("web/app/**/*.{rb,erb}")).select do |path|
+      File.read(path).include?("Config.enabled?")
+    end
+    refute_empty callers, "no Ruby source calls Assistant::Config.enabled? any more; update this test"
+    assert callers.any? { |path| path.end_with?("event_consumer.rb") },
+      "assistant-events's entry point (Assistant::EventConsumer) no longer calls Config.enabled?"
+    assert callers.any? { |path| path.include?("/controllers/") },
+      "no controller calls Config.enabled? any more; web's mount would be unused"
+
+    services_reaching_config_enabled = %w[web assistant-events]
+
+    each_compose do |filename, config|
+      services = config.fetch("services")
+
+      services_reaching_config_enabled.each do |name|
+        mounts = services.fetch(name).fetch("volumes", [])
+        assert mounts.any? { |mount| mount.split(":")[1] == directory },
+          "#{filename}: #{name} runs Ruby code that calls Assistant::Config.enabled? " \
+          "(which reads #{directory}) but does not mount that path"
+      end
     end
   end
 

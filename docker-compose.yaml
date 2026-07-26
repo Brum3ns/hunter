@@ -210,6 +210,7 @@ services:
     volumes:
       # Mount source for live reload — code edits hot-reload in the container.
       - ./web:/app
+      - ./secrets:/run/secrets:ro
       - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - default
@@ -417,6 +418,7 @@ services:
       ASSISTANT_TRANSCRIPT_DAYS: "7"
       ASSISTANT_AUDIT_DAYS: "90"
     volumes:
+      - ./secrets:/run/secrets:ro
       - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - default
@@ -435,6 +437,7 @@ services:
       - /app/tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
       - /app/log:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
       - /app/storage:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=0700,uid=1000,gid=1000
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
     init: true

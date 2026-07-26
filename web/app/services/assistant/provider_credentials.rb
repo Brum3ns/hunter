@@ -8,6 +8,15 @@ module Assistant
     # Mirrors the gateway's maxSecretBytes (16 << 10) so a key this preflight
     # calls oversize is exactly a key the gateway would refuse to load.
     MAX_BYTES = 16 * 1024
+    # enabled? runs on every assistant request, every settings page render, and
+    # every 5 seconds in the event consumer, so reason_for must not copy up to
+    # MAX_BYTES of live key material into a Ruby String on each call. Deciding
+    # empty vs placeholder vs valid never needs more than a short prefix: the
+    # PLACEHOLDER pattern is anchored at the start of the body, and emptiness
+    # only needs to find one non-whitespace byte. 128 bytes is ample for both.
+    # The oversize decision is unaffected — it is already made from lstat size,
+    # before any read happens.
+    PREFIX_BYTES = 128
     # The gateway is the enforcement point for key file modes. It additionally
     # requires a 0600 file to sit on a genuinely read-only mount (it proves this
     # by checking that a write-open fails with EROFS/EACCES). This module does
@@ -51,7 +60,7 @@ module Assistant
       return "bad_mode" unless ACCEPTED_MODES.include?(info.mode & 0o777)
 
       body = begin
-        path.read(MAX_BYTES).to_s
+        path.read(PREFIX_BYTES).to_s
       rescue SystemCallError
         return "unreadable"
       end

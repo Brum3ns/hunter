@@ -83,7 +83,10 @@ done
 
 for secret_file in $secret_files; do
   permissions=$(stat -c '%a' "$secret_file" 2>/dev/null || stat -f '%Lp' "$secret_file")
-  [ "$permissions" = "600" ] || fail "a deployment secret source does not have mode 0600"
+  case "$permissions" in
+    600 | 400) ;;
+    *) fail "a deployment secret source does not have mode 0600 or 0400" ;;
+  esac
 
   byte_count=$(wc -c < "$secret_file" | tr -d ' ')
   [ "$byte_count" -ge 20 ] || fail "a deployment secret is too short for reliable leak matching"

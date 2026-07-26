@@ -5,7 +5,7 @@
 > genuinely unimplemented and the effort was honestly ~60–65% complete. Since
 > then a single commit (`cc4472f`, "Add the Hunter Assistant LLM chat feature
 > with its bounded gateway, MCP broker, isolated validator and single secret
-> directory") completed the remainder of the base plan, and a further nine
+> directory") completed the remainder of the base plan, and a further 20
 > commits implemented the zero-step activation plan
 > (`docs/superpowers/plans/2026-07-26-hunter-assistant-zero-step-activation.md`).
 > **Do not use the "Honest progress", "Exact next step", or "Remaining plan"
@@ -35,7 +35,7 @@ Use this checkpoint with:
   secrets/networks/hardened services/local integration
   (`docker-compose.yaml`, `docker-compose.prod.yaml`, the seccomp/AppArmor
   profiles under `ops/assistant/`).
-- **All 9 tasks of the zero-step activation plan are implemented**: the
+- **All 10 tasks of the zero-step activation plan are implemented**: the
   threat-model delta is finalized and approved, the secret directory
   collapsed to a single `secrets/`, machine credentials are bootstrap-
   generated (`ops/assistant/bootstrap.sh`, `ops/assistant/bootstrap_service_token.rb`),

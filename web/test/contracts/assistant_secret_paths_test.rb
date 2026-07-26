@@ -44,15 +44,26 @@ class AssistantSecretPathsTest < Minitest::Test
   # genuinely read-only (assistant/gateway/internal/config/config.go safeSecretMode).
   # Assistant::ProviderCredentials deliberately does not replicate that probe, so the
   # read-only mount is the contract that keeps the two in agreement. Losing `:ro` would
-  # let Rails report a provider available that the gateway then refuses.
+  # let Rails report a provider available that the gateway then refuses. web and
+  # assistant-events also read this directory (Assistant::Config.enabled?), so the
+  # same :ro requirement holds for them — checked per service, not as a body-wide
+  # substring, so a service that mounts it writable is caught even if another
+  # service still mounts it read-only.
+  PROVIDER_SECRET_MOUNT_SERVICES = %w[assistant-gateway web assistant-events].freeze
+
   def test_the_provider_secret_mount_is_read_only
     %w[docker-compose.yaml docker-compose.prod.yaml].each do |name|
-      body = ROOT.join(name).read
+      config = YAML.safe_load_file(ROOT.join(name), aliases: true)
+      services = config.fetch("services")
 
-      assert_includes body, "- ./secrets:/run/secrets:ro",
-        "#{name} does not mount the provider secret directory read-only"
-      refute_match(%r{- \./secrets:/run/secrets(?!:ro)}, body,
-        "#{name} mounts the provider secret directory writable")
+      PROVIDER_SECRET_MOUNT_SERVICES.each do |service_name|
+        mounts = services.fetch(service_name).fetch("volumes", [])
+
+        assert_includes mounts, "./secrets:/run/secrets:ro",
+          "#{name}: #{service_name} does not mount the provider secret directory read-only"
+        refute_includes mounts, "./secrets:/run/secrets",
+          "#{name}: #{service_name} mounts the provider secret directory writable"
+      end
     end
   end
 

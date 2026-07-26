@@ -11,17 +11,22 @@ Git, images, Rails records, and Compose environment values.
    ops/assistant/prepare_secrets.sh
    ```
 
-   The script only creates `secrets/` at mode `0700`; it never creates the key
-   files themselves.
+   The script creates `secrets/` at mode `0700` and chowns it to `1000:1000`
+   when it has permission to (printing a note when it does not); it never
+   creates the key files themselves.
 
 2. Put a provider key in `secrets/assistant_openai_api_key` and/or
    `secrets/assistant_anthropic_api_key`, mode `0600`, owned `1000:1000` (the
-   fixed numeric identity every hardened Assistant container runs as):
+   fixed numeric identity every hardened Assistant container runs as). The
+   `secrets/` directory itself must be owned `1000:1000` too — a key file with
+   the right owner sitting inside a directory owned by someone else still
+   blocks uid 1000 from traversing it:
 
    ```sh
    printf '%s' "$OPENAI_KEY" > secrets/assistant_openai_api_key
    chmod 0600 secrets/assistant_openai_api_key
    chown 1000:1000 secrets/assistant_openai_api_key
+   chown 1000:1000 secrets
    ```
 
 3. Run `docker compose up`. That is the whole procedure — no flag, profile,
@@ -33,6 +38,11 @@ rather than a boot failure. An absent or empty key file means that provider
 stays disabled and the chat says so — absent and empty are indistinguishable
 to the operator, and neither is ever a boot failure. Installing only one of
 the two files is fully supported: the other provider simply stays disabled.
+
+With zero keys installed, `assistant-gateway` idles and its `/healthz` probe
+reports 503, so `docker compose ps` shows it permanently `unhealthy`. That is
+expected, not a fault: nothing depends on the gateway's health, and it
+resolves itself as soon as a valid key is installed and the service restarts.
 
 The six machine credentials (RabbitMQ passwords and MCP tokens) are no longer
 operator-supplied at all. `assistant-secrets-init` generates five of them on
