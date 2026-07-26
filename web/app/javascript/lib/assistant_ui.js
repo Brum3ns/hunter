@@ -41,6 +41,17 @@ export function renderDisabledNotice(noticeElement, composerElement, reason) {
   composerElement.disabled = true
 }
 
+// Rendering a conversation re-decides whether the composer accepts input, so it must
+// consult the same effective-enabled state the disabled notice does. Anything other
+// than an explicit true leaves the composer disabled, so a conversation created before
+// the assistant was disabled cannot present a typeable box the server would only refuse.
+export function applyComposerAvailability(composerElement, sendElement, effectiveEnabled) {
+  const disabled = effectiveEnabled !== true
+  composerElement.disabled = disabled
+  sendElement.disabled = disabled
+  return !disabled
+}
+
 export function saveConfirmationText(draft) {
   const destination = draft.destination
     ? `${draft.destination.type} #${draft.destination.id} at version ${draft.destination.lock_version}`

@@ -4,6 +4,7 @@ import {
   appendContextDisclosure,
   appendDraftCard,
   appendMessage,
+  applyComposerAvailability,
   LatestRequest,
   pollingDelay,
   renderDisabledNotice,
@@ -87,6 +88,12 @@ export default class extends Controller {
     } catch (error) {
       if (error.name !== "AbortError") this.setStatus("Assistant could not be loaded.")
     }
+  }
+
+  // The single source of truth for whether the assistant can accept input; both the
+  // disabled notice and composer availability read it, so they cannot disagree.
+  effectiveEnabled() {
+    return this.bootstrap?.settings?.effective_enabled === true
   }
 
   renderDisabledState(settings) {
@@ -274,7 +281,7 @@ export default class extends Controller {
   populateProviders(profiles) {
     this.providerSelectTarget.replaceChildren()
     const enabledProfiles = profiles.filter((profile) => profile.enabled && profile.reviewed_at)
-    const assistantEnabled = this.bootstrap?.settings?.effective_enabled
+    const assistantEnabled = this.effectiveEnabled()
     const prompt = document.createElement("option")
     prompt.value = ""
     if (!assistantEnabled) {
@@ -322,8 +329,9 @@ export default class extends Controller {
     this.draftsTarget.replaceChildren()
     this.draftSignature = null
     this.renderDrafts(conversation.drafts || [])
-    this.messageInputTarget.disabled = false
-    this.sendButtonTarget.disabled = false
+    applyComposerAvailability(
+      this.messageInputTarget, this.sendButtonTarget, this.effectiveEnabled()
+    )
 
     const turns = conversation.turns || []
     const active = [...turns].reverse().find((turn) => !terminalTurnStatus(turn.status))

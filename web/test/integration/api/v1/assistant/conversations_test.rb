@@ -12,9 +12,17 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
     ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
+  # Every input Assistant::Activation.state consults is pinned here, in the order it
+  # consults them: the kill override first, then the required settings, then the
+  # credential directory. ASSISTANT_ENABLED especially must be pinned rather than
+  # inherited — docker-compose sets it to "false" by default, so an ambient value
+  # would short-circuit to disabled_by_environment and fail this assertion inside the
+  # operator's own container.
   test "the bootstrap payload discloses the disabled reason without leaking paths" do
+    original_enabled = ENV["ASSISTANT_ENABLED"]
     original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     original_ansible_allowlist = ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"]
+    ENV["ASSISTANT_ENABLED"] = nil
     ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
 
@@ -27,6 +35,7 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
         end
       end
     ensure
+      ENV["ASSISTANT_ENABLED"] = original_enabled
       ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original_command_allowlist
       ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = original_ansible_allowlist
     end

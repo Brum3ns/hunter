@@ -238,3 +238,36 @@ test("an unknown reason falls back to a generic notice and never renders markup"
   assert.equal(notice.querySelector("img"), null)
   assert.equal(notice.textContent, "Assistant disabled.")
 })
+
+test("selecting an existing conversation while disabled keeps the composer disabled", () => {
+  assert.equal(typeof ui.applyComposerAvailability, "function")
+  const notice = new FakeElement("p")
+  const composer = new FakeElement("textarea")
+  const send = new FakeElement("button")
+
+  ui.renderDisabledNotice(notice, composer, "no_provider_credentials")
+  // Rendering a conversation re-decides composer availability. A conversation that
+  // predates the assistant being disabled must not hand back a typeable composer.
+  ui.applyComposerAvailability(composer, send, false)
+
+  assert.equal(composer.disabled, true)
+  assert.equal(send.disabled, true)
+  assert.equal(notice.textContent, "Assistant disabled: no provider credentials are installed.")
+
+  // An absent flag is treated as disabled, so a stale or partial payload fails closed.
+  ui.applyComposerAvailability(composer, send, undefined)
+  assert.equal(composer.disabled, true)
+  assert.equal(send.disabled, true)
+})
+
+test("selecting a conversation while enabled restores the composer", () => {
+  const composer = new FakeElement("textarea")
+  const send = new FakeElement("button")
+  composer.disabled = true
+  send.disabled = true
+
+  ui.applyComposerAvailability(composer, send, true)
+
+  assert.equal(composer.disabled, false)
+  assert.equal(send.disabled, false)
+})
