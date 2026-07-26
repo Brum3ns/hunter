@@ -146,8 +146,9 @@ the database `Assistant::Setting#assistant_enabled?`, and a per-profile
 `reviewed_at` set through the admin UI.
 
 After this delta a provider profile is enabled if and only if a valid,
-non-placeholder key file for it is present in `secrets/` with an accepted mode
-and owner. There is no in-repo approval metadata, no catalog `approved` field,
+non-placeholder key file for it is present in `secrets/` with an accepted mode.
+Ownership is **not** checked by either implementation — see the residual-risk note
+on Rails running as root. There is no in-repo approval metadata, no `approved` field,
 and no reviewed-through-git gate: presence and validity of the key file are the
 entire activation condition. A missing key file is treated identically to an
 empty one — the provider stays disabled and the chat says so, and neither is
@@ -346,9 +347,10 @@ mechanism change.
 ## Required verification evidence
 
 1. Adversarial preflight tests with stable outcomes: missing, zero-length,
-   placeholder, example-derived, wrong-mode, wrong-owner, and symlinked key
-   files each land in the disabled/fail-closed state with a redacted, stable
-   error or log line — never a boot failure.
+   placeholder, example-derived, wrong-mode, oversize, unreadable, and symlinked
+   key files each land in the disabled/fail-closed state with a redacted, stable
+   error or log line — never a boot failure. Ownership is deliberately **not** a
+   rejection criterion in either implementation, so no wrong-owner case exists.
 2. Bootstrap idempotence tests: repeat runs never rewrite an existing secret,
    never print a value, and mint exactly one enabled `mcp_reader` identity.
 3. Activation-derivation tests: no key file present stays disabled; a present,
