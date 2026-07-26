@@ -23,12 +23,15 @@ class AssistantComposeTest < Minitest::Test
     assistant-validator
     assistant-egress
   ].freeze
-  PROFILE_GATED_SERVICES = (ASSISTANT_SERVICES - [ "assistant-rabbitmq-init" ]).freeze
   # assistant-gateway reads the two provider-key files through a read-only bind
   # mount of the single host secrets/ directory instead of a file-backed Compose
   # secret, so a missing key is readable-as-absent rather than a fatal boot error.
+  # hunter-mcp/assistant-validator/assistant-gateway also mount the bootstrap-
+  # generated machine-credential volume read-only (assistant-egress needs neither).
   ALLOWED_HOST_MOUNTS = {
-    "assistant-gateway" => %w[./secrets:/run/secrets:ro]
+    "assistant-gateway" => %w[./secrets:/run/secrets:ro assistant_secrets:/run/assistant/secrets:ro],
+    "hunter-mcp" => %w[assistant_secrets:/run/assistant/secrets:ro],
+    "assistant-validator" => %w[assistant_secrets:/run/assistant/secrets:ro]
   }.freeze
   NETWORKS = {
     "web" => %w[default assistant-queue assistant-mcp-rails],
@@ -40,24 +43,17 @@ class AssistantComposeTest < Minitest::Test
     "assistant-events" => %w[default assistant-queue assistant-mcp-rails],
     "assistant-rabbitmq-init" => %w[assistant-queue]
   }.freeze
-  SECRET_MATRIX = {
-    "web" => %w[assistant_rails_amqp_password],
-    "rabbitmq" => %w[assistant_rabbitmq_provision_password],
-    "assistant-gateway" => %w[
-      assistant_gateway_mcp_token
-      assistant_gateway_amqp_password
-    ],
-    "hunter-mcp" => %w[assistant_gateway_mcp_token assistant_mcp_hunter_token],
-    "assistant-validator" => %w[assistant_validator_amqp_password],
-    "assistant-events" => %w[assistant_rails_amqp_password],
-    "assistant-rabbitmq-init" => %w[
-      assistant_rabbitmq_provision_password
-      assistant_rails_amqp_password
-      assistant_gateway_amqp_password
-      assistant_validator_amqp_password
-    ],
-    "assistant-egress" => []
-  }.freeze
+  # Every consumer of the bootstrap-generated machine-credential volume mounts
+  # it read-only; assistant-bootstrap is the sole read-write writer.
+  ASSISTANT_SECRETS_VOLUME_RO = %w[
+    web
+    rabbitmq
+    assistant-gateway
+    hunter-mcp
+    assistant-validator
+    assistant-events
+    assistant-rabbitmq-init
+  ].freeze
 
   def test_both_compose_definitions_isolate_and_harden_assistant_services
     each_compose do |filename, config|
@@ -67,13 +63,9 @@ class AssistantComposeTest < Minitest::Test
       ASSISTANT_SERVICES.each do |name|
         assert services.key?(name), "#{filename}: missing #{name}"
         assert_empty services.fetch(name).fetch("ports", []), "#{filename}: #{name} publishes a port"
+        assert_empty services.fetch(name).fetch("profiles", []),
+          "#{filename}: #{name} still starts only under a Compose profile"
       end
-      PROFILE_GATED_SERVICES.each do |name|
-        assert_includes services.fetch(name).fetch("profiles"), "assistant",
-          "#{filename}: #{name} starts outside the assistant profile"
-      end
-      assert_empty services.fetch("assistant-rabbitmq-init").fetch("profiles", []),
-        "#{filename}: broker cleanup is skipped outside the assistant profile"
       assert_equal "on-failure:3", services.fetch("assistant-rabbitmq-init").fetch("restart")
 
       UNTRUSTED_SERVICES.each do |name|
@@ -125,28 +117,81 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  def test_compose_grants_every_file_secret_only_to_its_approved_services
+  # No service declares a Compose file-backed secret any more: the six machine
+  # credentials moved to the assistant_secrets volume (Task 9), and the two
+  # provider keys were never Compose secrets (bind-mounted directly instead).
+  def test_no_compose_service_declares_a_file_backed_secret
     each_compose do |filename, config|
-      assert_equal SECRET_MATRIX.values.flatten.uniq.sort, config.fetch("secrets").keys.sort
-
-      SECRET_MATRIX.each do |service_name, expected|
-        actual = service_secrets(config.fetch("services").fetch(service_name))
-        assert_equal expected.sort, actual.sort, "#{filename}: #{service_name} secret mounts"
-      end
+      refute config.key?("secrets"), "#{filename}: still declares top-level Compose secrets"
 
       config.fetch("services").each do |service_name, service|
-        next if SECRET_MATRIX.key?(service_name)
-
-        assert_empty service_secrets(service), "#{filename}: #{service_name} received an assistant secret"
+        assert_empty service_secrets(service), "#{filename}: #{service_name} still mounts a file-backed secret"
       end
     end
   end
 
-  def test_assistant_is_disabled_by_default_in_both_compose_definitions
+  def test_assistant_secrets_volume_is_mounted_read_only_except_by_bootstrap
+    each_compose do |filename, config|
+      services = config.fetch("services")
+
+      ASSISTANT_SECRETS_VOLUME_RO.each do |name|
+        mounts = services.fetch(name).fetch("volumes", [])
+        assert_includes mounts, "assistant_secrets:/run/assistant/secrets:ro",
+          "#{filename}: #{name} does not mount the assistant secrets volume read-only"
+      end
+
+      bootstrap_mounts = services.fetch("assistant-bootstrap").fetch("volumes", [])
+      assert_includes bootstrap_mounts, "assistant_secrets:/run/assistant/secrets",
+        "#{filename}: assistant-bootstrap does not mount the assistant secrets volume"
+      refute_includes bootstrap_mounts, "assistant_secrets:/run/assistant/secrets:ro",
+        "#{filename}: assistant-bootstrap mounts its own secrets volume read-only"
+
+      services.each do |name, service|
+        next if ASSISTANT_SECRETS_VOLUME_RO.include?(name) || name == "assistant-bootstrap"
+
+        refute service.fetch("volumes", []).any? { |mount| mount.start_with?("assistant_secrets:") },
+          "#{filename}: #{name} unexpectedly mounts the assistant secrets volume"
+      end
+    end
+  end
+
+  # Task 5 makes ASSISTANT_ENABLED a kill override, so no service may bake in a
+  # default value for it (see assistant_secret_paths_test.rb for the full
+  # rationale); this only re-checks it is absent from these three services'
+  # environment blocks entirely, which used to hold `${ASSISTANT_ENABLED:-false}`.
+  def test_assistant_is_not_forced_off_by_default_in_either_compose_definition
     each_compose do |filename, config|
       %w[web rabbitmq assistant-events].each do |name|
-        value = config.fetch("services").fetch(name).fetch("environment").fetch("ASSISTANT_ENABLED")
-        assert_includes value.to_s, ":-false", "#{filename}: #{name} enables assistant by default"
+        refute config.fetch("services").fetch(name).fetch("environment", {}).key?("ASSISTANT_ENABLED"),
+          "#{filename}: #{name} bakes in a value for ASSISTANT_ENABLED"
+      end
+    end
+  end
+
+  def test_assistant_bootstrap_is_hardened_like_its_siblings_and_gates_its_dependents
+    each_compose do |filename, config|
+      services = config.fetch("services")
+      bootstrap = services.fetch("assistant-bootstrap")
+
+      assert_empty bootstrap.fetch("ports", []), "#{filename}: assistant-bootstrap publishes a port"
+      assert_equal true, bootstrap["read_only"], "#{filename}: assistant-bootstrap root is writable"
+      assert_equal [ "ALL" ], bootstrap.fetch("cap_drop"), "#{filename}: assistant-bootstrap retains capabilities"
+      assert_equal "no", bootstrap["restart"], "#{filename}: assistant-bootstrap has a restart policy"
+      assert_positive_numeric_user(filename, "assistant-bootstrap", bootstrap.fetch("user"))
+      assert_includes bootstrap.fetch("security_opt"), "no-new-privileges:true",
+        "#{filename}: assistant-bootstrap allows privilege escalation"
+      refute_empty bootstrap.fetch("tmpfs"), "#{filename}: assistant-bootstrap has no tmpfs"
+      assert_operator bootstrap.fetch("pids_limit").to_i, :>, 0, "#{filename}: assistant-bootstrap has no PID limit"
+
+      assert_equal({ "condition" => "service_healthy" }, bootstrap.fetch("depends_on").fetch("web"),
+        "#{filename}: assistant-bootstrap does not gate on web's health")
+      refute services.fetch("web").fetch("depends_on", {}).key?("assistant-bootstrap"),
+        "#{filename}: web depends on assistant-bootstrap, which would be circular"
+
+      %w[assistant-rabbitmq-init hunter-mcp assistant-gateway assistant-validator assistant-events].each do |name|
+        assert_equal({ "condition" => "service_completed_successfully" },
+          services.fetch(name).fetch("depends_on").fetch("assistant-bootstrap"),
+          "#{filename}: #{name} does not wait for assistant-bootstrap to complete")
       end
     end
   end
@@ -203,11 +248,16 @@ class AssistantComposeTest < Minitest::Test
     assert_includes dockerignore, "secrets/prod"
   end
 
-  def test_example_environment_keeps_the_ordinary_stack_on_inert_secrets
-    env_example = ROOT.join(".env.example").read
+  def test_hardening_directives_match_between_both_compose_files
+    counts = %w[docker-compose.yaml docker-compose.prod.yaml].map do |name|
+      body = ROOT.join(name).read
+      %w[read_only security_opt cap_drop no-new-privileges tmpfs pids_limit].to_h do |directive|
+        [ directive, body.scan(directive).length ]
+      end
+    end
 
-    assert_match(/^ASSISTANT_ENABLED=false$/, env_example)
-    assert_match(%r{^ASSISTANT_SECRET_DIR=\./secrets/disabled$}, env_example)
+    assert_equal counts.first, counts.last,
+      "the compose files have diverged in runtime hardening"
   end
 
   def test_rabbitmq_bootstrap_preserves_hunter_user_without_plaintext_definitions

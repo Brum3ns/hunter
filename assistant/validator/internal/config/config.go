@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultSecretPath = "/run/secrets/assistant_validator_amqp_password"
+	defaultSecretPath = "/run/assistant/secrets/assistant_validator_amqp_password"
 	maxSecretBytes    = 16 << 10
 	amqpHost          = "rabbitmq:5672"
 	amqpVHost         = "hunter-assistant"

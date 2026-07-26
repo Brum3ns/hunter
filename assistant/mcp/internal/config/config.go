@@ -29,8 +29,8 @@ type Config struct {
 }
 
 func Load() (Config, error) {
-	gatewayPath := envOr("ASSISTANT_GATEWAY_MCP_TOKEN_FILE", "/run/secrets/assistant_gateway_mcp_token")
-	hunterPath := envOr("ASSISTANT_MCP_HUNTER_TOKEN_FILE", "/run/secrets/assistant_mcp_hunter_token")
+	gatewayPath := envOr("ASSISTANT_GATEWAY_MCP_TOKEN_FILE", "/run/assistant/secrets/assistant_gateway_mcp_token")
+	hunterPath := envOr("ASSISTANT_MCP_HUNTER_TOKEN_FILE", "/run/assistant/secrets/assistant_mcp_hunter_token")
 	gatewayToken, err := ReadSecret(gatewayPath)
 	if err != nil {
 		return Config{}, fmt.Errorf("load gateway credential: %w", err)

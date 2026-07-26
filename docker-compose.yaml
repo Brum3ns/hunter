@@ -55,18 +55,13 @@ services:
     # (or reset) for a credential change to take effect. The created user is a
     # full administrator, which also satisfies whiterabbit's -info management API.
     environment:
-      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
       ASSISTANT_RABBITMQ_REPROVISION: ${ASSISTANT_RABBITMQ_REPROVISION:-false}
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-hunter}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-hunter}
+      RABBITMQ_PROVISION_PASSWORD_FILE: /run/assistant/secrets/assistant_rabbitmq_provision_password
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-    secrets:
-      - source: assistant_rabbitmq_provision_password
-        target: assistant_rabbitmq_provision_password
-        uid: "0"
-        gid: "0"
-        mode: 0400
+      - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - default
       - assistant-queue
@@ -80,6 +75,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    # assistant-bootstrap is the only writer of the machine-credential volume, and
+    # rabbitmq's entrypoint hard-fails (exit 1, no retry) when the provision
+    # password file is absent. Starting rabbitmq only after bootstrap completes
+    # means it never attempts to boot before that file exists. This is *not* in
+    # the brief's explicit dependent list (which only names assistant-rabbitmq-init,
+    # hunter-mcp, assistant-gateway, assistant-validator, assistant-events) but is
+    # required for correctness once the secret becomes volume-backed instead of a
+    # pre-existing Compose file secret — see the docker-compose.yaml top-of-file
+    # note and the task report for the full reasoning.
+    depends_on:
+      assistant-bootstrap:
+        condition: service_completed_successfully
 
   web:
     build:
@@ -157,10 +164,9 @@ services:
       CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
       ANSIBLE_LEASE_SECONDS: ${ANSIBLE_LEASE_SECONDS:-45}
       ANSIBLE_CLAIM_TIMEOUT_SECONDS: ${ANSIBLE_CLAIM_TIMEOUT_SECONDS:-300}
-      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
       ASSISTANT_AMQP_HOST: ${ASSISTANT_AMQP_HOST:-rabbitmq}
       ASSISTANT_AMQP_PORT: ${ASSISTANT_AMQP_PORT:-5672}
-      ASSISTANT_AMQP_PASSWORD_FILE: /run/secrets/assistant_rails_amqp_password
+      ASSISTANT_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_rails_amqp_password
       ASSISTANT_ANSIBLE_MODULE_ALLOWLIST: ${ASSISTANT_ANSIBLE_MODULE_ALLOWLIST:-}
       ASSISTANT_TRANSCRIPT_DAYS: "7"
       ASSISTANT_AUDIT_DAYS: "90"
@@ -176,12 +182,7 @@ services:
     volumes:
       # Mount source for live reload — code edits hot-reload in the container.
       - ./web:/app
-    secrets:
-      - source: assistant_rails_amqp_password
-        target: assistant_rails_amqp_password
-        uid: "0"
-        gid: "0"
-        mode: 0400
+      - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - default
       - assistant-queue
@@ -193,10 +194,65 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+    # No rabbitmq dependency: assistant-bootstrap (which mints the machine
+    # credentials rabbitmq's entrypoint requires) depends on web being healthy,
+    # so web depending on rabbitmq in turn would be circular. web reads its AMQP
+    # password lazily when publishing, so it tolerates rabbitmq being unready.
+    # The healthcheck below exists so assistant-bootstrap can gate on it: Puma
+    # only binds :5000 after db:prepare/db:seed finish (see the command above),
+    # so a successful /up probe is proof the schema already exists.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/up"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
     tty: true
     stdin_open: true
+
+  # One-shot: generates the machine-credential files every assistant service
+  # reads (RabbitMQ/MCP), then mints the hunter-mcp service identity in
+  # Postgres. Runs after `web` reports healthy so the schema it writes to
+  # already exists (see the healthcheck note on `web`). `web` must not depend
+  # on this service — that would be circular.
+  assistant-bootstrap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        RAILS_ENV: development
+        BUNDLE_WITHOUT: ""
+    command: ["sh", "-c", "/app/ops/assistant/bootstrap.sh && bundle exec ruby /app/ops/assistant/bootstrap_service_token.rb"]
+    environment:
+      HOME: /tmp
+      RAILS_ENV: development
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-hunter_development}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:-dev-primary-key-32-bytes-only-01}
+      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:-dev-deterministic-key-32-byte-01}
+      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:-dev-key-derivation-salt-32-byte01}
+      ASSISTANT_SECRET_TARGET: /run/assistant/secrets
+      ASSISTANT_MCP_TOKEN_PATH: /run/assistant/secrets/assistant_mcp_hunter_token
+    volumes:
+      - assistant_secrets:/run/assistant/secrets
+    networks:
+      - default
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: "no"
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
 
   runner:
     build:
@@ -222,8 +278,9 @@ services:
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
     # Sized for the default 30-way pool: each worker is a thread and each curl a
-    # subprocess (both count toward pids_limit), and up to 30 responses buffer in
-    # memory at once. Raise these together with RUNNER_MAX_CONCURRENCY.
+    # subprocess (both count toward the process limit below), and up to 30
+    # responses buffer in memory at once. Raise these together with
+    # RUNNER_MAX_CONCURRENCY.
     mem_limit: 512m
     pids_limit: 256
     restart: unless-stopped
@@ -274,36 +331,19 @@ services:
       HOME: /tmp
       RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
       RABBITMQ_PROVISION_USERNAME: assistant-provisioner
-      RABBITMQ_PROVISION_PASSWORD_FILE: /run/secrets/assistant_rabbitmq_provision_password
-      ASSISTANT_RAILS_AMQP_PASSWORD_FILE: /run/secrets/assistant_rails_amqp_password
-      ASSISTANT_GATEWAY_AMQP_PASSWORD_FILE: /run/secrets/assistant_gateway_amqp_password
-      ASSISTANT_VALIDATOR_AMQP_PASSWORD_FILE: /run/secrets/assistant_validator_amqp_password
-    secrets:
-      - source: assistant_rabbitmq_provision_password
-        target: assistant_rabbitmq_provision_password
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
-      - source: assistant_rails_amqp_password
-        target: assistant_rails_amqp_password
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
-      - source: assistant_gateway_amqp_password
-        target: assistant_gateway_amqp_password
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
-      - source: assistant_validator_amqp_password
-        target: assistant_validator_amqp_password
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
+      RABBITMQ_PROVISION_PASSWORD_FILE: /run/assistant/secrets/assistant_rabbitmq_provision_password
+      ASSISTANT_RAILS_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_rails_amqp_password
+      ASSISTANT_GATEWAY_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_gateway_amqp_password
+      ASSISTANT_VALIDATOR_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_validator_amqp_password
+    volumes:
+      - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - assistant-queue
     depends_on:
       rabbitmq:
         condition: service_healthy
+      assistant-bootstrap:
+        condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
     tmpfs:
@@ -317,7 +357,6 @@ services:
     restart: "on-failure:3"
 
   assistant-events:
-    profiles: ["assistant"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -340,19 +379,14 @@ services:
       ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:-dev-key-derivation-salt-32-byte01}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
-      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
       ASSISTANT_AMQP_HOST: ${ASSISTANT_AMQP_HOST:-rabbitmq}
       ASSISTANT_AMQP_PORT: ${ASSISTANT_AMQP_PORT:-5672}
-      ASSISTANT_AMQP_PASSWORD_FILE: /run/secrets/assistant_rails_amqp_password
+      ASSISTANT_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_rails_amqp_password
       ASSISTANT_ANSIBLE_MODULE_ALLOWLIST: ${ASSISTANT_ANSIBLE_MODULE_ALLOWLIST:-}
       ASSISTANT_TRANSCRIPT_DAYS: "7"
       ASSISTANT_AUDIT_DAYS: "90"
-    secrets:
-      - source: assistant_rails_amqp_password
-        target: assistant_rails_amqp_password
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
+    volumes:
+      - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - default
       - assistant-queue
@@ -361,6 +395,8 @@ services:
       web:
         condition: service_started
       assistant-rabbitmq-init:
+        condition: service_completed_successfully
+      assistant-bootstrap:
         condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
@@ -383,7 +419,6 @@ services:
     restart: unless-stopped
 
   assistant-egress:
-    profiles: ["assistant"]
     build:
       context: ./assistant/egress
       dockerfile: Dockerfile
@@ -412,7 +447,6 @@ services:
     restart: unless-stopped
 
   hunter-mcp:
-    profiles: ["assistant"]
     build:
       context: ./assistant/mcp
       dockerfile: Dockerfile
@@ -421,23 +455,16 @@ services:
       ASSISTANT_HUNTER_ALLOWED_HOSTS: web:5000
       ASSISTANT_MCP_ALLOWED_HOSTS: hunter-mcp:8080
       ASSISTANT_MCP_ALLOWED_ORIGINS: http://assistant-gateway:8081
-    secrets:
-      - source: assistant_gateway_mcp_token
-        target: assistant_gateway_mcp_token
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
-      - source: assistant_mcp_hunter_token
-        target: assistant_mcp_hunter_token
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
+    volumes:
+      - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - assistant-gateway-mcp
       - assistant-mcp-rails
     depends_on:
       web:
         condition: service_started
+      assistant-bootstrap:
+        condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
     tmpfs:
@@ -460,20 +487,17 @@ services:
     restart: unless-stopped
 
   assistant-validator:
-    profiles: ["assistant"]
     build:
       context: ./assistant/validator
       dockerfile: Dockerfile
-    secrets:
-      - source: assistant_validator_amqp_password
-        target: assistant_validator_amqp_password
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
+    volumes:
+      - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - assistant-validator-queue
     depends_on:
       assistant-rabbitmq-init:
+        condition: service_completed_successfully
+      assistant-bootstrap:
         condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
@@ -498,23 +522,12 @@ services:
     restart: unless-stopped
 
   assistant-gateway:
-    profiles: ["assistant"]
     build:
       context: ./assistant/gateway
       dockerfile: Dockerfile
     volumes:
       - ./secrets:/run/secrets:ro
-    secrets:
-      - source: assistant_gateway_mcp_token
-        target: assistant_gateway_mcp_token
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
-      - source: assistant_gateway_amqp_password
-        target: assistant_gateway_amqp_password
-        uid: "1000"
-        gid: "1000"
-        mode: 0400
+      - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - assistant-gateway-queue
       - assistant-gateway-mcp
@@ -526,6 +539,8 @@ services:
         condition: service_healthy
       assistant-egress:
         condition: service_healthy
+      assistant-bootstrap:
+        condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
     tmpfs:
@@ -551,6 +566,9 @@ volumes:
   hunter_db:
   mongodb_data:
   rabbitmq_data:
+  # Bootstrap-generated machine credentials (RabbitMQ/MCP). assistant-bootstrap
+  # is the only read-write mount; every other consumer mounts it :ro.
+  assistant_secrets:
 
 networks:
   assistant-queue:
@@ -566,17 +584,3 @@ networks:
   assistant-egress-in:
     internal: true
   assistant-egress-out: {}
-
-secrets:
-  assistant_gateway_mcp_token:
-    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_gateway_mcp_token
-  assistant_mcp_hunter_token:
-    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_mcp_hunter_token
-  assistant_rabbitmq_provision_password:
-    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_rabbitmq_provision_password
-  assistant_rails_amqp_password:
-    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_rails_amqp_password
-  assistant_gateway_amqp_password:
-    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_gateway_amqp_password
-  assistant_validator_amqp_password:
-    file: ${ASSISTANT_SECRET_DIR:-./secrets/disabled}/assistant_validator_amqp_password
