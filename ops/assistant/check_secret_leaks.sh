@@ -30,13 +30,12 @@ trap 'rm -rf "$temporary_dir"' EXIT HUP INT TERM
 chmod 0700 "$temporary_dir"
 cd "$repository_root"
 
-tracked_secret_sources=$(git ls-files 'secrets/dev/*' 'secrets/prod/*' | sed '/\/\.keep$/d')
+tracked_secret_sources=$(git ls-files 'secrets/*' |
+  grep -v -e '/\.keep$' -e '^secrets/README\.md$' -e '^secrets/examples/')
 [ -z "$tracked_secret_sources" ] || fail "a deployment secret source is tracked by Git"
 
-for directory in secrets/dev secrets/prod; do
-  git check-ignore -q "$directory/hunter-assistant-ignore-probe" ||
-    fail "$directory is not protected by .gitignore"
-done
+git check-ignore -q "secrets/hunter-assistant-ignore-probe" ||
+  fail "secrets is not protected by .gitignore"
 
 # Scan both committed history and the current working tree. Redaction is
 # mandatory so a finding cannot echo a credential into CI output.
@@ -73,17 +72,13 @@ xargs docker image save --output "$temporary_dir/images.tar" < "$images_file"
 tar -xf "$temporary_dir/images.tar" -C "$temporary_dir/image-archive"
 
 secret_files=
-secret_directories="secrets/dev secrets/prod"
-case "${ASSISTANT_SECRET_DIR:-}" in
-  ""|./secrets/disabled|secrets/disabled) ;;
-  *) secret_directories="$secret_directories $ASSISTANT_SECRET_DIR" ;;
-esac
-for directory in $secret_directories; do
-  for candidate in "$directory"/*; do
-    [ -f "$candidate" ] || continue
-    [ -s "$candidate" ] || continue
-    secret_files="$secret_files $candidate"
-  done
+for candidate in secrets/*; do
+  [ -f "$candidate" ] || continue
+  [ -s "$candidate" ] || continue
+  case "$candidate" in
+    secrets/README.md) continue ;;
+  esac
+  secret_files="$secret_files $candidate"
 done
 
 for secret_file in $secret_files; do
@@ -111,8 +106,7 @@ for secret_file in $secret_files; do
     fail "a deployment secret appeared in release evidence or SBOM metadata"
   fi
 
-  if git grep -q -F -f "$secret_file" -- . \
-      ':(exclude)secrets/dev/**' ':(exclude)secrets/prod/**'; then
+  if git grep -q -F -f "$secret_file" -- . ':(exclude)secrets/**'; then
     fail "a deployment secret appeared in the working tree"
   fi
 
@@ -130,8 +124,7 @@ if ! command -v trivy >/dev/null 2>&1; then
 fi
 if ! trivy fs --scanners secret --exit-code 1 --quiet --format json \
     --output "$temporary_dir/trivy-filesystem.json" \
-    --skip-dirs "$repository_root/secrets/dev" \
-    --skip-dirs "$repository_root/secrets/prod" \
+    --skip-dirs "$repository_root/secrets" \
     --skip-dirs "$repository_root/assistant/testdata/adversarial" \
     --skip-files "$repository_root/web/test/fixtures/files/assistant_adversarial_contexts.yml" \
     "$repository_root"; then

@@ -1340,6 +1340,22 @@ class AssistantSecretPathsTest < Minitest::Test
     end
   end
 
+  # The gateway accepts a 0600 key only when a write-open fails, proving the mount is
+  # genuinely read-only (assistant/gateway/internal/config/config.go safeSecretMode).
+  # Assistant::ProviderCredentials deliberately does not replicate that probe, so the
+  # read-only mount is the contract that keeps the two in agreement. Losing `:ro` would
+  # let Rails report a provider available that the gateway then refuses.
+  def test_the_provider_secret_mount_is_read_only
+    %w[docker-compose.yaml docker-compose.prod.yaml].each do |name|
+      body = ROOT.join(name).read
+
+      assert_includes body, "- ./secrets:/run/secrets:ro",
+        "#{name} does not mount the provider secret directory read-only"
+      refute_match(%r{- \./secrets:/run/secrets(?!:ro)}, body,
+        "#{name} mounts the provider secret directory writable")
+    end
+  end
+
   def test_no_assistant_service_is_profile_gated
     %w[docker-compose.yaml docker-compose.prod.yaml].each do |name|
       body = ROOT.join(name).read
@@ -1476,6 +1492,25 @@ git commit -m "Start every Assistant service by default and read machine credent
   `docs/superpowers/plans/2026-07-26-hunter-assistant-checkpoint.md`
 - Create: `docs/runbooks/hunter-assistant-enablement.md`
 
+- [ ] **Step 0a: Correct the delta's activation-audit claim**
+
+The approved delta promises "mandatory metadata-only activation auditing plus a startup log
+line". Only the log line was built, deliberately: `Assistant::Audit.record!` calls
+`Assistant::Setting.instance`, so writing an activation event from the boot initializer would
+touch the database during initialization — the same fragility that produced the existing
+"allow production assets to precompile without runtime encryption keys" fix. Recording it per
+request instead would spam an audit row on every bootstrap fetch.
+
+Amend `docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md` so
+its mitigation list states what is actually true: the startup log line records derived
+activation at deploy time with reason codes and provider slugs only, administrator
+enable/disable continues to be audited through the existing `Assistant::Setting` path, and
+`Assistant::Activation.audit_payload` returns a metadata-only summary — activation state,
+reason code and provider slugs, never a credential value — for callers that record in a
+request context. Note it is not `Assistant::Audit::METADATA_KEYS`-conformant as-is; a caller
+must map it onto that allowlist. Do not weaken any other claim, and do not remove
+the auditing requirement for administrator actions.
+
 - [ ] **Step 0: Repair dangling references left by Tasks 2 and 9**
 
 `ops/assistant/check_secret_leaks.sh` and `ops/assistant/rotation_drill.sh` still
@@ -1485,6 +1520,22 @@ into boot or the test suite, which is why earlier tasks left them, but both are 
 gates the production checklist depends on, so a stale path silently weakens a gate. Update
 both to the single `secrets/` directory and the new script name, and confirm
 `web/test/config/assistant_release_gate_test.rb` still passes.
+
+- [ ] **Step 0b: Document the malformed-key limitation**
+
+Rails' `ProviderCredentials` classifies a key containing *internal* whitespace or control
+characters as `valid`, while the Go gateway's `readSecret` rejects it. The gateway now drops
+that provider and logs a slug-only line rather than exiting, so nothing crash-loops — but the
+chat still offers the provider, and its turns terminate as `provider_not_allowed` with the real
+cause visible only in the gateway log.
+
+Closing the gap properly would mean a ninth reason code (`malformed`) threaded through Rails'
+classifier, the client copy map and the Go classifier. That was judged disproportionate to the
+likelihood: trailing newlines are already trimmed, so this needs a key with whitespace in the
+middle. Instead, add a troubleshooting entry to `secrets/README.md` and the incident-response
+runbook: *if a provider appears available but every turn fails with `provider_not_allowed`, check
+its key file for embedded spaces, tabs, or control characters.* Record it as a known limitation in
+the production checklist's findings table rather than leaving it only in a review transcript.
 
 - [ ] **Step 1: Rewrite `secrets/README.md`**
 

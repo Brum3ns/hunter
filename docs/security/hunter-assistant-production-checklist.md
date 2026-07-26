@@ -64,14 +64,24 @@ mutable “latest” results.
 | CycloneDX SBOM | One per candidate image | UNSET | Not run |
 | SPDX SBOM | One per candidate image | UNSET | Not run |
 | Credential rotation drill | Old rejection/new health output | UNSET | Not run |
+| Live `docker compose up` acceptance run (no keys, empty keys, one real key, `docker compose config` secret review) | Operator-reported output for all four cases in the zero-step activation plan's Step 6 | UNSET | Not run |
 
 ## Runtime and operations review
 
-- [ ] `ASSISTANT_ENABLED=false` is present in the resolved production config.
+- [ ] Activation is derived, not flag-gated: confirm only the intended
+      provider key file(s) are installed in `secrets/` (an absent or empty
+      file disables that provider; this is not itself a finding), and confirm
+      the runtime kill switch (`ASSISTANT_ENABLED=false`, or the database
+      admin off-switch) is available and tested to force every profile off
+      regardless of key presence.
 - [ ] The database kill switch is false and there are no active turn grants.
 - [ ] Only the configured session administrator can access the browser surface.
 - [ ] Provider/service/RabbitMQ/grant credentials are distinct and file-mounted
-      only according to the tested credential matrix.
+      only according to the tested credential matrix. This includes the
+      `assistant_secrets` Docker volume (the five `assistant-secrets-init`
+      credentials and the one `assistant-token-init` credential), which has no
+      host source file and is mounted read-only everywhere except those two
+      one-shots.
 - [ ] Secret source ownership/mode and effective read-only mounts were verified.
 - [ ] RabbitMQ tracing is disabled and the temporary provisioner user is absent.
 - [ ] Production networks match the tested matrix; no Assistant port, Docker
@@ -80,7 +90,10 @@ mutable “latest” results.
 - [ ] AppArmor profiles are loaded and service-specific seccomp denial probes
       pass on the deployment kernel/runtime.
 - [ ] Transcript/audit/backup retention and immediate-delete wording were
-      reviewed against deployment policy.
+      reviewed against deployment policy, including any host backup process
+      that captures Docker volumes: the `assistant_secrets` volume is now an
+      at-rest location for generated machine credentials and is in scope for
+      that review and its retention window.
 - [ ] The credential-rotation and incident-response runbooks were exercised by
       the named operators; last rotation date (UTC): **UNSET**.
 - [ ] Monitoring is metadata-only and alert ownership/escalation is recorded.
@@ -90,6 +103,7 @@ mutable “latest” results.
 
 | ID | Severity | Finding | Remediation commit/image digest | Retest evidence | Status |
 |---|---|---|---|---|---|
+| ZSA-1 | Low | A provider key with internal whitespace or control characters classifies as `valid` in Rails' credential preflight but is rejected by the Go gateway's stricter reader. The gateway drops that provider and logs a slug-only line rather than exiting, so nothing crash-loops, but the chat still offers the provider and its turns terminate as `provider_not_allowed` with the actual cause visible only in the gateway log. Closing this fully would need a ninth reason code (`malformed`) threaded through Rails' classifier, the client copy map, and the Go classifier; judged disproportionate given trailing whitespace is already trimmed and only embedded whitespace triggers it. | N/A — accepted known limitation, not remediated in code | Troubleshooting entries recorded in `secrets/README.md` and `docs/runbooks/hunter-assistant-incident-response.md` | Accepted |
 | UNSET | UNSET | UNSET | UNSET | UNSET | Open |
 
 Any Critical or High finding keeps the feature disabled. Accepted risk is not a

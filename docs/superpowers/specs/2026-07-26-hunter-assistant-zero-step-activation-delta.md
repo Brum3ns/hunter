@@ -177,8 +177,22 @@ the initial state, which the Settings off-switch can still override at runtime.
 - Fail-closed preflight refuses activation and names the offending file,
   without printing any value, when a key is zero-length, matches a checked-in
   example or placeholder, has an unaccepted mode or owner, or is a symlink.
-- Activation emits a metadata-only audit event and a startup log line recording
-  which profiles became enabled and why, so derived activation is never silent.
+- A startup log line records derived activation at deploy time — a reason code
+  and provider slugs only, never a credential value or path — so derived
+  activation is never silent. This is a boot-time log line, not a database
+  audit event: `Assistant::Audit.record!` calls `Assistant::Setting.instance`,
+  so writing an activation event from the boot initializer would touch the
+  database during initialization — the same fragility behind the existing
+  "allow production assets to precompile without runtime encryption keys" fix
+  — and recording one per request instead would write an audit row on every
+  bootstrap fetch. Administrator enable/disable continues to be audited
+  through the existing `Assistant::Setting`/`Assistant::KillSwitch` path; that
+  obligation is unchanged by this delta. `Assistant::Activation.audit_payload`
+  additionally returns a metadata-only summary (activation state, reason code,
+  provider slugs — never a credential value) for a caller that folds derived
+  activation into its own audit event in a request context; it is not itself
+  `Assistant::Audit::METADATA_KEYS`-conformant, so a caller must map its keys
+  onto that allowlist before passing it to `Assistant::Audit.record!`.
 - `secrets/` ships empty — no example or placeholder key is committed — so
   cloning the repository cannot activate anything by itself.
 - The production checklist still requires recorded independent review before
@@ -190,8 +204,9 @@ the initial state, which the Settings off-switch can still override at runtime.
 Accepted, and the core trade the operator is choosing: possession of a valid
 provider key file on the host is treated as the operator's intent to enable
 that provider. A restored backup or a copied secrets directory activates
-provider egress. Compensating controls are the retained kill switch, mandatory
-activation auditing, and the startup log line.
+provider egress. Compensating controls are the retained kill switch, the
+startup log line recording derived activation, and the unchanged audit trail
+for administrator enable/disable actions.
 
 ## Explicitly out of scope
 
@@ -216,8 +231,9 @@ mechanism change.
 2. Bootstrap idempotence tests: repeat runs never rewrite an existing secret,
    never print a value, and mint exactly one enabled `mcp_reader` identity.
 3. Activation-derivation tests: no key file present stays disabled; a present,
-   valid key file enables exactly that profile and writes a metadata-only audit
-   event; `ASSISTANT_ENABLED=false` forces every profile off regardless of key
+   valid key file enables exactly that profile and its metadata-only audit
+   payload (state, reason code, provider slugs) carries no credential value;
+   `ASSISTANT_ENABLED=false` forces every profile off regardless of key
    presence.
 4. Kill-switch regression: a disabled setting blocks every browser and machine
    path regardless of key presence.

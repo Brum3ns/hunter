@@ -11,6 +11,20 @@ Treat Docker-host compromise as full-stack compromise. Treat a confirmed
 assistant write or execution as a critical boundary failure even if no damage
 is visible.
 
+## Known non-incident: a provider shows available but every turn fails
+
+If a provider appears selectable in the chat but every turn against it
+terminates as `provider_not_allowed`, this is a known credential-formatting
+limitation, not by itself evidence of compromise: check that provider's key
+file for embedded spaces, tabs, or control characters in the middle of the
+value. Rails' credential preflight classifies a key with internal whitespace
+as `valid` (it only rejects surrounding whitespace), while the gateway's own
+reader rejects any embedded whitespace or control character and silently
+drops that provider, logging only a slug — so the chat still offers a
+provider the gateway has already refused to load. Replace the key file with a
+clean value and restart `assistant-gateway`. Only escalate to the containment
+steps below if the pattern coincides with another trigger condition above.
+
 ## Immediate containment
 
 1. Disable the assistant through `Assistant::KillSwitch.disable!` or the
