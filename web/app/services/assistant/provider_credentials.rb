@@ -5,7 +5,15 @@ module Assistant
     Status = Data.define(:slug, :reason, :available)
 
     DEFAULT_DIRECTORY = "/run/secrets".freeze
-    MAX_BYTES = 8192
+    # Mirrors the gateway's maxSecretBytes (16 << 10) so a key this preflight
+    # calls oversize is exactly a key the gateway would refuse to load.
+    MAX_BYTES = 16 * 1024
+    # The gateway is the enforcement point for key file modes. It additionally
+    # requires a 0600 file to sit on a genuinely read-only mount (it proves this
+    # by checking that a write-open fails with EROFS/EACCES). This module does
+    # not replicate that probe, so it is deliberately the more permissive of the
+    # two: a 0600 key on a writable mount reads as valid here and is still
+    # rejected there. The read-only mount is guaranteed by the compose contract.
     ACCEPTED_MODES = [ 0o400, 0o600 ].freeze
     PLACEHOLDER = /\Areplace_with_/i
 
@@ -36,6 +44,9 @@ module Assistant
       end
 
       return "symlink" if info.symlink?
+      # Size precedes mode so both are decided from lstat metadata before any
+      # read; between the two, size wins only because it is the cheaper fact,
+      # and either way the file is rejected without being opened.
       return "oversize" if info.size > MAX_BYTES
       return "bad_mode" unless ACCEPTED_MODES.include?(info.mode & 0o777)
 

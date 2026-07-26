@@ -50,8 +50,31 @@ class Assistant::ProviderCredentialsTest < ActiveSupport::TestCase
   end
 
   def test_an_oversize_file_is_rejected
-    with_secret("x" * 8_193, mode: 0o400) do |dir|
+    with_secret("x" * (16 * 1024 + 1), mode: 0o400) do |dir|
       assert_equal "oversize", status(dir).reason
+    end
+  end
+
+  def test_a_file_at_the_gateway_size_limit_is_still_valid
+    with_secret("x" * (16 * 1024), mode: 0o400) do |dir|
+      assert_equal "valid", status(dir).reason
+    end
+  end
+
+  def test_a_file_behind_an_unsearchable_directory_is_unreadable
+    Dir.mktmpdir do |dir|
+      secrets = Pathname.new(dir).join("secrets")
+      secrets.mkpath
+      path = secrets.join("assistant_openai_api_key")
+      path.write("sk-live-value")
+      path.chmod(0o400)
+      secrets.chmod(0o000)
+
+      begin
+        assert_equal "unreadable", status(secrets.to_s).reason
+      ensure
+        secrets.chmod(0o700)
+      end
     end
   end
 
