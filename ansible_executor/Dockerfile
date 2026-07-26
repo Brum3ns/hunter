@@ -8,10 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/usr/local/bin:/usr/bin:/bin
 
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y openssh-client sshpass && \
+    apt-get install --no-install-recommends -y openssh-client passwd sshpass && \
     rm -rf /var/lib/apt/lists/* && \
-    groupadd --gid 10001 ansible && \
-    useradd --uid 10001 --gid ansible --no-create-home --home-dir /runner --shell /usr/sbin/nologin ansible
+    /usr/sbin/groupadd --gid 10001 ansible && \
+    /usr/sbin/useradd --uid 10001 --gid ansible --no-create-home --home-dir /runner --shell /usr/sbin/nologin ansible
 
 WORKDIR /opt/hunter-ansible
 
