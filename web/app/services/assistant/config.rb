@@ -14,8 +14,8 @@ module Assistant
 
     module_function
 
-    def enabled?(directory: ProviderCredentials::DEFAULT_DIRECTORY)
-      Activation.state(directory: directory).active
+    def enabled?
+      Activation.state.active
     end
 
     def transcript_retention_days

@@ -14,39 +14,39 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
 
   # Every input Assistant::Activation.state consults is pinned here, in the order it
   # consults them: the kill override, then the required settings, then the retention
-  # window, then the credential directory. Two of these must be pinned rather than
-  # inherited or the assertion below is decided by a path this test does not control:
-  # docker-compose defaults ASSISTANT_ENABLED to "false" (short-circuiting to
+  # window, then the provider credential variables. Two of these must be pinned rather
+  # than inherited or the assertion below is decided by a path this test does not
+  # control: docker-compose defaults ASSISTANT_ENABLED to "false" (short-circuiting to
   # disabled_by_environment inside the operator's own container), and an out-of-range
   # ASSISTANT_TRANSCRIPT_DAYS or ASSISTANT_AUDIT_DAYS makes
   # Assistant::Config.configuration_reasons return invalid_retention_window, which
   # Activation.state reports before it ever consults credentials.
-  test "the bootstrap payload discloses the disabled reason without leaking paths" do
+  test "the bootstrap payload discloses the disabled reason without leaking secrets" do
     original_enabled = ENV["ASSISTANT_ENABLED"]
     original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     original_ansible_allowlist = ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"]
     original_transcript_days = ENV["ASSISTANT_TRANSCRIPT_DAYS"]
     original_audit_days = ENV["ASSISTANT_AUDIT_DAYS"]
+    original_anthropic_key = ENV["ASSISTANT_ANTHROPIC_API_KEY"]
+    original_openai_key = ENV["ASSISTANT_OPENAI_API_KEY"]
     ENV["ASSISTANT_ENABLED"] = nil
     ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
     ENV["ASSISTANT_TRANSCRIPT_DAYS"] = "7"
     ENV["ASSISTANT_AUDIT_DAYS"] = "90"
+    ENV.delete("ASSISTANT_ANTHROPIC_API_KEY")
+    ENV.delete("ASSISTANT_OPENAI_API_KEY")
 
-    empty_directory = nil
     begin
-      Dir.mktmpdir do |dir|
-        empty_directory = dir
-        stub_const(Assistant::ProviderCredentials, :DEFAULT_DIRECTORY, dir) do
-          get "/api/v1/assistant/bootstrap", headers: { "Accept" => "application/json" }
-        end
-      end
+      get "/api/v1/assistant/bootstrap", headers: { "Accept" => "application/json" }
     ensure
       ENV["ASSISTANT_ENABLED"] = original_enabled
       ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original_command_allowlist
       ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = original_ansible_allowlist
       ENV["ASSISTANT_TRANSCRIPT_DAYS"] = original_transcript_days
       ENV["ASSISTANT_AUDIT_DAYS"] = original_audit_days
+      ENV["ASSISTANT_ANTHROPIC_API_KEY"] = original_anthropic_key
+      ENV["ASSISTANT_OPENAI_API_KEY"] = original_openai_key
     end
 
     assert_response :success
@@ -54,7 +54,6 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
     assert_equal "no_provider_credentials", payload.fetch("disabled_reason")
     assert_equal %w[anthropic_primary openai_primary], payload.fetch("providers").map { |p| p["slug"] }.sort
     refute_match(%r{/run/secrets}, response.body, "a secret path leaked to the browser")
-    refute_includes response.body, empty_directory, "a temp directory path leaked to the browser"
   end
 
   test "conversation pins an enabled profile owned by the admin session" do

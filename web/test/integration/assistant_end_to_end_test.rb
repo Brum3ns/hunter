@@ -138,19 +138,17 @@ class AssistantEndToEndTest < ActionDispatch::IntegrationTest
 
   private
 
-  # Installs a real 0400 provider key in a temp directory and points the
-  # credential lookup at it, so this test drives genuine classification through
-  # Assistant::ProviderCredentials and Assistant::Activation into
-  # Assistant::Config.enabled? with nothing on that path stubbed. The ten
-  # enabled? callers take no directory argument, so redirecting the default
-  # directory constant is the only way to aim them at a fixture; stub_const
-  # restores it even when the test raises.
-  def with_installed_provider_key(mode: 0o400, body: "sk-e2e-not-a-real-key", &block)
-    Dir.mktmpdir do |dir|
-      key = Pathname.new(dir).join("assistant_anthropic_api_key")
-      key.write(body)
-      key.chmod(mode)
-      stub_const(Assistant::ProviderCredentials, :DEFAULT_DIRECTORY, dir, &block)
-    end
+  # Installs a real provider key in ASSISTANT_ANTHROPIC_API_KEY so this test
+  # drives genuine classification through Assistant::ProviderCredentials and
+  # Assistant::Activation into Assistant::Config.enabled? with nothing on that
+  # path stubbed. The ten enabled? callers take no arguments at all now, so
+  # setting the environment variable directly is the only way to aim them at a
+  # fixture value; the ensure block restores it even when the test raises.
+  def with_installed_provider_key(body: "sk-e2e-not-a-real-key")
+    original = ENV["ASSISTANT_ANTHROPIC_API_KEY"]
+    ENV["ASSISTANT_ANTHROPIC_API_KEY"] = body
+    yield
+  ensure
+    ENV["ASSISTANT_ANTHROPIC_API_KEY"] = original
   end
 end

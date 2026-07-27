@@ -2,7 +2,7 @@ openai_primary:
   provider: openai
   model: gpt-5
   secret_ref: openai_primary
-  secret_file: assistant_openai_api_key
+  secret_env: ASSISTANT_OPENAI_API_KEY
   input_limit: 32768
   output_limit: 8192
   retention_posture: standard
@@ -11,7 +11,7 @@ anthropic_primary:
   provider: anthropic
   model: claude-sonnet-5
   secret_ref: anthropic_primary
-  secret_file: assistant_anthropic_api_key
+  secret_env: ASSISTANT_ANTHROPIC_API_KEY
   input_limit: 32768
   output_limit: 8192
   retention_posture: standard

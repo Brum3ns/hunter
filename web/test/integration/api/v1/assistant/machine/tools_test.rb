@@ -2,8 +2,8 @@ require "test_helper"
 
 class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
   setup do
-    # Activation is now derived from provider credential files, not this env
-    # var, so stub Config.enabled? directly to simulate an installed key.
+    # Activation is now derived from provider credential environment variables,
+    # not this env var, so stub Config.enabled? directly to simulate an installed key.
     @original_config_enabled = Assistant::Config.method(:enabled?)
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!

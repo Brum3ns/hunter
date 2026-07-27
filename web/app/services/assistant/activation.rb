@@ -1,18 +1,19 @@
 module Assistant
-  # Activation is derived: a valid provider key file means that provider is on.
-  # ASSISTANT_ENABLED is a kill override only, never an opt-in.
+  # Activation is derived: a valid provider key environment variable means
+  # that provider is on. ASSISTANT_ENABLED is a kill override only, never an
+  # opt-in.
   module Activation
     State = Data.define(:active, :available_slugs, :reason)
 
     module_function
 
-    def state(directory: ProviderCredentials::DEFAULT_DIRECTORY)
+    def state
       return State.new(active: false, available_slugs: [], reason: "disabled_by_environment") if killed?
 
       reasons = Config.configuration_reasons
       return State.new(active: false, available_slugs: [], reason: reasons.first) if reasons.any?
 
-      slugs = ProviderCredentials.available_slugs(directory: directory)
+      slugs = ProviderCredentials.available_slugs
       if slugs.empty?
         State.new(active: false, available_slugs: [], reason: "no_provider_credentials")
       else

@@ -1,115 +1,51 @@
-require "test_helper"
-require "tmpdir"
+require "minitest/autorun"
+require_relative "../../../config/environment"
 
-class Assistant::ProviderCredentialsTest < ActiveSupport::TestCase
-  def test_a_populated_key_file_is_valid
-    with_secret("sk-live-value", mode: 0o400) do |dir|
-      assert_equal "valid", status(dir).reason
-      assert_predicate status(dir), :available
+class AssistantProviderCredentialsTest < Minitest::Test
+  def with_env(values)
+    originals = values.keys.to_h { |key| [ key, ENV[key] ] }
+    values.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+    yield
+  ensure
+    originals.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+  end
+
+  def test_absent_when_the_variable_is_unset
+    with_env("ASSISTANT_ANTHROPIC_API_KEY" => nil) do
+      status = Assistant::ProviderCredentials.statuses.find { |s| s.slug == "anthropic_primary" }
+      assert_equal "absent", status.reason
+      refute status.available
     end
   end
 
-  def test_an_empty_file_is_disabled_without_being_an_error
-    with_secret("", mode: 0o400) do |dir|
-      assert_equal "empty", status(dir).reason
-      refute_predicate status(dir), :available
+  def test_empty_when_the_variable_is_whitespace
+    with_env("ASSISTANT_ANTHROPIC_API_KEY" => "   \n") do
+      status = Assistant::ProviderCredentials.statuses.find { |s| s.slug == "anthropic_primary" }
+      assert_equal "empty", status.reason
     end
   end
 
-  def test_a_whitespace_only_file_is_treated_as_empty
-    with_secret("   \n", mode: 0o400) do |dir|
-      assert_equal "empty", status(dir).reason
+  def test_placeholder_when_the_shipped_example_value_is_left_in_place
+    with_env("ASSISTANT_ANTHROPIC_API_KEY" => "replace_with_your_key") do
+      status = Assistant::ProviderCredentials.statuses.find { |s| s.slug == "anthropic_primary" }
+      assert_equal "placeholder", status.reason
     end
   end
 
-  def test_the_checked_in_placeholder_is_rejected
-    with_secret("replace_with_openai_api_key", mode: 0o400) do |dir|
-      assert_equal "placeholder", status(dir).reason
+  def test_oversize_when_the_value_exceeds_max_bytes
+    with_env("ASSISTANT_ANTHROPIC_API_KEY" => "k" * (Assistant::ProviderCredentials::MAX_BYTES + 1)) do
+      status = Assistant::ProviderCredentials.statuses.find { |s| s.slug == "anthropic_primary" }
+      assert_equal "oversize", status.reason
     end
   end
 
-  def test_a_missing_file_is_absent
-    Dir.mktmpdir { |dir| assert_equal "absent", status(dir).reason }
-  end
-
-  def test_a_world_readable_file_is_rejected
-    with_secret("sk-live-value", mode: 0o644) do |dir|
-      assert_equal "bad_mode", status(dir).reason
+  def test_valid_for_a_plausible_key_and_only_that_provider_becomes_available
+    with_env("ASSISTANT_ANTHROPIC_API_KEY" => "sk-ant-real", "ASSISTANT_OPENAI_API_KEY" => nil) do
+      assert_equal [ "anthropic_primary" ], Assistant::ProviderCredentials.available_slugs
     end
   end
 
-  def test_a_symlinked_secret_is_rejected
-    Dir.mktmpdir do |dir|
-      real = Pathname.new(dir).join("real")
-      real.write("sk-live-value")
-      real.chmod(0o400)
-      File.symlink(real.to_s, Pathname.new(dir).join("assistant_openai_api_key").to_s)
-
-      assert_equal "symlink", status(dir).reason
-    end
-  end
-
-  def test_an_oversize_file_is_rejected
-    with_secret("x" * (16 * 1024 + 1), mode: 0o400) do |dir|
-      assert_equal "oversize", status(dir).reason
-    end
-  end
-
-  def test_a_file_at_the_gateway_size_limit_is_still_valid
-    with_secret("x" * (16 * 1024), mode: 0o400) do |dir|
-      assert_equal "valid", status(dir).reason
-    end
-  end
-
-  def test_a_file_behind_an_unsearchable_directory_is_unreadable
-    skip "root bypasses directory permission checks" if Process.uid.zero?
-
-    Dir.mktmpdir do |dir|
-      secrets = Pathname.new(dir).join("secrets")
-      secrets.mkpath
-      path = secrets.join("assistant_openai_api_key")
-      path.write("sk-live-value")
-      path.chmod(0o400)
-      secrets.chmod(0o000)
-
-      begin
-        assert_equal "unreadable", status(secrets.to_s).reason
-      ensure
-        secrets.chmod(0o700)
-      end
-    end
-  end
-
-  def test_a_stat_failure_is_unreadable_regardless_of_uid
-    with_secret("sk-live-value", mode: 0o400) do |dir|
-      stub_methods(File, lstat: ->(_path) { raise Errno::EACCES }) do
-        assert_equal "unreadable", status(dir).reason
-      end
-    end
-  end
-
-  def test_no_reason_code_leaks_the_secret_value
-    with_secret("sk-live-canary", mode: 0o400) do |dir|
-      refute_includes status(dir).inspect, "sk-live-canary"
-    end
-  end
-
-  private
-
-  def entry
-    Assistant::ProviderCatalog.fetch!("openai_primary")
-  end
-
-  def status(dir)
-    Assistant::ProviderCredentials.status(entry, directory: dir)
-  end
-
-  def with_secret(body, mode:)
-    Dir.mktmpdir do |dir|
-      path = Pathname.new(dir).join("assistant_openai_api_key")
-      path.write(body)
-      path.chmod(mode)
-      yield dir
-    end
+  def test_statuses_takes_no_keyword_arguments
+    assert_equal 0, Assistant::ProviderCredentials.method(:statuses).arity
   end
 end

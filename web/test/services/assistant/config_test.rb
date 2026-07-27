@@ -1,5 +1,4 @@
 require "test_helper"
-require "tmpdir"
 
 class Assistant::ConfigTest < ActiveSupport::TestCase
   test "hard ceilings cannot be raised by environment configuration" do
@@ -73,7 +72,7 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
 
   test "the initializer never raises on incomplete configuration" do
     stub_methods(Assistant::Config, configured: ->(_key) { nil }) do
-      assert_nothing_raised { Assistant::Activation.state(directory: "/nonexistent") }
+      assert_nothing_raised { Assistant::Activation.state }
     end
   end
 
@@ -82,17 +81,18 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
   # (ASSISTANT_ENABLED is a kill switch, not an opt-in — configuration
   # completeness is checked independently of that override).
   test "a configuration problem disables rather than activates" do
-    Dir.mktmpdir do |dir|
-      path = Pathname.new(dir).join("assistant_anthropic_api_key")
-      path.write("sk-live")
-      path.chmod(0o400)
+    original = ENV["ASSISTANT_ANTHROPIC_API_KEY"]
+    ENV["ASSISTANT_ANTHROPIC_API_KEY"] = "sk-live"
 
+    begin
       stub_methods(Assistant::Config, configuration_reasons: -> { [ "missing_admin_username" ] }) do
-        state = Assistant::Activation.state(directory: dir)
+        state = Assistant::Activation.state
 
         refute_predicate state, :active
         assert_equal "missing_admin_username", state.reason
       end
+    ensure
+      ENV["ASSISTANT_ANTHROPIC_API_KEY"] = original
     end
   end
 
