@@ -168,9 +168,26 @@ class AssistantComposeTest < Minitest::Test
       allowed = seccomp.fetch("syscalls")
         .select { |rule| rule.fetch("action") == "SCMP_ACT_ALLOW" }
         .flat_map { |rule| rule.fetch("names") }
-      %w[mount umount2 ptrace unshare keyctl bpf init_module finit_module kexec_load].each do |syscall|
+      # fsopen/fsmount/fsconfig/fspick/move_mount/open_tree are the new mount API:
+      # allowing any of them would hand back the mounting power `mount` is denied
+      # for, so they are refused by name rather than left to be added by accident.
+      %w[mount umount2 ptrace unshare keyctl bpf init_module finit_module kexec_load
+         fsopen fsmount fsconfig fspick move_mount open_tree].each do |syscall|
         refute_includes allowed, syscall, "#{service} seccomp permits #{syscall}"
       end
+
+      # runc >= 1.2 fstatfs()es the exec fifo's descriptor to prove it is not a
+      # procfs magic link before reopening it, and does so after this profile is
+      # applied. Without fstatfs every container using this profile dies in init
+      # with "reopen exec fifo ... operation not permitted" and exits 255.
+      assert_includes allowed, "fstatfs",
+        "#{service} seccomp omits fstatfs; runc cannot start the container"
+
+      # ENOSYS rather than EPERM: a denied syscall must look unimplemented so the
+      # runtime's own fallback paths engage instead of hard-failing. The syscall is
+      # still never executed.
+      assert_equal 38, seccomp.fetch("defaultErrnoRet"),
+        "#{service} seccomp returns EPERM for denied syscalls; use ENOSYS (38)"
       socket_rules = seccomp.fetch("syscalls").select { |rule| rule.fetch("names").include?("socket") }
       refute_empty socket_rules, "#{service} seccomp has no bounded socket rule"
       assert socket_rules.all? { |rule| rule.fetch("args").length >= 2 },
