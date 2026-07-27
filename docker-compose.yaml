@@ -45,6 +45,14 @@ services:
       start_period: 5s
 
   web:
+    # Rebuild on every `up` so `docker compose up` alone always runs current
+    # code. Compose's default pull_policy only builds an image that is MISSING;
+    # a stale one is reused forever, which silently ran an old gateway binary
+    # against deleted secret mounts and surfaced as gateway_unreachable on every
+    # turn. Layer caching makes an unchanged rebuild near-instant, so the cost is
+    # paid only when something actually changed. Production pins published image
+    # digests instead and must NOT do this.
+    pull_policy: build
     build:
       context: .
       dockerfile: Dockerfile
@@ -198,6 +206,8 @@ services:
       - "0.0.0.0:15672:15672"
 
   runner:
+    # Rebuild on every `up` — see the note on `web`.
+    pull_policy: build
     build:
       context: .
       dockerfile: runner/Dockerfile
@@ -237,6 +247,8 @@ services:
   # minted in Settings and must carry the dedicated `ansible` capability.
   ansible-executor:
     profiles: ["ansible"]
+    # Rebuild on every `up` — see the note on `web`.
+    pull_policy: build
     build:
       context: .
       dockerfile: ansible_executor/Dockerfile
@@ -271,6 +283,10 @@ services:
   # through. Depends only on `web` (its HTTP backend) — no broker, no secrets
   # volume, no bootstrap one-shot.
   hunter-mcp:
+    # Rebuild on every `up` — see the note on `web`. Matters most here: the Go
+    # binary is baked into the image, so without this a source change never
+    # reaches the running container.
+    pull_policy: build
     build:
       context: ./assistant/mcp
       dockerfile: Dockerfile
@@ -310,6 +326,10 @@ services:
   # Validates a drafted change before it can be applied. Reachable from `web`
   # only, over its own internal network — no other service can reach it.
   assistant-validator:
+    # Rebuild on every `up` — see the note on `web`. Matters most here: the Go
+    # binary is baked into the image, so without this a source change never
+    # reaches the running container.
+    pull_policy: build
     build:
       context: ./assistant/validator
       dockerfile: Dockerfile
@@ -347,6 +367,10 @@ services:
   # carries. Depends on nothing — a keyless gateway just answers
   # gateway_not_ready until a provider key is installed.
   assistant-gateway:
+    # Rebuild on every `up` — see the note on `web`. Matters most here: the Go
+    # binary is baked into the image, so without this a source change never
+    # reaches the running container.
+    pull_policy: build
     build:
       context: ./assistant/gateway
       dockerfile: Dockerfile

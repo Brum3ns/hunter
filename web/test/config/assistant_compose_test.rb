@@ -202,6 +202,36 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
+  # `docker compose up` is the whole enablement step, so it must never run stale
+  # code. Compose's default pull_policy ("missing") builds an image only when one
+  # is absent and reuses a stale image forever otherwise. That is how an old
+  # gateway binary — still expecting the deleted /run/assistant/secrets mount —
+  # kept crash-looping and made every turn fail as gateway_unreachable while the
+  # source on disk was correct.
+  def test_every_dev_service_that_builds_rebuilds_on_up
+    config = YAML.safe_load_file(ROOT.join("docker-compose.yaml"), aliases: true)
+
+    building = config.fetch("services").select { |_name, service| service.key?("build") }
+    refute_empty building, "no dev service builds; this test is asserting nothing"
+
+    building.each do |name, service|
+      assert_equal "build", service["pull_policy"],
+        "docker-compose.yaml: #{name} builds but does not set pull_policy: build, " \
+        "so `docker compose up` will reuse a stale image"
+    end
+  end
+
+  # Production pulls published, CI-built images by tag. Forcing a local build there
+  # would bypass the registry the release gate scans and publishes.
+  def test_production_pulls_images_instead_of_building_them
+    config = YAML.safe_load_file(ROOT.join("docker-compose.prod.yaml"), aliases: true)
+
+    config.fetch("services").each do |name, service|
+      refute_equal "build", service["pull_policy"],
+        "docker-compose.prod.yaml: #{name} would build locally instead of pulling"
+    end
+  end
+
   def test_ci_publishes_immutable_commit_tags_for_every_assistant_image
     workflow = ROOT.join(".gitea/workflows/build.yml").read
     %w[
