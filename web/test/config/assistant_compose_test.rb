@@ -1,66 +1,31 @@
-require "base64"
-require "digest"
 require "json"
 require "minitest/autorun"
-require "open3"
 require "pathname"
 require "yaml"
 
 class AssistantComposeTest < Minitest::Test
   ROOT = Pathname.new(__dir__).join("../../..").expand_path.freeze
   COMPOSE_FILES = %w[docker-compose.yaml docker-compose.prod.yaml].freeze
+  # The RabbitMQ broker, the squid egress proxy, the Rails event consumer and
+  # the three bootstrap one-shots are gone: every secret is now a plain
+  # environment variable and `web` talks to the gateway/validator over direct
+  # HTTP. Three Go services remain in the Assistant's own trust boundary.
   ASSISTANT_SERVICES = %w[
     assistant-gateway
     hunter-mcp
     assistant-validator
-    assistant-egress
-    assistant-events
-    assistant-rabbitmq-init
   ].freeze
-  UNTRUSTED_SERVICES = %w[
-    assistant-gateway
-    hunter-mcp
-    assistant-validator
-    assistant-egress
-  ].freeze
-  # assistant-gateway reads the two provider-key files through a read-only bind
-  # mount of the single host secrets/ directory instead of a file-backed Compose
-  # secret, so a missing key is readable-as-absent rather than a fatal boot error.
-  # hunter-mcp/assistant-validator/assistant-gateway also mount the bootstrap-
-  # generated machine-credential volume read-only (assistant-egress needs neither).
-  # web and assistant-events run the same Rails codebase and derive activation
-  # from Assistant::Config.enabled?, which reads the same directory (Critical 1
-  # of the 2026-07-26 whole-branch review) — see
-  # test_the_provider_credential_read_path_and_its_compose_mounts_cannot_drift.
-  ALLOWED_HOST_MOUNTS = {
-    "assistant-gateway" => %w[./secrets:/run/secrets:ro assistant_secrets:/run/assistant/secrets:ro],
-    "hunter-mcp" => %w[assistant_secrets:/run/assistant/secrets:ro],
-    "assistant-validator" => %w[assistant_secrets:/run/assistant/secrets:ro],
-    "web" => %w[./secrets:/run/secrets:ro],
-    "assistant-events" => %w[./secrets:/run/secrets:ro]
-  }.freeze
+  UNTRUSTED_SERVICES = ASSISTANT_SERVICES
+  # No Assistant service bind-mounts anything from the host any more: the two
+  # provider keys and all four machine tokens arrive as environment variables,
+  # so `volumes:` is empty for every one of them.
+  ALLOWED_HOST_MOUNTS = {}.freeze
   NETWORKS = {
-    "web" => %w[default assistant-queue assistant-mcp-rails],
-    "rabbitmq" => %w[default assistant-queue assistant-gateway-queue assistant-validator-queue],
-    "assistant-gateway" => %w[assistant-gateway-queue assistant-gateway-mcp assistant-egress-in],
+    "web" => %w[default assistant-rails-gateway assistant-rails-validator assistant-mcp-rails],
+    "assistant-gateway" => %w[assistant-rails-gateway assistant-gateway-mcp assistant-gateway-egress],
     "hunter-mcp" => %w[assistant-gateway-mcp assistant-mcp-rails],
-    "assistant-validator" => %w[assistant-validator-queue],
-    "assistant-egress" => %w[assistant-egress-in assistant-egress-out],
-    "assistant-events" => %w[default assistant-queue assistant-mcp-rails],
-    "assistant-rabbitmq-init" => %w[assistant-queue]
+    "assistant-validator" => %w[assistant-rails-validator]
   }.freeze
-  # Every consumer of the bootstrap-generated machine-credential volume mounts
-  # it read-only; the two init one-shots are the only read-write writers.
-  ASSISTANT_SECRETS_VOLUME_RO = %w[
-    web
-    rabbitmq
-    assistant-gateway
-    hunter-mcp
-    assistant-validator
-    assistant-events
-    assistant-rabbitmq-init
-  ].freeze
-  ASSISTANT_SECRETS_VOLUME_RW = %w[assistant-secrets-init assistant-token-init].freeze
   # Per-service runtime hardening, compared key-by-key between the two files.
   HARDENING_KEYS = %w[
     read_only cap_drop security_opt tmpfs pids_limit mem_limit cpus user init privileged
@@ -77,7 +42,6 @@ class AssistantComposeTest < Minitest::Test
         assert_empty services.fetch(name).fetch("profiles", []),
           "#{filename}: #{name} still starts only under a Compose profile"
       end
-      assert_equal "on-failure:3", services.fetch("assistant-rabbitmq-init").fetch("restart")
 
       UNTRUSTED_SERVICES.each do |name|
         service = services.fetch(name)
@@ -107,23 +71,35 @@ class AssistantComposeTest < Minitest::Test
       end
 
       %w[
-        assistant-queue
-        assistant-gateway-queue
+        assistant-rails-gateway
+        assistant-rails-validator
         assistant-gateway-mcp
         assistant-mcp-rails
-        assistant-validator-queue
-        assistant-egress-in
       ].each do |network|
         assert_equal true, networks.fetch(network)["internal"], "#{filename}: #{network} is externally routed"
       end
-      refute networks.fetch("assistant-egress-out").fetch("internal", false),
-        "#{filename}: egress proxy has no outbound network"
+      refute networks.fetch("assistant-gateway-egress").fetch("internal", false),
+        "#{filename}: the gateway's egress network has no route to the provider APIs"
 
-      gateway_networks = service_networks(services.fetch("assistant-gateway"))
-      %w[web db mongo runner ansible-executor].each do |forbidden_peer|
-        shared = gateway_networks & service_networks(services.fetch(forbidden_peer))
+      # None of the three Go services may share a network with a datastore or
+      # an execution surface — the gateway/validator/hunter-mcp are reachable
+      # only from `web` (or, for the gateway, from hunter-mcp and the outside
+      # world over its dedicated egress network).
+      UNTRUSTED_SERVICES.each do |name|
+        service_nets = service_networks(services.fetch(name))
+        %w[db mongo runner ansible-executor].each do |forbidden_peer|
+          shared = service_nets & service_networks(services.fetch(forbidden_peer))
+          assert_empty shared, "#{filename}: #{name} shares #{shared.join(', ')} with #{forbidden_peer}"
+        end
+      end
+
+      # The validator is additionally isolated from the gateway and hunter-mcp:
+      # it is called only by `web`, never by another Assistant service.
+      validator_networks = service_networks(services.fetch("assistant-validator"))
+      %w[assistant-gateway hunter-mcp].each do |forbidden_peer|
+        shared = validator_networks & service_networks(services.fetch(forbidden_peer))
         assert_empty shared,
-          "#{filename}: assistant-gateway shares #{shared.join(', ')} with #{forbidden_peer}"
+          "#{filename}: assistant-validator shares #{shared.join(', ')} with #{forbidden_peer}"
       end
     end
   end
@@ -154,9 +130,9 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  # No service declares a Compose file-backed secret any more: the six machine
-  # credentials moved to the assistant_secrets volume (Task 9), and the two
-  # provider keys were never Compose secrets (bind-mounted directly instead).
+  # No service declares a Compose file-backed secret any more: the machine
+  # credentials are plain environment variables (see assistant_secret_paths_test.rb),
+  # and the two provider keys were never Compose secrets either.
   def test_no_compose_service_declares_a_file_backed_secret
     each_compose do |filename, config|
       refute config.key?("secrets"), "#{filename}: still declares top-level Compose secrets"
@@ -167,109 +143,15 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  def test_assistant_secrets_volume_is_mounted_read_only_except_by_the_init_one_shots
-    each_compose do |filename, config|
-      services = config.fetch("services")
-
-      ASSISTANT_SECRETS_VOLUME_RO.each do |name|
-        mounts = services.fetch(name).fetch("volumes", [])
-        assert_includes mounts, "assistant_secrets:/run/assistant/secrets:ro",
-          "#{filename}: #{name} does not mount the assistant secrets volume read-only"
-      end
-
-      ASSISTANT_SECRETS_VOLUME_RW.each do |name|
-        mounts = services.fetch(name).fetch("volumes", [])
-        assert_includes mounts, "assistant_secrets:/run/assistant/secrets",
-          "#{filename}: #{name} does not mount the assistant secrets volume writable"
-        refute_includes mounts, "assistant_secrets:/run/assistant/secrets:ro",
-          "#{filename}: #{name} mounts the volume it must write read-only"
-      end
-
-      services.each do |name, service|
-        next if ASSISTANT_SECRETS_VOLUME_RO.include?(name) || ASSISTANT_SECRETS_VOLUME_RW.include?(name)
-
-        refute service.fetch("volumes", []).any? { |mount| mount.start_with?("assistant_secrets:") },
-          "#{filename}: #{name} unexpectedly mounts the assistant secrets volume"
-      end
-    end
-  end
-
   # Task 5 makes ASSISTANT_ENABLED a kill override, so no service may bake in a
   # default value for it (see assistant_secret_paths_test.rb for the full
-  # rationale); this only re-checks it is absent from these three services'
-  # environment blocks entirely, which used to hold `${ASSISTANT_ENABLED:-false}`.
+  # rationale); this only re-checks it is absent from web's environment block,
+  # which used to hold `${ASSISTANT_ENABLED:-false}`. Only `web` runs the Rails
+  # code that reads it — the three Go services never reference it at all.
   def test_assistant_is_not_forced_off_by_default_in_either_compose_definition
     each_compose do |filename, config|
-      %w[web rabbitmq assistant-events].each do |name|
-        refute config.fetch("services").fetch(name).fetch("environment", {}).key?("ASSISTANT_ENABLED"),
-          "#{filename}: #{name} bakes in a value for ASSISTANT_ENABLED"
-      end
-    end
-  end
-
-  def test_both_bootstrap_one_shots_are_hardened_like_their_siblings
-    each_compose do |filename, config|
-      services = config.fetch("services")
-
-      ASSISTANT_SECRETS_VOLUME_RW.each do |name|
-        one_shot = services.fetch(name)
-
-        assert_empty one_shot.fetch("ports", []), "#{filename}: #{name} publishes a port"
-        assert_equal true, one_shot["read_only"], "#{filename}: #{name} root is writable"
-        assert_equal [ "ALL" ], one_shot.fetch("cap_drop"), "#{filename}: #{name} retains capabilities"
-        assert_equal "no", one_shot["restart"], "#{filename}: #{name} restarts instead of running once"
-        assert_equal true, one_shot["init"], "#{filename}: #{name} has no init"
-        assert_positive_numeric_user(filename, name, one_shot.fetch("user"))
-        assert_includes one_shot.fetch("security_opt"), "no-new-privileges:true",
-          "#{filename}: #{name} allows privilege escalation"
-        assert_bounded_tmpfs(filename, name, one_shot.fetch("tmpfs"))
-        refute one_shot["mem_limit"].to_s.empty?, "#{filename}: #{name} has no memory limit"
-        refute one_shot["cpus"].to_s.empty?, "#{filename}: #{name} has no CPU limit"
-        assert_operator one_shot.fetch("pids_limit").to_i, :>, 0, "#{filename}: #{name} has no PID limit"
-      end
-    end
-  end
-
-  # assistant-token-init boots Rails read-only, so it needs the same writable
-  # paths assistant-events carries; Bootsnap writes tmp/cache and the logger
-  # opens log/*.log, and neither directory exists in the image.
-  def test_the_rails_one_shot_can_boot_read_only
-    each_compose do |filename, config|
-      mounts = config.fetch("services").fetch("assistant-token-init").fetch("tmpfs")
-
-      %w[/app/tmp /app/log /app/storage].each do |path|
-        assert mounts.any? { |mount| mount.split(":").first == path },
-          "#{filename}: assistant-token-init cannot write #{path} under read_only"
-      end
-    end
-  end
-
-  def test_each_bootstrap_one_shot_gates_exactly_the_services_that_read_its_output
-    each_compose do |filename, config|
-      services = config.fetch("services")
-      completed = { "condition" => "service_completed_successfully" }
-
-      # The secrets half needs no database, so the broker can wait on it.
-      refute services.fetch("assistant-secrets-init").key?("depends_on"),
-        "#{filename}: assistant-secrets-init waits on another service"
-      %w[rabbitmq assistant-rabbitmq-init hunter-mcp assistant-gateway
-         assistant-validator assistant-events].each do |name|
-        assert_equal completed, services.fetch(name).fetch("depends_on").fetch("assistant-secrets-init"),
-          "#{filename}: #{name} does not wait for assistant-secrets-init"
-      end
-
-      # The token half needs a migrated schema, and only hunter-mcp reads it.
-      assert_equal({ "condition" => "service_healthy" },
-        services.fetch("assistant-token-init").fetch("depends_on").fetch("web"),
-        "#{filename}: assistant-token-init does not gate on web's health")
-      assert_equal completed, services.fetch("hunter-mcp").fetch("depends_on").fetch("assistant-token-init"),
-        "#{filename}: hunter-mcp does not wait for its Hunter service token"
-      services.each do |name, service|
-        next if %w[hunter-mcp assistant-token-init].include?(name)
-
-        refute service.fetch("depends_on", {}).key?("assistant-token-init"),
-          "#{filename}: #{name} waits on assistant-token-init but does not read its output"
-      end
+      refute config.fetch("services").fetch("web").fetch("environment", {}).key?("ASSISTANT_ENABLED"),
+        "#{filename}: web bakes in a value for ASSISTANT_ENABLED"
     end
   end
 
@@ -310,8 +192,6 @@ class AssistantComposeTest < Minitest::Test
       ASSISTANT_GATEWAY_IMAGE
       ASSISTANT_MCP_IMAGE
       ASSISTANT_VALIDATOR_IMAGE
-      ASSISTANT_EGRESS_IMAGE
-      ASSISTANT_RABBITMQ_IMAGE
     ].each do |image|
       assert_includes workflow, "${{ env.#{image} }}:${{ gitea.sha }}"
     end
@@ -386,8 +266,7 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  # Compose refuses to start a stack whose depends_on graph has a cycle, and the
-  # round-1 arrangement was one edge away from web -> rabbitmq -> bootstrap -> web.
+  # Compose refuses to start a stack whose depends_on graph has a cycle.
   def test_the_service_dependency_graph_is_acyclic
     each_compose do |filename, config|
       services = config.fetch("services")
@@ -416,53 +295,18 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  # Checks web's whole dependency *closure*, not just its direct edges: the real
-  # graph is assistant-secrets-init -> rabbitmq -> web, so an assistant service
-  # does transitively gate Rails and a direct-edge assertion would call that
-  # clean while Control Center was down.
-  #
-  # That one coupling is accepted deliberately. assistant-secrets-init is a
-  # shell-only one-shot that writes five random files: no database, no network
-  # peer, no Rails boot, and it exits non-zero only if the volume itself is
-  # unwritable — a condition that breaks the stack regardless. It is a very
-  # different risk from the full-Rails assistant-bootstrap an earlier design
-  # would have put in this position, whose migrations, encryption keys and boot
-  # sequence could each fail independently and take the broker with them.
-  # Everything database-backed lives in assistant-token-init, downstream of web.
-  # Any *other* assistant service appearing in this closure is a regression.
-  WEB_CLOSURE_ALLOWED_ASSISTANT_SERVICES = %w[assistant-secrets-init].freeze
-
-  def test_no_assistant_service_beyond_the_secrets_one_shot_can_gate_control_center
+  # The old design let one shell-only one-shot (assistant-secrets-init) sit in
+  # web's dependency closure, justified because it needed no database and
+  # could fail in only one narrow, stack-wide way. That one-shot — and the
+  # RabbitMQ broker it unblocked — are deleted entirely now: web depends on
+  # exactly db and mongo, and no Assistant service can gate Control Center's
+  # boot at all any more.
+  def test_no_assistant_service_can_gate_control_center
     each_compose do |filename, config|
-      services = config.fetch("services")
+      dependencies = config.fetch("services").fetch("web").fetch("depends_on").keys
 
-      assert_equal({ "condition" => "service_healthy" },
-        services.fetch("web").fetch("depends_on").fetch("rabbitmq"),
-        "#{filename}: web no longer waits for the broker to be healthy")
-
-      closure = dependency_closure(services, "web")
-      gating = closure.select { |name| assistant_service?(name) }.sort
-
-      assert_equal WEB_CLOSURE_ALLOWED_ASSISTANT_SERVICES.sort, gating,
-        "#{filename}: web's dependency closure gates on #{gating.join(', ')}; only " \
-        "#{WEB_CLOSURE_ALLOWED_ASSISTANT_SERVICES.join(', ')} may hold up Control Center"
-    end
-  end
-
-  # The Dockerfile's ownership fix only reaches a volume Docker has yet to seed,
-  # so upgrading hosts need a one-line manual removal. Getting this wrong is a
-  # stack-wide outage, and Task 10 rewrites these documents, so pin the note.
-  def test_the_stale_volume_upgrade_step_is_documented_everywhere_an_operator_looks
-    %w[
-      secrets/README.md
-      docs/runbooks/hunter-assistant-credential-rotation.md
-      docker-compose.yaml
-      docker-compose.prod.yaml
-    ].each do |name|
-      body = ROOT.join(name).read
-
-      assert_includes body, "docker volume rm <project>_assistant_secrets",
-        "#{name} does not tell an upgrading operator to remove the stale secrets volume"
+      assert_equal %w[db mongo].sort, dependencies.sort,
+        "#{filename}: web depends on #{dependencies.join(', ')}; only db and mongo should gate it"
     end
   end
 
@@ -473,10 +317,12 @@ class AssistantComposeTest < Minitest::Test
   # that needs a ninth reason code threaded through Rails, the client copy map
   # and Go, judged disproportionate; the accepted alternative is that an
   # operator hitting the symptom finds the cause wherever they happen to look.
-  # Only all three together deliver that, so pin all three.
+  # Both sides moved from files to environment variables, but neither
+  # classifier's algorithm changed, so the asymmetry — and this documentation —
+  # still applies. secrets/README.md, which used to carry a third copy, was
+  # deleted along with the rest of the file-based secret scaffolding.
   def test_the_malformed_key_limitation_is_documented_everywhere_an_operator_looks
     %w[
-      secrets/README.md
       docs/runbooks/hunter-assistant-incident-response.md
       docs/security/hunter-assistant-production-checklist.md
     ].each do |name|
@@ -490,111 +336,15 @@ class AssistantComposeTest < Minitest::Test
   end
 
   def test_neither_procfile_starts_a_second_assistant_event_consumer
-    # The dedicated assistant-events service is no longer profile-gated, so a
-    # Procfile entry would put two consumers on assistant.rails.events and turn
-    # events would be delivered round-robin to whichever process won the race.
+    # The Assistant event consumer is deleted entirely (Assistant::EventIngestor
+    # is now called synchronously from TurnJob/ValidationDispatcher), so a
+    # Procfile entry for it would start a process pointed at a class that no
+    # longer exists.
     %w[web/Procfile.dev web/Procfile.prod].each do |name|
       body = ROOT.join(name).read
 
       refute_match(/Assistant::EventConsumer/, body,
-        "#{name} starts a second assistant event consumer inside the web container")
-    end
-  end
-
-  def test_rabbitmq_bootstrap_preserves_hunter_user_without_plaintext_definitions
-    entrypoint = ROOT.join("ops/assistant/rabbitmq/entrypoint.sh").read
-    dockerfile = ROOT.join("ops/assistant/rabbitmq/Dockerfile").read
-    provisioner = ROOT.join("ops/assistant/provision_rabbitmq.rb").read
-
-    assert_includes entrypoint, "assistant_topology_complete"
-    assert_includes entrypoint, "rabbitmqctl import_definitions"
-    assert_includes entrypoint, "ASSISTANT_RABBITMQ_REPROVISION"
-    assert_includes entrypoint, "list_permissions"
-    assert_includes entrypoint, "list_exchanges"
-    assert_includes entrypoint, "list_queues"
-    assert_includes entrypoint, "list_bindings"
-    assert_includes entrypoint, "trace_off -p /hunter-assistant"
-    refute_match(/trace_off -p \/hunter-assistant.*\|\| true/, entrypoint)
-    assert_includes entrypoint, "watchdog_pid"
-    assert_includes entrypoint, "sleep 120"
-    assert_includes entrypoint, "password_hash"
-    refute_includes entrypoint, '\\"password\\":'
-    refute_includes entrypoint, "definitions.import_backend"
-    refute_includes entrypoint, "management.load_definitions"
-    assert_includes provisioner, 'delete("/api/users/#{escape(@admin_user)}")'
-    refute_match(/ensure\s+delete_provisioner/m, provisioner)
-    assert_includes dockerfile, "apt-get install --no-install-recommends -y jq"
-
-    each_compose do |filename, config|
-      value = config.fetch("services").fetch("rabbitmq")
-        .fetch("environment").fetch("ASSISTANT_RABBITMQ_REPROVISION")
-      assert_includes value.to_s, ":-false", "#{filename}: reprovision is on by default"
-    end
-  end
-
-  def test_rabbitmq_password_hasher_implements_the_documented_salted_sha256_format
-    secret = "a-local-test-value"
-    script = ROOT.join("ops/assistant/rabbitmq/hash_password.sh")
-    output, error, status = Open3.capture3(script.to_s, stdin_data: secret)
-
-    assert status.success?, error
-    decoded = Base64.strict_decode64(output.strip)
-    assert_equal 36, decoded.bytesize
-    salt = decoded.byteslice(0, 4)
-    assert_equal Digest::SHA256.digest(salt + secret), decoded.byteslice(4, 32)
-  end
-
-  def test_both_compose_files_read_provider_keys_from_the_single_secret_directory
-    %w[docker-compose.yaml docker-compose.prod.yaml].each do |name|
-      body = ROOT.join(name).read
-
-      assert_includes body, "- ./secrets:/run/secrets:ro",
-        "#{name} does not bind-mount the secret directory read-only"
-      refute_match(/secrets\/(dev|prod)\b/, body,
-        "#{name} still references a per-environment secret directory")
-      refute_match(/^  assistant_(openai|anthropic)_api_key:/m, body,
-        "#{name} still defines a provider key as a file-backed Compose secret")
-    end
-  end
-
-  # Critical 1 of the 2026-07-26 whole-branch review: every existing test
-  # redirected Assistant::ProviderCredentials::DEFAULT_DIRECTORY to a
-  # Dir.mktmpdir, and the compose tests above only parsed YAML — nothing ever
-  # checked Rails' actual read path against what the compose files mount, so a
-  # branch where `web` never mounted /run/secrets still passed every test while
-  # activation stayed permanently disabled. This pins the two together: it
-  # reads the production directory straight out of the Ruby source (never
-  # hardcodes it), and asserts every compose service that runs Ruby code
-  # reaching Assistant::Config.enabled? — `web` (serves the controllers/views
-  # that call it) and `assistant-events` (its entry point calls it directly,
-  # see event_consumer.rb) — mounts that exact path. assistant-token-init also
-  # boots the full Rails environment but never calls Config.enabled? itself, so
-  # it is deliberately excluded.
-  def test_the_provider_credential_read_path_and_its_compose_mounts_cannot_drift
-    source = ROOT.join("web/app/services/assistant/provider_credentials.rb").read
-    directory = source[/DEFAULT_DIRECTORY\s*=\s*"([^"]+)"/, 1]
-    refute_nil directory, "cannot find ProviderCredentials::DEFAULT_DIRECTORY in the source"
-
-    callers = Dir.glob(ROOT.join("web/app/**/*.{rb,erb}")).select do |path|
-      File.read(path).include?("Config.enabled?")
-    end
-    refute_empty callers, "no Ruby source calls Assistant::Config.enabled? any more; update this test"
-    assert callers.any? { |path| path.end_with?("event_consumer.rb") },
-      "assistant-events's entry point (Assistant::EventConsumer) no longer calls Config.enabled?"
-    assert callers.any? { |path| path.include?("/controllers/") },
-      "no controller calls Config.enabled? any more; web's mount would be unused"
-
-    services_reaching_config_enabled = %w[web assistant-events]
-
-    each_compose do |filename, config|
-      services = config.fetch("services")
-
-      services_reaching_config_enabled.each do |name|
-        mounts = services.fetch(name).fetch("volumes", [])
-        assert mounts.any? { |mount| mount.split(":")[1] == directory },
-          "#{filename}: #{name} runs Ruby code that calls Assistant::Config.enabled? " \
-          "(which reads #{directory}) but does not mount that path"
-      end
+        "#{name} starts an Assistant event consumer that no longer exists")
     end
   end
 
@@ -614,27 +364,6 @@ class AssistantComposeTest < Minitest::Test
       config = YAML.safe_load_file(ROOT.join(filename), aliases: true)
       yield filename, config
     end
-  end
-
-  def assistant_service?(name)
-    name.start_with?("assistant-") || name == "hunter-mcp"
-  end
-
-  # Every service reachable from the given one through depends_on, transitively.
-  def dependency_closure(services, root)
-    seen = []
-    pending = services.fetch(root).fetch("depends_on", {})
-    pending = pending.is_a?(Hash) ? pending.keys : Array(pending)
-
-    until pending.empty?
-      name = pending.shift
-      next if seen.include?(name)
-
-      seen << name
-      edges = services.fetch(name, {}).fetch("depends_on", {})
-      pending.concat(edges.is_a?(Hash) ? edges.keys : Array(edges))
-    end
-    seen
   end
 
   # Each non-stage COPY in the root Dockerfile as [sources, destination,

@@ -4,87 +4,108 @@ require "yaml"
 
 class AssistantSecretPathsTest < Minitest::Test
   ROOT = Pathname.new(__dir__).join("../../..").expand_path.freeze
-  VOLUME_PATH = "/run/assistant/secrets".freeze
+  COMPOSE_FILES = %w[docker-compose.yaml docker-compose.prod.yaml].freeze
+
+  REMOVED_SERVICES = %w[
+    rabbitmq assistant-egress assistant-events
+    assistant-secrets-init assistant-token-init assistant-rabbitmq-init
+  ].freeze
+  PROVIDER_KEY_ENV = %w[ASSISTANT_ANTHROPIC_API_KEY ASSISTANT_OPENAI_API_KEY].freeze
+  SECRET_FREE_SERVICES = %w[runner ansible-executor].freeze
+
+  # Every Assistant secret is now a plain environment variable — either
+  # substituted from the top-level .env at Compose parse time or supplied by
+  # the deploy host — never a Compose file-backed secret, never a shared
+  # volume, never a bind-mounted directory.
   MACHINE_SECRETS = %w[
-    assistant_rails_amqp_password assistant_gateway_amqp_password
-    assistant_validator_amqp_password assistant_rabbitmq_provision_password
-    assistant_gateway_mcp_token assistant_mcp_hunter_token
+    ASSISTANT_GATEWAY_MCP_TOKEN ASSISTANT_MCP_HUNTER_TOKEN
+    ASSISTANT_GATEWAY_INGRESS_TOKEN ASSISTANT_VALIDATOR_INGRESS_TOKEN
   ].freeze
 
-  def test_go_services_read_machine_credentials_from_the_volume
-    %w[gateway mcp validator].each do |service|
-      body = Dir.glob(ROOT.join("assistant/#{service}/internal/config/*.go"))
-        .reject { |path| path.end_with?("_test.go") }
-        .map { |path| File.read(path) }.join
-
-      refute_match(%r{"/run/secrets/assistant_(rails|gateway|validator)_amqp_password"}, body,
-        "#{service} still reads a machine credential from the Compose secret mount")
-      assert_includes body, VOLUME_PATH, "#{service} does not read from #{VOLUME_PATH}"
+  def test_the_retired_services_and_volume_are_gone
+    each_compose do |name, config|
+      REMOVED_SERVICES.each do |service|
+        refute config.fetch("services").key?(service), "#{name} still defines #{service}"
+      end
+      refute (config["volumes"] || {}).key?("assistant_secrets"), "#{name} still defines assistant_secrets"
+      config.fetch("services").each do |service_name, service|
+        Array(service["volumes"]).each do |mount|
+          refute_includes mount.to_s, "/run/secrets", "#{name}: #{service_name} still mounts /run/secrets"
+          refute_includes mount.to_s, "/run/assistant/secrets", "#{name}: #{service_name} still mounts the retired volume"
+        end
+      end
     end
   end
 
-  # The gateway resolves each catalog entry as
-  # filepath.Join(defaultProviderSecretDir, file) rather than embedding a joined
-  # literal (defaultProviderSecretDir is asserted separately, unchanged by this
-  # task at "/run/secrets" — only the machine-credential paths move), so the
-  # in-sync check is against the bare filename the map keys resolve through.
-  def test_the_catalog_secret_file_matches_the_gateway_mapping
-    catalog = YAML.safe_load_file(ROOT.join("web/config/assistant_provider_catalog.yml"), aliases: false)
-    gateway = File.read(ROOT.join("assistant/gateway/internal/config/config.go"))
+  def test_provider_keys_never_reach_the_execution_services
+    each_compose do |name, config|
+      SECRET_FREE_SERVICES.each do |service_name|
+        service = config.fetch("services")[service_name]
+        next unless service
 
-    assert_includes gateway, 'defaultProviderSecretDir = "/run/secrets"',
-      "the gateway no longer resolves provider keys under /run/secrets"
-    catalog.each_value do |entry|
-      assert_includes gateway, "\"#{entry.fetch('secret_file')}\"",
-        "the gateway does not read #{entry.fetch('secret_file')}"
+        environment = service.fetch("environment", {})
+        keys = environment.is_a?(Hash) ? environment.keys : environment.map { |e| e.split("=").first }
+        PROVIDER_KEY_ENV.each do |secret|
+          refute_includes keys, secret, "#{name}: #{service_name} receives #{secret}"
+        end
+      end
     end
   end
 
-  # The gateway accepts a 0600 key only when a write-open fails, proving the mount is
-  # genuinely read-only (assistant/gateway/internal/config/config.go safeSecretMode).
-  # Assistant::ProviderCredentials deliberately does not replicate that probe, so the
-  # read-only mount is the contract that keeps the two in agreement. Losing `:ro` would
-  # let Rails report a provider available that the gateway then refuses. web and
-  # assistant-events also read this directory (Assistant::Config.enabled?), so the
-  # same :ro requirement holds for them — checked per service, not as a body-wide
-  # substring, so a service that mounts it writable is caught even if another
-  # service still mounts it read-only.
-  PROVIDER_SECRET_MOUNT_SERVICES = %w[assistant-gateway web assistant-events].freeze
+  # F7/binding ruling: `environment:` alone is a false-negative guarantee.
+  # Dev `runner` used to carry `env_file: ['.env']`, and .env also holds the
+  # two provider keys, so ANY key placed in .env would have reached the
+  # runner container regardless of what its `environment:` block declared.
+  # Both execution services must therefore also carry no `env_file:` at all —
+  # matching production, which never used one.
+  def test_neither_execution_service_reads_the_shared_env_file
+    each_compose do |name, config|
+      SECRET_FREE_SERVICES.each do |service_name|
+        service = config.fetch("services")[service_name]
+        next unless service
 
-  def test_the_provider_secret_mount_is_read_only
-    %w[docker-compose.yaml docker-compose.prod.yaml].each do |name|
-      config = YAML.safe_load_file(ROOT.join(name), aliases: true)
-      services = config.fetch("services")
-
-      PROVIDER_SECRET_MOUNT_SERVICES.each do |service_name|
-        mounts = services.fetch(service_name).fetch("volumes", [])
-
-        assert_includes mounts, "./secrets:/run/secrets:ro",
-          "#{name}: #{service_name} does not mount the provider secret directory read-only"
-        refute_includes mounts, "./secrets:/run/secrets",
-          "#{name}: #{service_name} mounts the provider secret directory writable"
+        refute service.key?("env_file"), "#{name}: #{service_name} still reads env_file, which also carries .env's provider keys"
       end
     end
   end
 
   def test_no_assistant_service_is_profile_gated
-    %w[docker-compose.yaml docker-compose.prod.yaml].each do |name|
-      body = ROOT.join(name).read
-
+    each_compose_body do |name, body|
       refute_includes body, 'profiles: ["assistant"]',
         "#{name} still hides assistant services behind a Compose profile"
     end
   end
 
-  def test_every_machine_secret_is_volume_backed_not_file_backed
-    %w[docker-compose.yaml docker-compose.prod.yaml].each do |name|
-      body = ROOT.join(name).read
+  # None of the six retired machine credentials survive as Compose secrets or
+  # Docker-volume-backed files: the four bearer tokens (gateway MCP, hunter
+  # token, gateway ingress, validator ingress) are plain environment
+  # variables now, and the two RabbitMQ-only credentials (the AMQP passwords
+  # and the provisioning password) have no replacement — the broker is gone.
+  def test_every_machine_secret_is_environment_supplied_not_file_backed
+    each_compose_body do |name, body|
+      refute_match(/^\s*secrets:\s*$/, body, "#{name} still declares top-level Compose secrets")
 
       MACHINE_SECRETS.each do |secret|
-        refute_match(/^  #{secret}:\n    file:/m, body,
-          "#{name} still defines #{secret} as a file-backed Compose secret")
+        assert_includes body, "${#{secret}}", "#{name} does not substitute #{secret} from the environment"
       end
-      assert_includes body, "assistant_secrets:", "#{name} lacks the assistant secrets volume"
+    end
+
+    each_compose do |name, config|
+      MACHINE_SECRETS.each do |secret|
+        %w[assistant-gateway hunter-mcp assistant-validator web].each do |service_name|
+          service = config.fetch("services")[service_name]
+          next unless service
+
+          environment = service.fetch("environment", {})
+          next unless environment.is_a?(Hash)
+
+          value = environment[secret]
+          next if value.nil?
+
+          assert_match(/\$\{#{Regexp.escape(secret)}(:-|\})/, value.to_s,
+            "#{name}: #{service_name} does not source #{secret} from the environment")
+        end
+      end
     end
   end
 
@@ -94,12 +115,12 @@ class AssistantSecretPathsTest < Minitest::Test
   # the whole zero-step-activation plan a no-op, so the variable must be unset unless
   # an operator (or their .env) explicitly sets it.
   def test_assistant_enabled_has_no_baked_in_default
-    %w[docker-compose.yaml docker-compose.prod.yaml].each do |name|
-      body = ROOT.join(name).read
+    each_compose_body do |name, body|
       refute_match(/ASSISTANT_ENABLED:\s*\$\{ASSISTANT_ENABLED/, body,
         "#{name} still assigns ASSISTANT_ENABLED a baked-in default")
+    end
 
-      config = YAML.safe_load_file(ROOT.join(name), aliases: true)
+    each_compose do |name, config|
       config.fetch("services").each do |service_name, service|
         environment = service.fetch("environment", {})
         next unless environment.is_a?(Hash)
@@ -122,12 +143,11 @@ class AssistantSecretPathsTest < Minitest::Test
   # consults Rails.application.credentials *before* the development
   # generate_local_secret fallback (railties configuration.rb#secret_key_base), so
   # merely having the file present makes every Assistant service that boots Rails
-  # as `user: 1000:1000` die in Errno::EACCES on it: assistant-token-init (fatal —
-  # hunter-mcp gates on service_completed_successfully) and assistant-events
-  # (silently crash-looping under restart: unless-stopped). `web` escaped both ways,
-  # running as root over a bind mount of the host tree. Nothing in the app reads
-  # Rails credentials, and production supplies SECRET_KEY_BASE from the environment,
-  # so the key belongs nowhere near the build context.
+  # as `user: 1000:1000` die in Errno::EACCES on it. `web` runs as root over a bind
+  # mount of the host tree in dev, so it escapes this failure mode either way.
+  # Nothing in the app reads Rails credentials, and production supplies
+  # SECRET_KEY_BASE from the environment, so the key belongs nowhere near the
+  # build context.
   LOCAL_SECRET_PATHS = %w[web/config/master.key].freeze
 
   def test_the_build_context_excludes_rails_local_secrets
@@ -152,5 +172,20 @@ class AssistantSecretPathsTest < Minitest::Test
       excluded = !negated if matches
     end
     excluded
+  end
+
+  private
+
+  def each_compose
+    COMPOSE_FILES.each do |filename|
+      config = YAML.safe_load_file(ROOT.join(filename), aliases: true)
+      yield filename, config
+    end
+  end
+
+  def each_compose_body
+    COMPOSE_FILES.each do |filename|
+      yield filename, ROOT.join(filename).read
+    end
   end
 end

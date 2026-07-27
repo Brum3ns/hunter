@@ -44,78 +44,6 @@ services:
       retries: 15
       start_period: 5s
 
-  # One-shot: generates the machine credentials every assistant service reads
-  # (the four AMQP passwords and the gateway MCP token). Deliberately needs no
-  # database and no other service, so it runs first and unblocks `rabbitmq`
-  # without the broker inheriting a dependency on the Rails app. The
-  # database-backed half of bootstrapping is assistant-token-init, below `web`.
-  assistant-secrets-init:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        RAILS_ENV: development
-        BUNDLE_WITHOUT: ""
-    command: ["/app/ops/assistant/bootstrap.sh"]
-    environment:
-      HOME: /tmp
-      ASSISTANT_SECRET_TARGET: /run/assistant/secrets
-    volumes:
-      - assistant_secrets:/run/assistant/secrets
-    networks:
-      - default
-    user: "1000:1000"
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=0700,uid=1000,gid=1000
-    cap_drop: ["ALL"]
-    security_opt: ["no-new-privileges:true"]
-    init: true
-    mem_limit: 128m
-    cpus: "0.25"
-    pids_limit: 64
-    restart: "no"
-
-  # Local broker so Control Center job submissions land on a visible channel.
-  # Management UI at http://localhost:15672 (same credentials as below).
-  rabbitmq:
-    build:
-      context: ./ops/assistant/rabbitmq
-      dockerfile: Dockerfile
-    # Provision the broker user the web service authenticates as. These apply only
-    # on first boot of an empty data dir, so the named volume below must be fresh
-    # (or reset) for a credential change to take effect. The created user is a
-    # full administrator, which also satisfies whiterabbit's -info management API.
-    environment:
-      ASSISTANT_RABBITMQ_REPROVISION: ${ASSISTANT_RABBITMQ_REPROVISION:-false}
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-hunter}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-hunter}
-      RABBITMQ_PROVISION_PASSWORD_FILE: /run/assistant/secrets/assistant_rabbitmq_provision_password
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-      - assistant_secrets:/run/assistant/secrets:ro
-    networks:
-      - default
-      - assistant-queue
-      - assistant-gateway-queue
-      - assistant-validator-queue
-    ports:
-      - "0.0.0.0:5673:5672"
-      - "0.0.0.0:15672:15672"
-    healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping && test -f /tmp/hunter-assistant-rabbitmq-ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    # rabbitmq's entrypoint hard-fails (exit 1, no retry) when the provision
-    # password file is absent, and that file is now generated at runtime rather
-    # than pre-existing as a Compose file secret. Gating on assistant-secrets-init
-    # — which needs no database — means the broker waits only for the credential
-    # it reads, never for the Rails app.
-    depends_on:
-      assistant-secrets-init:
-        condition: service_completed_successfully
-
   web:
     build:
       context: .
@@ -125,7 +53,9 @@ services:
         BUNDLE_WITHOUT: ""
     # Load .env into the container. Without this, compose only uses .env for
     # ${VAR} substitution at parse time; env_file makes compose error loudly if
-    # .env is missing or malformed.
+    # .env is missing or malformed. web legitimately needs the two provider
+    # keys (ASSISTANT_ANTHROPIC_API_KEY / ASSISTANT_OPENAI_API_KEY), so this
+    # stays — unlike `runner` below, which must not receive them.
     env_file:
       - .env
     # Single-quoted outer so the Ruby one-liner can use double quotes freely.
@@ -183,19 +113,23 @@ services:
       # Control Center — Whiterabbit standalone sender.
       WHITERABBIT_BIN: ${WHITERABBIT_BIN:-/usr/local/bin/whiterabbit}
       CMDSCRIPT_HASH_SALT: ${CMDSCRIPT_HASH_SALT:-}
-      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
-      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
-      RABBITMQ_HTTP_PORT: ${RABBITMQ_HTTP_PORT:-15672}
-      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-hunter}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-hunter}
-      RABBITMQ_TOKEN: ${RABBITMQ_TOKEN:-}
       CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
       ANSIBLE_LEASE_SECONDS: ${ANSIBLE_LEASE_SECONDS:-45}
       ANSIBLE_CLAIM_TIMEOUT_SECONDS: ${ANSIBLE_CLAIM_TIMEOUT_SECONDS:-300}
-      ASSISTANT_AMQP_HOST: ${ASSISTANT_AMQP_HOST:-rabbitmq}
-      ASSISTANT_AMQP_PORT: ${ASSISTANT_AMQP_PORT:-5672}
-      ASSISTANT_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_rails_amqp_password
       ASSISTANT_ANSIBLE_MODULE_ALLOWLIST: ${ASSISTANT_ANSIBLE_MODULE_ALLOWLIST:-}
+      # Assistant provider keys — the sole activation signal. Leaving both
+      # blank/placeholder (see .env.example) leaves the Assistant cleanly
+      # disabled; setting either one enables it.
+      ASSISTANT_ANTHROPIC_API_KEY: ${ASSISTANT_ANTHROPIC_API_KEY:-}
+      ASSISTANT_OPENAI_API_KEY: ${ASSISTANT_OPENAI_API_KEY:-}
+      # Assistant machine credentials, operator-supplied (generate with
+      # `openssl rand -base64 32`) — see .env.example.
+      ASSISTANT_MCP_HUNTER_TOKEN: ${ASSISTANT_MCP_HUNTER_TOKEN:-}
+      ASSISTANT_GATEWAY_INGRESS_TOKEN: ${ASSISTANT_GATEWAY_INGRESS_TOKEN:-}
+      ASSISTANT_VALIDATOR_INGRESS_TOKEN: ${ASSISTANT_VALIDATOR_INGRESS_TOKEN:-}
+      # Where Rails reaches the gateway/validator over plain HTTP.
+      ASSISTANT_GATEWAY_URL: ${ASSISTANT_GATEWAY_URL:-http://assistant-gateway:8081}
+      ASSISTANT_VALIDATOR_URL: ${ASSISTANT_VALIDATOR_URL:-http://assistant-validator:8082}
       ASSISTANT_TRANSCRIPT_DAYS: "7"
       ASSISTANT_AUDIT_DAYS: "90"
       ASSISTANT_GRANT_TTL_SECONDS: "300"
@@ -210,11 +144,10 @@ services:
     volumes:
       # Mount source for live reload — code edits hot-reload in the container.
       - ./web:/app
-      - ./secrets:/run/secrets:ro
-      - assistant_secrets:/run/assistant/secrets:ro
     networks:
       - default
-      - assistant-queue
+      - assistant-rails-gateway
+      - assistant-rails-validator
       - assistant-mcp-rails
     ports:
       - "0.0.0.0:5000:5000"
@@ -223,11 +156,6 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    # Gates assistant-token-init: Puma only binds :5000 after db:prepare/db:seed
-    # finish (see the command above), so a successful /up probe is proof the
-    # schema the token bootstrap writes to already exists.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/up"]
       interval: 5s
@@ -237,63 +165,18 @@ services:
     tty: true
     stdin_open: true
 
-  # One-shot: mints the hunter-mcp service identity in Postgres and writes its
-  # token to the shared volume. Split from assistant-secrets-init because this
-  # half needs a migrated database, so it must wait for `web` to be healthy —
-  # a dependency the broker must not inherit. Only hunter-mcp reads its output.
-  assistant-token-init:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        RAILS_ENV: development
-        BUNDLE_WITHOUT: ""
-    command: ["bundle", "exec", "ruby", "/app/ops/assistant/bootstrap_service_token.rb"]
-    environment:
-      HOME: /tmp
-      RAILS_ENV: development
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_DATABASE: ${DB_DATABASE:-hunter_development}
-      DB_USERNAME: ${DB_USERNAME:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:-dev-primary-key-32-bytes-only-01}
-      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:-dev-deterministic-key-32-byte-01}
-      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:-dev-key-derivation-salt-32-byte01}
-      ASSISTANT_MCP_TOKEN_PATH: /run/assistant/secrets/assistant_mcp_hunter_token
-    volumes:
-      - assistant_secrets:/run/assistant/secrets
-    networks:
-      - default
-    depends_on:
-      web:
-        condition: service_healthy
-    user: "1000:1000"
-    read_only: true
-    # Booting Rails read-only needs the same writable paths assistant-events
-    # carries: Bootsnap caches under tmp/cache and the logger opens log/*.log,
-    # and both directories are .dockerignore'd so neither exists in the image.
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=0700,uid=1000,gid=1000
-      - /app/tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
-      - /app/log:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
-      - /app/storage:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
-    cap_drop: ["ALL"]
-    security_opt: ["no-new-privileges:true"]
-    init: true
-    mem_limit: 384m
-    cpus: "0.50"
-    pids_limit: 64
-    restart: "no"
-
   runner:
     build:
       context: .
       dockerfile: runner/Dockerfile
-    env_file: [.env]
+    # No env_file here: .env also carries the two Assistant provider keys, and
+    # this container must never receive them regardless of what .env holds.
+    # Every variable the runner actually needs is declared explicitly below.
     environment:
-      HUNTER_API_URL: http://web:5000
+      HUNTER_API_URL: ${HUNTER_API_URL:-http://web:5000}
       RUNNER_TOKEN: ${RUNNER_TOKEN}
+      RUNNER_NAME: ${RUNNER_NAME:-default}
+      RUNNER_KINDS: ${RUNNER_KINDS:-curl}
       RUNNER_POLL_INTERVAL: ${RUNNER_POLL_INTERVAL:-2}
       # How many curl jobs this runner executes at once. Each job is a blocking
       # curl + result POST, so the pool overlaps them instead of queueing behind
@@ -301,6 +184,7 @@ services:
       RUNNER_MAX_CONCURRENCY: ${RUNNER_MAX_CONCURRENCY:-30}
       CURL_MAX_TIME: ${CURL_MAX_TIME:-30}
       CURL_MAX_OUTPUT: ${CURL_MAX_OUTPUT:-262144}
+      RUNNER_JOB_TTL: ${RUNNER_JOB_TTL:-90}
     depends_on:
       web:
         condition: service_started
@@ -351,134 +235,9 @@ services:
     init: true
     restart: unless-stopped
 
-  assistant-rabbitmq-init:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        RAILS_ENV: development
-        BUNDLE_WITHOUT: ""
-    command: ["bundle", "exec", "ruby", "/app/ops/assistant/provision_rabbitmq.rb"]
-    environment:
-      HOME: /tmp
-      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
-      RABBITMQ_PROVISION_USERNAME: assistant-provisioner
-      RABBITMQ_PROVISION_PASSWORD_FILE: /run/assistant/secrets/assistant_rabbitmq_provision_password
-      ASSISTANT_RAILS_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_rails_amqp_password
-      ASSISTANT_GATEWAY_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_gateway_amqp_password
-      ASSISTANT_VALIDATOR_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_validator_amqp_password
-    volumes:
-      - assistant_secrets:/run/assistant/secrets:ro
-    networks:
-      - assistant-queue
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      assistant-secrets-init:
-        condition: service_completed_successfully
-    user: "1000:1000"
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=0700,uid=1000,gid=1000
-    cap_drop: ["ALL"]
-    security_opt: ["no-new-privileges:true"]
-    init: true
-    mem_limit: 128m
-    cpus: "0.25"
-    pids_limit: 64
-    restart: "on-failure:3"
-
-  assistant-events:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        RAILS_ENV: development
-        BUNDLE_WITHOUT: ""
-    command: ["bin/rails", "runner", "Assistant::EventConsumer.run"]
-    env_file:
-      - .env
-    environment:
-      HOME: /tmp
-      RAILS_ENV: development
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_DATABASE: ${DB_DATABASE:-hunter_development}
-      DB_USERNAME: ${DB_USERNAME:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY:-dev-primary-key-32-bytes-only-01}
-      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY:-dev-deterministic-key-32-byte-01}
-      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT:-dev-key-derivation-salt-32-byte01}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
-      ASSISTANT_AMQP_HOST: ${ASSISTANT_AMQP_HOST:-rabbitmq}
-      ASSISTANT_AMQP_PORT: ${ASSISTANT_AMQP_PORT:-5672}
-      ASSISTANT_AMQP_PASSWORD_FILE: /run/assistant/secrets/assistant_rails_amqp_password
-      ASSISTANT_ANSIBLE_MODULE_ALLOWLIST: ${ASSISTANT_ANSIBLE_MODULE_ALLOWLIST:-}
-      ASSISTANT_TRANSCRIPT_DAYS: "7"
-      ASSISTANT_AUDIT_DAYS: "90"
-    volumes:
-      - ./secrets:/run/secrets:ro
-      - assistant_secrets:/run/assistant/secrets:ro
-    networks:
-      - default
-      - assistant-queue
-      - assistant-mcp-rails
-    depends_on:
-      web:
-        condition: service_started
-      assistant-rabbitmq-init:
-        condition: service_completed_successfully
-      assistant-secrets-init:
-        condition: service_completed_successfully
-    user: "1000:1000"
-    read_only: true
-    tmpfs:
-      - /app/tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
-      - /app/log:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
-      - /app/storage:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
-      - /tmp:rw,noexec,nosuid,nodev,size=8m,mode=0700,uid=1000,gid=1000
-    cap_drop: ["ALL"]
-    security_opt: ["no-new-privileges:true"]
-    init: true
-    mem_limit: 384m
-    cpus: "0.50"
-    pids_limit: 128
-    healthcheck:
-      test: ["CMD-SHELL", "kill -0 1"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-
-  assistant-egress:
-    build:
-      context: ./assistant/egress
-      dockerfile: Dockerfile
-    networks:
-      - assistant-egress-in
-      - assistant-egress-out
-    user: "31:31"
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=31,gid=31
-    cap_drop: ["ALL"]
-    security_opt:
-      - no-new-privileges:true
-      - seccomp=./ops/assistant/seccomp/egress.json
-    init: true
-    mem_limit: 128m
-    cpus: "0.50"
-    pids_limit: 64
-    healthcheck:
-      test: ["CMD", "/usr/sbin/squid", "-k", "check", "-f", "/etc/squid/squid.conf"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
-    restart: unless-stopped
-
+  # MCP tool broker: the only thing the gateway is allowed to call into Hunter
+  # through. Depends only on `web` (its HTTP backend) — no broker, no secrets
+  # volume, no bootstrap one-shot.
   hunter-mcp:
     build:
       context: ./assistant/mcp
@@ -488,20 +247,14 @@ services:
       ASSISTANT_HUNTER_ALLOWED_HOSTS: web:5000
       ASSISTANT_MCP_ALLOWED_HOSTS: hunter-mcp:8080
       ASSISTANT_MCP_ALLOWED_ORIGINS: http://assistant-gateway:8081
-    volumes:
-      - assistant_secrets:/run/assistant/secrets:ro
+      ASSISTANT_GATEWAY_MCP_TOKEN: ${ASSISTANT_GATEWAY_MCP_TOKEN}
+      ASSISTANT_MCP_HUNTER_TOKEN: ${ASSISTANT_MCP_HUNTER_TOKEN}
     networks:
       - assistant-gateway-mcp
       - assistant-mcp-rails
-    # Reads the gateway MCP token from assistant-secrets-init and its own Hunter
-    # service token from assistant-token-init, so it waits for both.
     depends_on:
       web:
         condition: service_started
-      assistant-secrets-init:
-        condition: service_completed_successfully
-      assistant-token-init:
-        condition: service_completed_successfully
     user: "1000:1000"
     read_only: true
     tmpfs:
@@ -522,19 +275,19 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # Validates a drafted change before it can be applied. Reachable from `web`
+  # only, over its own internal network — no other service can reach it.
   assistant-validator:
     build:
       context: ./assistant/validator
       dockerfile: Dockerfile
-    volumes:
-      - assistant_secrets:/run/assistant/secrets:ro
+    environment:
+      ASSISTANT_VALIDATOR_INGRESS_TOKEN: ${ASSISTANT_VALIDATOR_INGRESS_TOKEN}
+      ASSISTANT_VALIDATOR_ALLOWED_HOSTS: assistant-validator:8082
+      ASSISTANT_VALIDATOR_ALLOWED_ORIGINS: http://web:5000
+      ASSISTANT_MAX_CONCURRENT_VALIDATIONS: "2"
     networks:
-      - assistant-validator-queue
-    depends_on:
-      assistant-rabbitmq-init:
-        condition: service_completed_successfully
-      assistant-secrets-init:
-        condition: service_completed_successfully
+      - assistant-rails-validator
     user: "1000:1000"
     read_only: true
     tmpfs:
@@ -556,26 +309,27 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # Runs LLM turns. Reachable from `web` only (assistant-rails-gateway); talks
+  # to hunter-mcp over its own internal network; reaches the provider APIs
+  # (api.anthropic.com / api.openai.com) over the one non-internal network it
+  # carries. Depends on nothing — a keyless gateway just answers
+  # gateway_not_ready until a provider key is installed.
   assistant-gateway:
     build:
       context: ./assistant/gateway
       dockerfile: Dockerfile
-    volumes:
-      - ./secrets:/run/secrets:ro
-      - assistant_secrets:/run/assistant/secrets:ro
+    environment:
+      ASSISTANT_GATEWAY_MCP_TOKEN: ${ASSISTANT_GATEWAY_MCP_TOKEN}
+      ASSISTANT_GATEWAY_INGRESS_TOKEN: ${ASSISTANT_GATEWAY_INGRESS_TOKEN}
+      ASSISTANT_ANTHROPIC_API_KEY: ${ASSISTANT_ANTHROPIC_API_KEY:-}
+      ASSISTANT_OPENAI_API_KEY: ${ASSISTANT_OPENAI_API_KEY:-}
+      ASSISTANT_GATEWAY_ALLOWED_HOSTS: assistant-gateway:8081
+      ASSISTANT_GATEWAY_ALLOWED_ORIGINS: http://web:5000
+      ASSISTANT_MAX_CONCURRENT_TURNS: "2"
     networks:
-      - assistant-gateway-queue
+      - assistant-rails-gateway
       - assistant-gateway-mcp
-      - assistant-egress-in
-    depends_on:
-      assistant-rabbitmq-init:
-        condition: service_completed_successfully
-      hunter-mcp:
-        condition: service_healthy
-      assistant-egress:
-        condition: service_healthy
-      assistant-secrets-init:
-        condition: service_completed_successfully
+      - assistant-gateway-egress
     user: "1000:1000"
     read_only: true
     tmpfs:
@@ -599,31 +353,16 @@ services:
 volumes:
   hunter_db:
   mongodb_data:
-  rabbitmq_data:
-  # Bootstrap-generated machine credentials (RabbitMQ/MCP). The two init
-  # one-shots are the only read-write mounts; every consumer mounts it :ro.
-  #
-  # UPGRADING FROM AN EARLIER BUILD: Docker seeds a named volume from the image
-  # only while the volume is still empty, so a volume created before the image
-  # gained /run/assistant/secrets is owned root:root and assistant-secrets-init
-  # (uid 1000) cannot write it. Because rabbitmq — and therefore web — waits on
-  # that one-shot, the whole stack stays down, not just the assistant. Remove
-  # the stale volume once before the first `up` on the new images:
-  #     docker compose down && docker volume rm <project>_assistant_secrets
-  # Nothing is lost: every file in it is regenerated on the next boot.
-  assistant_secrets:
 
 networks:
-  assistant-queue:
+  assistant-rails-gateway:
     internal: true
-  assistant-gateway-queue:
+  assistant-rails-validator:
     internal: true
   assistant-gateway-mcp:
     internal: true
   assistant-mcp-rails:
     internal: true
-  assistant-validator-queue:
-    internal: true
-  assistant-egress-in:
-    internal: true
-  assistant-egress-out: {}
+  # The gateway's one non-internal network — outbound only, for
+  # api.anthropic.com / api.openai.com. No other service joins it.
+  assistant-gateway-egress: {}
