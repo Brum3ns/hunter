@@ -92,7 +92,7 @@ func main() {
 // reported available, dropping any whose value the stricter runtime read
 // rejects, and returns the profiles that actually ended up usable.
 //
-// The preflight (config.ProviderStatusIn) and the runtime read
+// The preflight (config.ProviderStatus) and the runtime read
 // (SecretResolver.Resolve) do not agree in every case, deliberately: the
 // preflight mirrors Rails' ProviderCredentials so the chat and the gateway
 // speak one reason vocabulary, while Resolve additionally rejects a value

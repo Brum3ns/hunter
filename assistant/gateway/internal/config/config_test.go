@@ -2,37 +2,68 @@ package config
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func writeSecret(t *testing.T, dir, name, value string, mode os.FileMode) {
+// unsetEnv forces name to be genuinely absent for the duration of the test —
+// t.Setenv can only set a value, never unset one — and restores whatever was
+// there before (present or absent) in cleanup, so tests can exercise the
+// absent/empty distinction without leaking into siblings or the ambient
+// environment.
+func unsetEnv(t *testing.T, name string) {
 	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte(value), mode); err != nil {
+	original, present := os.LookupEnv(name)
+	if err := os.Unsetenv(name); err != nil {
 		t.Fatal(err)
 	}
-	// os.WriteFile's mode is subject to umask; chmod to get the exact bits.
-	if err := os.Chmod(path, mode); err != nil {
-		t.Fatal(err)
+	t.Cleanup(func() {
+		if present {
+			_ = os.Setenv(name, original)
+		} else {
+			_ = os.Unsetenv(name)
+		}
+	})
+}
+
+func setMachineTokens(t *testing.T) {
+	t.Helper()
+	t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", strings.Repeat("m", 32))
+	t.Setenv("ASSISTANT_GATEWAY_INGRESS_TOKEN", strings.Repeat("i", 32))
+}
+
+func TestLoadReadsProviderKeysFromEnvironment(t *testing.T) {
+	setMachineTokens(t)
+	t.Setenv("ASSISTANT_ANTHROPIC_API_KEY", "sk-ant-real")
+	t.Setenv("ASSISTANT_OPENAI_API_KEY", "")
+
+	settings, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := settings.AvailableProfiles; len(got) != 1 || got[0] != "anthropic_primary" {
+		t.Fatalf("AvailableProfiles = %v, want [anthropic_primary]", got)
+	}
+	key, err := settings.ProviderSecrets.Resolve("anthropic_primary")
+	if err != nil || key != "sk-ant-real" {
+		t.Fatalf("Resolve = %q, %v", key, err)
 	}
 }
 
-func writeMachineSecrets(t *testing.T, dir string) {
-	t.Helper()
-	original := machineSecretDir
-	machineSecretDir = dir
-	t.Cleanup(func() { machineSecretDir = original })
-	writeSecret(t, dir, "assistant_gateway_mcp_token", "mcp-token-value", 0o400)
-	writeSecret(t, dir, "assistant_gateway_amqp_password", "amqp-password-value", 0o400)
+func TestLoadRejectsMissingIngressToken(t *testing.T) {
+	t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", strings.Repeat("m", 32))
+	t.Setenv("ASSISTANT_GATEWAY_INGRESS_TOKEN", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load: want error for missing ingress token")
+	}
 }
 
 func TestLoadSucceedsWithNoProviderKeys(t *testing.T) {
-	dir := t.TempDir()
-	writeMachineSecrets(t, dir)
+	setMachineTokens(t)
+	unsetEnv(t, "ASSISTANT_OPENAI_API_KEY")
+	unsetEnv(t, "ASSISTANT_ANTHROPIC_API_KEY")
 
-	settings, err := LoadFrom(dir)
+	settings, err := Load()
 	if err != nil {
 		t.Fatalf("Load failed with no provider keys: %v", err)
 	}
@@ -42,11 +73,11 @@ func TestLoadSucceedsWithNoProviderKeys(t *testing.T) {
 }
 
 func TestLoadSucceedsWithOnlyAnthropicConfigured(t *testing.T) {
-	dir := t.TempDir()
-	writeMachineSecrets(t, dir)
-	writeSecret(t, dir, "assistant_anthropic_api_key", "sk-live", 0o400)
+	setMachineTokens(t)
+	unsetEnv(t, "ASSISTANT_OPENAI_API_KEY")
+	t.Setenv("ASSISTANT_ANTHROPIC_API_KEY", "sk-live")
 
-	settings, err := LoadFrom(dir)
+	settings, err := Load()
 	if err != nil {
 		t.Fatalf("Load failed with one provider key: %v", err)
 	}
@@ -56,72 +87,82 @@ func TestLoadSucceedsWithOnlyAnthropicConfigured(t *testing.T) {
 }
 
 func TestLoadFailsWithoutMachineCredentials(t *testing.T) {
-	dir := t.TempDir()
-	original := machineSecretDir
-	machineSecretDir = dir
-	t.Cleanup(func() { machineSecretDir = original })
+	t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", "")
+	t.Setenv("ASSISTANT_GATEWAY_INGRESS_TOKEN", "")
 
-	if _, err := LoadFrom(dir); err == nil {
+	if _, err := Load(); err == nil {
 		t.Fatal("expected an error when machine credentials are absent")
 	}
 }
 
-func TestProviderStatusReasonsAreStableAndLeakNothing(t *testing.T) {
-	dir := t.TempDir()
-	writeSecret(t, dir, "assistant_openai_api_key", "replace_with_openai_api_key", 0o400)
-	writeSecret(t, dir, "assistant_anthropic_api_key", "sk-canary", 0o644)
+// A provider key that is never set and one that is set to an empty string
+// must both fail to become available. This is the one place Go's os.Getenv
+// cannot mirror Ruby's ENV[...].nil? directly (see Load's comment on
+// os.LookupEnv), so it gets its own end-to-end assertion through Load rather
+// than through ProviderStatus, which never sees the "absent" case.
+func TestLoadTreatsAnUnsetProviderKeyTheSameAsAnEmptyOne(t *testing.T) {
+	setMachineTokens(t)
+	unsetEnv(t, "ASSISTANT_ANTHROPIC_API_KEY")
+	t.Setenv("ASSISTANT_OPENAI_API_KEY", "")
 
-	if got := ProviderStatusIn(dir, "openai_primary"); got != "placeholder" {
+	settings, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(settings.AvailableProfiles) != 0 {
+		t.Fatalf("expected no available profiles, got %v", settings.AvailableProfiles)
+	}
+}
+
+func TestProviderStatusReasonsAreStableAndLeakNothing(t *testing.T) {
+	if got := ProviderStatus("replace_with_openai_api_key"); got != "placeholder" {
 		t.Fatalf("expected placeholder, got %q", got)
 	}
-	if got := ProviderStatusIn(dir, "anthropic_primary"); got != "bad_mode" {
-		t.Fatalf("expected bad_mode, got %q", got)
+	if got := ProviderStatus("REPLACE_WITH_ANTHROPIC_API_KEY"); got != "placeholder" {
+		t.Fatalf("expected case-insensitive placeholder match, got %q", got)
 	}
-	if strings.Contains(ProviderStatusIn(dir, "anthropic_primary"), "sk-canary") {
+	if got := ProviderStatus("sk-canary"); got != "valid" {
+		t.Fatalf("expected valid, got %q", got)
+	}
+	if strings.Contains(ProviderStatus("sk-canary"), "sk-canary") {
 		t.Fatal("a reason code leaked the secret value")
 	}
 }
 
-func TestProviderStatusReasonsCoverAbsentEmptyAndSymlink(t *testing.T) {
-	dir := t.TempDir()
-
-	if got := ProviderStatusIn(dir, "openai_primary"); got != "absent" {
-		t.Fatalf("expected absent, got %q", got)
-	}
-
-	writeSecret(t, dir, "assistant_anthropic_api_key", "", 0o400)
-	if got := ProviderStatusIn(dir, "anthropic_primary"); got != "empty" {
+func TestProviderStatusCoversEmptyAndOversize(t *testing.T) {
+	if got := ProviderStatus(""); got != "empty" {
 		t.Fatalf("expected empty, got %q", got)
 	}
-
-	target := filepath.Join(dir, "assistant_anthropic_api_key")
-	link := filepath.Join(dir, "assistant_openai_api_key")
-	if err := os.Symlink(target, link); err != nil {
-		t.Fatal(err)
+	if got := ProviderStatus("   \n\t"); got != "empty" {
+		t.Fatalf("expected whitespace-only to be empty, got %q", got)
 	}
-	if got := ProviderStatusIn(dir, "openai_primary"); got != "symlink" {
-		t.Fatalf("expected symlink, got %q", got)
+	if got := ProviderStatus(strings.Repeat("k", maxSecretBytes+1)); got != "oversize" {
+		t.Fatalf("expected oversize, got %q", got)
 	}
 }
 
-func TestSecretResolverUsesOnlyFixedReferencesAndOwnerReadOnlyFiles(t *testing.T) {
-	dir := t.TempDir()
-	openAI := filepath.Join(dir, "openai")
-	if err := os.WriteFile(openAI, []byte("openai-key\n"), 0o400); err != nil {
-		t.Fatal(err)
+// Ruby's reason_for decides oversize on the raw byte size before it ever
+// strips whitespace, so a value that is both oversize and all-whitespace must
+// report oversize, not empty. The two implementations diverging on this
+// ordering is exactly what a later contract test asserts against.
+func TestProviderStatusOversizeTakesPriorityOverEmpty(t *testing.T) {
+	if got := ProviderStatus(strings.Repeat(" ", maxSecretBytes+1)); got != "oversize" {
+		t.Fatalf("expected oversize to take priority over empty, got %q", got)
 	}
-	resolver := NewSecretResolver(map[string]string{"openai_primary": openAI})
+}
+
+func TestSecretResolverRejectsUnknownReferencesAndMalformedValues(t *testing.T) {
+	resolver := &SecretResolver{values: map[string]string{"openai_primary": "openai-key"}}
 	if got, err := resolver.Resolve("openai_primary"); err != nil || got != "openai-key" {
 		t.Fatalf("got=%q err=%v", got, err)
 	}
 	if _, err := resolver.Resolve("../../secret"); err == nil {
 		t.Fatal("accepted an unknown secret reference")
 	}
-	if err := os.Chmod(openAI, 0o440); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := resolver.Resolve("openai_primary"); err == nil {
-		t.Fatal("accepted a group-readable secret")
+
+	spaced := &SecretResolver{values: map[string]string{"openai_primary": "sk live with space"}}
+	if _, err := spaced.Resolve("openai_primary"); err == nil {
+		t.Fatal("accepted a credential containing a space")
 	}
 }
 

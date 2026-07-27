@@ -4,8 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,16 +13,10 @@ import (
 	"hunter.local/assistant/gateway/internal/provider"
 )
 
-func writeProviderKey(t *testing.T, dir, name, value string) string {
+func setMachineTokens(t *testing.T) {
 	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte(value), 0o400); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(path, 0o400); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", strings.Repeat("m", 32))
+	t.Setenv("ASSISTANT_GATEWAY_INGRESS_TOKEN", strings.Repeat("i", 32))
 }
 
 func TestHealthHandlerReturnsStatusOnly(t *testing.T) {
@@ -75,21 +68,22 @@ func TestServeHealthOnlyBlocksUntilContextCancelledThenShutsDown(t *testing.T) {
 	}
 }
 
-// A key file whose value contains an internal space is classified "valid" by
-// ProviderStatusIn (matching Rails' preflight) but rejected by the stricter
-// runtime readSecret. That divergence must disable the one provider, not exit
-// the process, or a corrupt key crash-loops the container under
-// restart: unless-stopped.
+// A provider key whose value contains an internal space is classified
+// "valid" by config.ProviderStatus (matching Rails' preflight) but rejected
+// by the stricter runtime SecretResolver.Resolve. That divergence must
+// disable the one provider, not exit the process, or a corrupt key
+// crash-loops the container under restart: unless-stopped.
 func TestAMalformedKeyReportedAvailableIsDroppedRatherThanExiting(t *testing.T) {
-	dir := t.TempDir()
-	path := writeProviderKey(t, dir, "assistant_anthropic_api_key", "sk-live with-an-internal-space")
+	setMachineTokens(t)
+	t.Setenv("ASSISTANT_ANTHROPIC_API_KEY", "sk-live with-an-internal-space")
+	t.Setenv("ASSISTANT_OPENAI_API_KEY", "")
 
-	if got := config.ProviderStatusIn(dir, "anthropic_primary"); got != "valid" {
+	if got := config.ProviderStatus("sk-live with-an-internal-space"); got != "valid" {
 		t.Fatalf("precondition: expected the malformed key to report valid, got %q", got)
 	}
-	settings := config.Config{
-		AvailableProfiles: []string{"anthropic_primary"},
-		ProviderSecrets:   config.NewSecretResolver(map[string]string{"anthropic_primary": path}),
+	settings, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
 	}
 
 	openAIAdapter, anthropicAdapter, active := resolveAdapters(settings, &http.Client{})
@@ -102,16 +96,13 @@ func TestAMalformedKeyReportedAvailableIsDroppedRatherThanExiting(t *testing.T) 
 }
 
 func TestAMalformedKeyDoesNotDisableAWorkingProvider(t *testing.T) {
-	dir := t.TempDir()
-	badPath := writeProviderKey(t, dir, "assistant_anthropic_api_key", "sk-live with-an-internal-space")
-	goodPath := writeProviderKey(t, dir, "assistant_openai_api_key", "sk-live-openai")
+	setMachineTokens(t)
+	t.Setenv("ASSISTANT_ANTHROPIC_API_KEY", "sk-live with-an-internal-space")
+	t.Setenv("ASSISTANT_OPENAI_API_KEY", "sk-live-openai")
 
-	settings := config.Config{
-		AvailableProfiles: []string{"anthropic_primary", "openai_primary"},
-		ProviderSecrets: config.NewSecretResolver(map[string]string{
-			"anthropic_primary": badPath,
-			"openai_primary":    goodPath,
-		}),
+	settings, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
 	}
 
 	openAIAdapter, anthropicAdapter, active := resolveAdapters(settings, &http.Client{})

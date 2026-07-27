@@ -4,10 +4,8 @@ import (
 	"errors"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 )
 
 const (
@@ -17,32 +15,19 @@ const (
 	AMQPHost       = "rabbitmq:5672"
 	AMQPVHost      = "hunter-assistant"
 
-	// defaultProviderSecretDir is the read-only mount for operator-provided
-	// provider API keys. Either or both may be absent.
-	defaultProviderSecretDir = "/run/secrets"
-
 	// placeholderPrefix mirrors Rails' ProviderCredentials::PLACEHOLDER so the
-	// two implementations classify the same shipped example files identically.
+	// two implementations classify the same environment-supplied value
+	// identically.
 	placeholderPrefix = "replace_with_"
 )
 
-// machineSecretDir holds the gateway-generated machine credentials (MCP
-// token, AMQP password) bootstrapped on first boot. Their absence is always
-// a genuine fault, unlike a provider key. This is a var rather than a const
-// only so tests can redirect it into a temp directory; a later task's
-// contract test asserts the default value is exactly "/run/assistant/secrets".
-//
-// Concurrency caveat: this is package-global mutable state, so a test that
-// redirects it is NOT safe under t.Parallel() — a parallel sibling would
-// observe the redirected directory, or the restore would race it. Tests in
-// this package run sequentially today and must keep doing so; anything
-// needing parallelism should thread the directory through as a parameter
-// instead of reassigning this var.
-var machineSecretDir = "/run/assistant/secrets"
-
-var defaultSecretFiles = map[string]string{
-	"openai_primary":    "assistant_openai_api_key",
-	"anthropic_primary": "assistant_anthropic_api_key",
+// providerSecretEnv maps each provider profile reference to the environment
+// variable that carries its API key. These names are fixed by Task 1's
+// Rails-side catalog (web/config/assistant_provider_catalog.yml's secret_env:
+// keys) — they must not drift independently of that file.
+var providerSecretEnv = map[string]string{
+	"openai_primary":    "ASSISTANT_OPENAI_API_KEY",
+	"anthropic_primary": "ASSISTANT_ANTHROPIC_API_KEY",
 }
 
 type Profile struct {
@@ -52,121 +37,99 @@ type Profile struct {
 }
 
 type SecretResolver struct {
-	paths map[string]string
+	values map[string]string
 }
 
 type Config struct {
-	GatewayMCPToken   string
-	AMQPPassword      string
+	GatewayMCPToken string
+	IngressToken    string
+
+	// AMQPPassword is always empty now that the file-backed machine-credential
+	// mount is gone; nothing populates it any more. It — and AMQPURL below —
+	// exist only because cmd/hunter-assistant-gateway/main.go still dials AMQP
+	// on every boot. Task 3 deletes that run loop and this field along with it;
+	// do not add a new way to populate it in the meantime.
+	AMQPPassword string
+
 	ProviderSecrets   *SecretResolver
 	AvailableProfiles []string
 }
 
-// Load is the production entry point: machine credentials come from
-// machineSecretDir and provider keys from the standard Compose secrets mount.
+// Load is the production entry point: every credential — the two machine
+// tokens and both provider keys — comes from the process environment. It
+// fails only when a machine credential (MCP token or ingress token) is
+// missing or malformed; a provider key that is absent, empty, or otherwise
+// rejected just keeps the corresponding profile out of AvailableProfiles.
 func Load() (Config, error) {
-	return LoadFrom(defaultProviderSecretDir)
-}
-
-// LoadFrom reads machine credentials (mandatory) and classifies the provider
-// keys found under secretDir (each optional). It never fails because a
-// provider key is absent, empty, or otherwise rejected — that just keeps the
-// corresponding profile out of AvailableProfiles.
-func LoadFrom(secretDir string) (Config, error) {
-	mcpToken, err := readSecret(filepath.Join(machineSecretDir, "assistant_gateway_mcp_token"))
-	if err != nil {
-		return Config{}, errors.New("gateway MCP credential unavailable")
-	}
-	amqpPassword, err := readSecret(filepath.Join(machineSecretDir, "assistant_gateway_amqp_password"))
-	if err != nil {
-		return Config{}, errors.New("gateway AMQP credential unavailable")
+	mcpToken := os.Getenv("ASSISTANT_GATEWAY_MCP_TOKEN")
+	ingressToken := os.Getenv("ASSISTANT_GATEWAY_INGRESS_TOKEN")
+	if !validCredential(mcpToken) || !validCredential(ingressToken) {
+		return Config{}, errors.New("assistant gateway machine credential rejected")
 	}
 
-	available := make([]string, 0, len(defaultSecretFiles))
-	for reference := range defaultSecretFiles {
-		if ProviderStatusIn(secretDir, reference) == "valid" {
+	values := make(map[string]string, len(providerSecretEnv))
+	available := make([]string, 0, len(providerSecretEnv))
+	for reference, name := range providerSecretEnv {
+		// os.LookupEnv, not os.Getenv: Getenv collapses "unset" and "set to
+		// empty" into the same "", which would make an absent key
+		// indistinguishable from an empty one. ProviderStatus is only ever
+		// asked to classify a value that is known to be present; a variable
+		// that was never set is classified "absent" right here, matching
+		// Ruby's ENV[...].nil? check in provider_credentials.rb.
+		raw, present := os.LookupEnv(name)
+		values[reference] = raw
+		status := "absent"
+		if present {
+			status = ProviderStatus(raw)
+		}
+		if status == "valid" {
 			available = append(available, reference)
 		}
 	}
-	sort.Strings(available)
-
-	overrides := make(map[string]string, len(defaultSecretFiles))
-	for reference, file := range defaultSecretFiles {
-		overrides[reference] = filepath.Join(secretDir, file)
-	}
+	sort.Strings(available) // map iteration order is random; AvailableProfiles is logged and asserted on.
 
 	return Config{
 		GatewayMCPToken:   mcpToken,
-		AMQPPassword:      amqpPassword,
-		ProviderSecrets:   NewSecretResolver(overrides),
+		IngressToken:      ingressToken,
+		ProviderSecrets:   &SecretResolver{values: values},
 		AvailableProfiles: available,
 	}, nil
 }
 
-// ProviderStatusIn classifies the provider key file for reference within
-// secretDir, using the same reason vocabulary as
-// web/app/services/assistant/provider_credentials.rb: valid, absent, empty,
-// placeholder, oversize, bad_mode, symlink, unreadable. No secret value is
-// ever included in the result.
-func ProviderStatusIn(secretDir, reference string) string {
-	file, ok := defaultSecretFiles[reference]
-	if !ok {
-		return "absent"
-	}
-	return classifySecret(filepath.Join(secretDir, file))
-}
-
-func classifySecret(path string) string {
-	info, err := os.Lstat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "absent"
-		}
-		return "unreadable"
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return "symlink"
-	}
-	// Size precedes mode, mirroring the Rails preflight: both are decided from
-	// lstat metadata before any read, and either way the file is rejected
-	// without being opened.
-	if info.Size() > maxSecretBytes {
+// ProviderStatus classifies a provider key value known to be present in the
+// environment, mirroring web/app/services/assistant/provider_credentials.rb's
+// reason_for order exactly: oversize is decided on the raw byte length, then
+// empty after stripping whitespace, then placeholder (case-insensitive
+// "replace_with_" prefix), else valid. The value's contents are never
+// included in the result.
+//
+// It cannot itself report "absent" — that classification depends on whether
+// the environment variable existed at all, a distinction already lost once a
+// value has been reduced to a bare string. Load makes that determination with
+// os.LookupEnv before calling this function.
+func ProviderStatus(value string) string {
+	if len(value) > maxSecretBytes {
 		return "oversize"
 	}
-	if !safeSecretMode(path, info.Mode().Perm()) {
-		return "bad_mode"
-	}
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return "unreadable"
-	}
-	value := strings.TrimSpace(string(body))
-	if value == "" {
+	body := strings.TrimSpace(value)
+	if body == "" {
 		return "empty"
 	}
-	if strings.HasPrefix(strings.ToLower(value), placeholderPrefix) {
+	if strings.HasPrefix(strings.ToLower(body), placeholderPrefix) {
 		return "placeholder"
 	}
 	return "valid"
 }
 
-func NewSecretResolver(overrides map[string]string) *SecretResolver {
-	paths := make(map[string]string, len(defaultSecretFiles))
-	for reference, file := range defaultSecretFiles {
-		paths[reference] = filepath.Join(defaultProviderSecretDir, file)
-		if candidate := overrides[reference]; candidate != "" {
-			paths[reference] = candidate
-		}
-	}
-	return &SecretResolver{paths: paths}
-}
-
 func (resolver *SecretResolver) Resolve(reference string) (string, error) {
-	path, ok := resolver.paths[reference]
+	value, ok := resolver.values[reference]
 	if !ok {
-		return "", errors.New("provider secret reference is not allowed")
+		return "", errors.New("unknown provider reference")
 	}
-	return readSecret(path)
+	if !validCredential(value) {
+		return "", errors.New("unusable provider credential")
+	}
+	return value, nil
 }
 
 func ValidateProfile(profile Profile) error {
@@ -187,35 +150,10 @@ func (config Config) AMQPURL() string {
 	}).String()
 }
 
-func readSecret(path string) (string, error) {
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || !safeSecretMode(path, info.Mode().Perm()) || info.Size() <= 0 || info.Size() > maxSecretBytes {
-		return "", errors.New("secret file rejected")
-	}
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return "", errors.New("secret file rejected")
-	}
-	value := strings.TrimSpace(string(body))
-	if value == "" || strings.ContainsAny(value, "\x00\r\n\t ") {
-		return "", errors.New("secret value rejected")
-	}
-	return value, nil
-}
-
-func safeSecretMode(path string, mode os.FileMode) bool {
-	if mode == 0o400 {
-		return true
-	}
-	if mode != 0o600 {
-		return false
-	}
-	// Standalone Compose preserves a file-backed secret's host mode. Permit a
-	// 0600 source only when the in-container read-only bind rejects write opens.
-	file, err := os.OpenFile(path, os.O_WRONLY, 0)
-	if err == nil {
-		_ = file.Close()
-		return false
-	}
-	return errors.Is(err, syscall.EROFS) || errors.Is(err, syscall.EACCES)
+// validCredential rejects NUL, CR, LF, tab and space. Duplicated from
+// internal/mcp's helper of the same name rather than shared: internal/mcp
+// already imports this package for config.MCPURL, so importing back would be
+// a cycle.
+func validCredential(value string) bool {
+	return value != "" && len(value) <= 1024 && !strings.ContainsAny(value, "\x00\r\n\t ")
 }
