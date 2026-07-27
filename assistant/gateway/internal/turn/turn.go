@@ -1,4 +1,4 @@
-package queue
+package turn
 
 import (
 	"bytes"
@@ -15,7 +15,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	amqp "github.com/rabbitmq/amqp091-go"
 	"hunter.local/assistant/gateway/internal/config"
 	mcpclient "hunter.local/assistant/gateway/internal/mcp"
 	"hunter.local/assistant/gateway/internal/prompt"
@@ -23,9 +22,6 @@ import (
 )
 
 const (
-	turnQueue       = "assistant.gateway.turns"
-	eventExchange   = "assistant.events"
-	eventRoutingKey = "assistant.rails.events"
 	maxJobBytes     = 128 << 10
 	maxTurnDuration = 5 * time.Minute
 )
@@ -135,7 +131,7 @@ func (processor *Processor) Process(parent context.Context, job TurnJob) []Assis
 	}
 	ctx, cancel := context.WithDeadline(parent, deadline)
 	defer cancel()
-	events := []AssistantEvent{newEvent(job, "progress", map[string]any{"status": "running"})}
+	events := make([]AssistantEvent, 0, 2)
 
 	references := make([]prompt.ContextReference, 0, len(job.ContextReferences))
 	for _, reference := range job.ContextReferences {
@@ -187,84 +183,6 @@ func (processor *Processor) Process(parent context.Context, job TurnJob) []Assis
 		"tool_call_count": result.ToolCallCount,
 	}))
 	return events
-}
-
-func Run(ctx context.Context, amqpURL string, processor *Processor) error {
-	connection, err := amqp.DialConfig(amqpURL, amqp.Config{Heartbeat: 10 * time.Second, Locale: "en_US"})
-	if err != nil {
-		return errors.New("assistant queue connection failed")
-	}
-	defer connection.Close()
-	channel, err := connection.Channel()
-	if err != nil {
-		return errors.New("assistant queue channel failed")
-	}
-	defer channel.Close()
-	if err := channel.Qos(1, 0, false); err != nil {
-		return errors.New("assistant queue QoS failed")
-	}
-	if err := channel.Confirm(false); err != nil {
-		return errors.New("assistant queue confirms unavailable")
-	}
-	confirmations := channel.NotifyPublish(make(chan amqp.Confirmation, 1))
-	deliveries, err := channel.Consume(turnQueue, "hunter-assistant-gateway", false, false, false, false, nil)
-	if err != nil {
-		return errors.New("assistant queue consume failed")
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case delivery, ok := <-deliveries:
-			if !ok {
-				return errors.New("assistant queue closed")
-			}
-			job, err := DecodeTurnJob(delivery.Body, time.Now())
-			if err != nil {
-				_ = delivery.Nack(false, false)
-				continue
-			}
-			events := processor.Process(ctx, job)
-			published := true
-			for _, event := range events {
-				if err := publishEvent(ctx, channel, confirmations, event); err != nil {
-					published = false
-					break
-				}
-			}
-			if published {
-				_ = delivery.Ack(false)
-			} else {
-				_ = delivery.Nack(false, true)
-			}
-		}
-	}
-}
-
-func publishEvent(ctx context.Context, channel *amqp.Channel, confirmations <-chan amqp.Confirmation, event AssistantEvent) error {
-	payload, err := json.Marshal(event)
-	if err != nil {
-		return errors.New("assistant event encoding failed")
-	}
-	if err := channel.PublishWithContext(ctx, eventExchange, eventRoutingKey, false, false, amqp.Publishing{
-		ContentType: "application/json", DeliveryMode: amqp.Transient,
-		MessageId: event.EventID, CorrelationId: event.CorrelationID,
-		Timestamp: time.Now().UTC(), Body: payload,
-	}); err != nil {
-		return errors.New("assistant event publish failed")
-	}
-	select {
-	case confirmation := <-confirmations:
-		if !confirmation.Ack {
-			return errors.New("assistant event publish rejected")
-		}
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(5 * time.Second):
-		return errors.New("assistant event publish confirmation timed out")
-	}
 }
 
 func newEvent(job TurnJob, kind string, data any) AssistantEvent {

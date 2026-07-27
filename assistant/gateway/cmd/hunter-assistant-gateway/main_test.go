@@ -38,20 +38,20 @@ func TestHealthHandlerReturnsStatusOnly(t *testing.T) {
 	}
 }
 
-func TestServeHealthOnlyBlocksUntilContextCancelledThenShutsDown(t *testing.T) {
+func TestBlockUntilShutdownBlocksUntilContextCancelledThenShutsDown(t *testing.T) {
 	var ready atomic.Bool
-	healthServer := &http.Server{Addr: "127.0.0.1:0", Handler: newHealthHandler(&ready)}
+	turnServer := &http.Server{Addr: "127.0.0.1:0", Handler: newHealthHandler(&ready)}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan struct{})
 	go func() {
-		serveHealthOnly(ctx, healthServer)
+		blockUntilShutdown(ctx, turnServer)
 		close(done)
 	}()
 
 	select {
 	case <-done:
-		t.Fatal("serveHealthOnly returned before the context was cancelled")
+		t.Fatal("blockUntilShutdown returned before the context was cancelled")
 	case <-time.After(50 * time.Millisecond):
 	}
 
@@ -60,7 +60,7 @@ func TestServeHealthOnlyBlocksUntilContextCancelledThenShutsDown(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("serveHealthOnly did not return after the context was cancelled")
+		t.Fatal("blockUntilShutdown did not return after the context was cancelled")
 	}
 
 	if ready.Load() {

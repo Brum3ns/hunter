@@ -6,7 +6,6 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.61.0
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/openai/openai-go/v3 v3.37.0
-	github.com/rabbitmq/amqp091-go v1.13.0
 )
 
 require (

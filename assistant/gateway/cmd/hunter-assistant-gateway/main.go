@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -15,10 +16,10 @@ import (
 	"hunter.local/assistant/gateway/internal/config"
 	mcpclient "hunter.local/assistant/gateway/internal/mcp"
 	"hunter.local/assistant/gateway/internal/provider"
-	"hunter.local/assistant/gateway/internal/queue"
+	"hunter.local/assistant/gateway/internal/turn"
 )
 
-const healthAddress = "0.0.0.0:8081"
+const listenAddress = "0.0.0.0:8081"
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "-healthcheck" {
@@ -36,14 +37,26 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	var ready atomic.Bool
-	healthServer := &http.Server{
-		Addr: healthAddress, Handler: newHealthHandler(&ready),
-		ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 2 * time.Second,
-		WriteTimeout: 2 * time.Second, IdleTimeout: 5 * time.Second,
+	// One mux serves both routes so the process needs only one listening
+	// socket. /healthz is registered immediately so the idle path below can
+	// still answer health checks; /turns is added later, once a processor
+	// exists — http.ServeMux.Handle is safe to call while the server is
+	// already serving, since registration is guarded by the mux's own lock.
+	mux := http.NewServeMux()
+	mux.Handle("/healthz", newHealthHandler(&ready))
+	// ReadTimeout/WriteTimeout must cover a full turn: the grant TTL is 300s,
+	// so 310s leaves margin. ReadHeaderTimeout and MaxHeaderBytes stay tight —
+	// they are the slow-loris defence, and a turn's headers are tiny
+	// regardless of how long its body takes to arrive or its response takes
+	// to produce.
+	turnServer := &http.Server{
+		Addr: listenAddress, Handler: mux,
+		ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 310 * time.Second,
+		WriteTimeout: 310 * time.Second, IdleTimeout: 5 * time.Second,
 		MaxHeaderBytes: 4 << 10,
 	}
 	go func() {
-		if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := turnServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			stop()
 		}
 	}()
@@ -62,7 +75,7 @@ func main() {
 	}
 	if len(activeProfiles) == 0 {
 		log.Print("assistant gateway idle: no usable provider credential installed")
-		serveHealthOnly(ctx, healthServer)
+		blockUntilShutdown(ctx, turnServer)
 		return
 	}
 	log.Printf("assistant gateway ready: profiles=%s", strings.Join(activeProfiles, ","))
@@ -77,15 +90,18 @@ func main() {
 	// dereferencing it, so a turn naming an unconfigured provider terminates
 	// cleanly instead of panicking.
 	gateway := provider.NewGateway(openAIAdapter, anthropicAdapter)
-	processor := &queue.Processor{Gateway: gateway, Connect: queue.ConnectMCP(mcpClient)}
+	processor := &turn.Processor{Gateway: gateway, Connect: turn.ConnectMCP(mcpClient)}
 
+	mux.Handle("/turns", turn.NewTurnHandler(turn.HandlerOptions{
+		Processor:      processor,
+		IngressToken:   settings.IngressToken,
+		AllowedHosts:   splitList(os.Getenv("ASSISTANT_GATEWAY_ALLOWED_HOSTS")),
+		AllowedOrigins: splitList(os.Getenv("ASSISTANT_GATEWAY_ALLOWED_ORIGINS")),
+		MaxConcurrent:  intFromEnv("ASSISTANT_MAX_CONCURRENT_TURNS", 2),
+		Ready:          &ready,
+	}))
 	ready.Store(true)
-	if err := queue.Run(ctx, settings.AMQPURL(), processor); err != nil && ctx.Err() == nil {
-		ready.Store(false)
-		log.Fatal("assistant gateway queue stopped")
-	}
-	ready.Store(false)
-	shutdownHealthServer(healthServer)
+	blockUntilShutdown(ctx, turnServer)
 }
 
 // resolveAdapters builds an adapter for each profile the config preflight
@@ -124,20 +140,17 @@ func resolveAdapters(settings config.Config, providerClient *http.Client) (provi
 	return openAIAdapter, anthropicAdapter, active
 }
 
-// serveHealthOnly is the idle path: no provider credential is installed, so
-// the gateway never opens the AMQP consumer and never calls queue.Run. It
-// blocks until the signal context is cancelled — /healthz keeps reporting 503
-// the whole time, because ready is never stored true — then shuts the health
-// server down through the same path the ready branch uses.
-func serveHealthOnly(ctx context.Context, healthServer *http.Server) {
+// blockUntilShutdown blocks until the signal context is cancelled, then
+// shuts turnServer down. Serving itself already happens in the background
+// goroutine started around ListenAndServe, so this is just what keeps main
+// from returning early: the idle path calls it with only /healthz mounted
+// (ready is never stored true, so it keeps reporting 503 the whole time),
+// and the ready path calls it once /turns is mounted too.
+func blockUntilShutdown(ctx context.Context, turnServer *http.Server) {
 	<-ctx.Done()
-	shutdownHealthServer(healthServer)
-}
-
-func shutdownHealthServer(healthServer *http.Server) {
 	shutdownContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_ = healthServer.Shutdown(shutdownContext)
+	_ = turnServer.Shutdown(shutdownContext)
 }
 
 func newHealthHandler(ready *atomic.Bool) http.Handler {
@@ -157,6 +170,38 @@ func newHealthHandler(ready *atomic.Bool) http.Handler {
 		response.WriteHeader(http.StatusNoContent)
 	})
 	return mux
+}
+
+// splitList parses a comma-separated environment value into its trimmed,
+// non-empty entries. An empty or all-blank input yields an empty slice, not
+// a slice holding one empty string, so an unset allowlist denies everything
+// instead of accidentally matching an empty Host or Origin.
+func splitList(value string) []string {
+	if value == "" {
+		return nil
+	}
+	fields := strings.Split(value, ",")
+	list := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if trimmed := strings.TrimSpace(field); trimmed != "" {
+			list = append(list, trimmed)
+		}
+	}
+	return list
+}
+
+// intFromEnv reads a positive integer environment variable, falling back to
+// fallback when it is unset, empty, or fails to parse as one.
+func intFromEnv(name string, fallback int) int {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return fallback
+	}
+	return value
 }
 
 func checkHealth() error {

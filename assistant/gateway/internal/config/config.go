@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -12,8 +11,6 @@ const (
 	maxSecretBytes = 16 << 10
 	MCPURL         = "http://hunter-mcp:8080/mcp"
 	ProxyURL       = "http://assistant-egress:3128"
-	AMQPHost       = "rabbitmq:5672"
-	AMQPVHost      = "hunter-assistant"
 
 	// placeholderPrefix mirrors Rails' ProviderCredentials::PLACEHOLDER so the
 	// two implementations classify the same environment-supplied value
@@ -43,13 +40,6 @@ type SecretResolver struct {
 type Config struct {
 	GatewayMCPToken string
 	IngressToken    string
-
-	// AMQPPassword is always empty now that the file-backed machine-credential
-	// mount is gone; nothing populates it any more. It — and AMQPURL below —
-	// exist only because cmd/hunter-assistant-gateway/main.go still dials AMQP
-	// on every boot. Task 3 deletes that run loop and this field along with it;
-	// do not add a new way to populate it in the meantime.
-	AMQPPassword string
 
 	ProviderSecrets   *SecretResolver
 	AvailableProfiles []string
@@ -140,15 +130,6 @@ func ValidateProfile(profile Profile) error {
 		return errors.New("provider profile is not in the compiled catalog")
 	}
 	return nil
-}
-
-func (config Config) AMQPURL() string {
-	return (&url.URL{
-		Scheme: "amqp",
-		User:   url.UserPassword("hunter-assistant-gateway", config.AMQPPassword),
-		Host:   AMQPHost,
-		Path:   "/" + AMQPVHost,
-	}).String()
 }
 
 // validCredential rejects NUL, CR, LF, tab and space. Duplicated from
