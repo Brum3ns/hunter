@@ -96,6 +96,34 @@ the deleted volume and `log.Fatal` if they were absent. It now reads
 environment. A crash-loop here means those variables are unset or contain
 whitespace.
 
+### If a service exits 255 with "reopen exec fifo"
+
+```
+assistant-gateway-1  | reopen exec fifo: get safe /proc/thread-self/fd handle:
+                       fstatfs fsmount:fscontext:proc: operation not permitted
+assistant-gateway-1 exited with code 255 (restarting)
+```
+
+This is container init failing, not the Go binary. `assistant-gateway`,
+`assistant-validator` and `hunter-mcp` run under deny-by-default seccomp profiles
+in `ops/assistant/seccomp/`. runc 1.2 and later call `fstatfs` on the exec fifo's
+descriptor — to prove it is not a procfs magic link — *after* the profile is
+applied, so a profile without `fstatfs` kills every such container with `EPERM`.
+
+Fixed on 2026-07-27 by allowing `fstatfs`/`fstatfs64` and switching
+`defaultErrnoRet` from `1` (EPERM) to `38` (ENOSYS), so a denied syscall now
+reads as unimplemented and the runtime's fallback paths engage instead of
+hard-failing. `assistant_compose_test.rb` asserts both, so it cannot regress.
+
+Note the new mount API — `fsopen`, `fsmount`, `fsconfig`, `fspick`,
+`move_mount`, `open_tree` — is deliberately still denied and is now refused by
+name in that test. Those grant the mounting power `mount` is denied for; the
+strings `fsmount` and `fscontext` in the error above are the filesystem types
+runc was *checking for*, not syscalls it needs. Do not add them.
+
+If a *different* syscall is reported, add only that one, and add a matching
+assertion to `assistant_compose_test.rb`.
+
 ## Step 2 — Confirm the deleted failure modes are gone
 
 ```sh
