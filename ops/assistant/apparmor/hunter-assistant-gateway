@@ -26,10 +26,6 @@ profile hunter-assistant-gateway flags=(attach_disconnected,mediate_deleted) {
 
   /dev/init rix,
   /hunter-assistant-gateway rix,
-  /run/secrets/assistant_openai_api_key r,
-  /run/secrets/assistant_anthropic_api_key r,
-  /run/assistant/secrets/assistant_gateway_mcp_token r,
-  /run/assistant/secrets/assistant_gateway_amqp_password r,
   /etc/hosts r,
   /etc/hostname r,
   /etc/resolv.conf r,

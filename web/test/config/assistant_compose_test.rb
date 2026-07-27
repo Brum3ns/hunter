@@ -104,7 +104,7 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  # The four custom AppArmor profiles under ops/assistant/apparmor/ are kept in
+  # The three custom AppArmor profiles under ops/assistant/apparmor/ are kept in
   # the repository (for an operator who wants to load one manually) but are no
   # longer wired into Compose: apparmor_parser is never run automatically, so a
   # security_opt referencing an unloaded profile made `docker compose up` fail
@@ -159,8 +159,7 @@ class AssistantComposeTest < Minitest::Test
     profiles = {
       "gateway" => "hunter-assistant-gateway",
       "mcp" => "hunter-mcp",
-      "validator" => "hunter-assistant-validator",
-      "egress" => "hunter-assistant-egress"
+      "validator" => "hunter-assistant-validator"
     }
 
     profiles.each do |service, apparmor_name|
@@ -354,8 +353,6 @@ class AssistantComposeTest < Minitest::Test
 
     assert_includes ignored, "/secrets/*"
     assert_includes ignored, "!/secrets/.keep"
-    assert_includes ignored, "!/secrets/README.md"
-    assert_includes ignored, "!/secrets/examples/"
   end
 
   private

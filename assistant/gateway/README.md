@@ -7,18 +7,30 @@ assistant-message or validated-draft events. It contains no shell, generic HTTP
 tool, filesystem tool, hosted provider tool, or provider fallback.
 
 The remote OpenAI and Anthropic models do not run in this image. This service is
-the only provider client. Its Internet traffic must traverse
-`http://assistant-egress:3128`; the transport refuses direct connections and
-destinations other than `api.openai.com:443` and `api.anthropic.com:443`.
+the only provider client.
 
-Runtime credentials are regular, non-symlink files mounted mode `0400`. For
-standalone Compose file sources, host mode `0600` is accepted only when the
-in-container mount rejects write access:
+## Runtime contract
 
-- `/run/secrets/assistant_openai_api_key`
-- `/run/secrets/assistant_anthropic_api_key`
-- `/run/secrets/assistant_gateway_mcp_token`
-- `/run/secrets/assistant_gateway_amqp_password`
+- Listen address: `0.0.0.0:8081`.
+- Turn endpoint: `POST /turns`.
+- Health endpoint: `GET /healthz`, returning status only.
+
+All credentials arrive as plain environment variables — there is no secrets
+volume or mounted file:
+
+- `ASSISTANT_ANTHROPIC_API_KEY` — Anthropic provider key.
+- `ASSISTANT_OPENAI_API_KEY` — OpenAI provider key.
+- `ASSISTANT_GATEWAY_MCP_TOKEN` — the gateway-to-MCP credential presented to
+  `hunter-mcp`.
+- `ASSISTANT_GATEWAY_INGRESS_TOKEN` — the credential Rails presents on every
+  `POST /turns`.
+
+A missing or malformed machine credential (`ASSISTANT_GATEWAY_MCP_TOKEN` or
+`ASSISTANT_GATEWAY_INGRESS_TOKEN`) makes the process `log.Fatal` at startup. A
+provider key that is absent, empty, oversize, or a placeholder value just
+drops that one provider out of the gateway's available profiles — the process
+keeps running idle rather than exiting, since idling is the default state on
+a fresh `compose up` before any key is configured.
 
 The gateway has the gateway-to-MCP token but never the MCP-to-Hunter token. It
 has no route or client for Hunter's Rails API.

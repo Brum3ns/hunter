@@ -39,7 +39,6 @@ profile hunter-assistant-validator flags=(attach_disconnected,mediate_deleted) {
   /etc/resolv.conf r,
   /etc/nsswitch.conf r,
   /etc/ssl/certs/** r,
-  /run/assistant/secrets/assistant_validator_amqp_password r,
   /proc/sys/net/core/somaxconn r,
   /proc/sys/net/ipv4/ip_local_port_range r,
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,

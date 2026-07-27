@@ -161,7 +161,7 @@ class AssistantSecretPathsTest < Minitest::Test
   end
 
   # Mirrors Docker's rule that the last matching pattern wins and a leading `!`
-  # re-includes, which is what makes the carve-outs under secrets/ safe to keep.
+  # re-includes a path an earlier broader pattern excluded.
   def docker_context_excludes?(patterns, path)
     excluded = false
     patterns.each do |pattern|

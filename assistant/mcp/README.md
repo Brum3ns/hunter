@@ -11,11 +11,14 @@ shell, search, write, send, or execution tool.
 - Listen address: `0.0.0.0:8080` on an internal Compose network only.
 - MCP endpoint: `POST /mcp` (the SDK also handles protocol-required methods).
 - Health endpoint: `GET /healthz`, returning status only.
-- Gateway credential: `/run/secrets/assistant_gateway_mcp_token`, target mode `0400`.
-- Hunter credential: `/run/secrets/assistant_mcp_hunter_token`, target mode `0400`.
+- Gateway credential: `ASSISTANT_GATEWAY_MCP_TOKEN`, a plain environment
+  variable — checked against whatever bearer token the caller presents.
+- Hunter credential: `ASSISTANT_MCP_HUNTER_TOKEN`, a plain environment
+  variable — presented to Hunter's `/api/v1/assistant/machine` routes.
 
-Standalone Compose host sources may remain mode `0600`; the broker accepts
-that mode only when the in-container mount rejects write access.
+Both tokens must be present and pass the same validity checks (non-empty,
+bounded length, no NUL/CR/LF/tab/space); a missing or malformed token makes
+the process `log.Fatal` at startup.
 - Hunter URL: `http://web:5000`, restricted by
   `ASSISTANT_HUNTER_ALLOWED_HOSTS` (default `web:5000`).
 - Accepted `Host` values: `ASSISTANT_MCP_ALLOWED_HOSTS` (default

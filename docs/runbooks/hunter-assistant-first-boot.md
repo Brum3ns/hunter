@@ -12,11 +12,26 @@ bootstrap one-shots are gone. `docker compose up` is the whole enablement step.
 ## Why this document exists
 
 The build environment this change was developed in had **no Docker and no
-PostgreSQL**. Every Go suite and every database-free Ruby suite was run and
-passed; nothing that requires a container or a live database was executed. The
-checks below are therefore **unverified** and must be run once before this change
-is trusted. Nothing here is a formality — each item corresponds to a failure mode
-the change could plausibly still have.
+PostgreSQL**. Every Go suite passed. Of the seven database-free Ruby suites
+(files that boot Rails' `config/environment` directly, or load no Rails
+environment at all, rather than going through `test_helper`'s Postgres
+fixtures), all seven now pass, 0 failures / 0 errors:
+`test/contracts/assistant_secret_paths_test.rb`,
+`test/config/assistant_release_gate_test.rb`,
+`test/config/assistant_compose_test.rb`,
+`test/services/assistant/validator_client_test.rb`,
+`test/services/assistant/gateway_client_test.rb`,
+`test/services/assistant/provider_credentials_test.rb`, and
+`test/jobs/assistant/turn_job_test.rb`. Two of them
+(`assistant_release_gate_test.rb`, and a since-deleted
+`rabbitmq_provisioner_test.rb` that a `LoadError` on a removed file was
+aborting the whole `bin/rails test` run with) were failing/erroring as of the
+final review on 2026-07-27 because they still referenced the deleted
+RabbitMQ/rotation-drill machinery; both were fixed and re-verified as part of
+that review. Nothing that requires a container or a live database was
+executed. The checks below are therefore **unverified** and must be run once
+before this change is trusted. Nothing here is a formality — each item
+corresponds to a failure mode the change could plausibly still have.
 
 ## What was verified, and how
 

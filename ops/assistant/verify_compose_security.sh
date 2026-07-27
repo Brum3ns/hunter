@@ -25,7 +25,7 @@ chmod 0600 "$temporary_dir/development.yml" "$temporary_dir/production.yml"
 cd "$repository_root/web"
 bundle exec ruby test/config/assistant_compose_test.rb
 
-# The four assistant services no longer reference a custom AppArmor profile
+# The three assistant services no longer reference a custom AppArmor profile
 # (Docker's built-in docker-default profile applies instead; see
 # docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md).
 # What remains a real, host-independent guarantee is each service's seccomp
@@ -39,8 +39,7 @@ for resolved in "$temporary_dir/development.yml" "$temporary_dir/production.yml"
     seccomp_profiles = {
       "assistant-gateway" => "gateway",
       "hunter-mcp" => "mcp",
-      "assistant-validator" => "validator",
-      "assistant-egress" => "egress"
+      "assistant-validator" => "validator"
     }
 
     seccomp_profiles.each do |service_name, profile_name|

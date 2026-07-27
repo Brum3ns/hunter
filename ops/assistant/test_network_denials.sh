@@ -40,8 +40,8 @@ service_id() {
 }
 
 for required_service in \
-  web db mongo rabbitmq runner ansible-executor \
-  assistant-gateway hunter-mcp assistant-validator assistant-egress
+  web db mongo runner ansible-executor \
+  assistant-gateway hunter-mcp assistant-validator
 do
   service_id "$required_service" >/dev/null
 done
@@ -152,12 +152,11 @@ assert_private_and_metadata_denied() {
 }
 
 # Positive controls prove that a blanket network outage cannot make all of the
-# negative checks pass.
-assert_connects assistant-gateway rabbitmq 5672
+# negative checks pass. assistant-validator has no legitimate outbound peer of
+# its own in the current HTTP-only topology (web/hunter-mcp call into it), so
+# there is no equivalent positive control to assert for it here.
 assert_connects assistant-gateway hunter-mcp 8080
-assert_connects assistant-gateway assistant-egress 3128
 assert_connects hunter-mcp web 5000
-assert_connects assistant-validator rabbitmq 5672
 
 for destination in web db mongo runner ansible-executor; do
   case "$destination" in
@@ -195,23 +194,5 @@ for destination in web db mongo runner ansible-executor; do
 done
 assert_public_denied assistant-validator
 assert_private_and_metadata_denied assistant-validator
-
-assert_denied_service web assistant-egress 3128
-
-assert_proxy_rejects() {
-  destination=$1
-  port=$2
-  label=$3
-  response=$(probe assistant-egress "printf 'CONNECT $destination:$port HTTP/1.1\\r\\nHost: $destination:$port\\r\\n\\r\\n' | nc -w 3 127.0.0.1 3128 2>/dev/null | sed -n '1p'" || true)
-  case "$response" in
-    *" 403 "*) ;;
-    *) fail "egress proxy did not explicitly reject $label" ;;
-  esac
-}
-
-assert_proxy_rejects example.com 443 "non-provider DNS destination"
-assert_proxy_rejects 1.1.1.1 443 "non-provider direct IP destination"
-assert_proxy_rejects 10.255.255.1 443 "RFC1918 destination"
-assert_proxy_rejects 169.254.169.254 443 "metadata destination"
 
 echo "Assistant live network-denial checks passed."

@@ -7,7 +7,6 @@ class AssistantReleaseGateTest < Minitest::Test
   SCRIPTS = %w[
     ops/assistant/test_network_denials.sh
     ops/assistant/check_secret_leaks.sh
-    ops/assistant/rotation_drill.sh
   ].freeze
 
   def test_release_gate_scripts_are_executable_and_shell_valid
@@ -29,23 +28,16 @@ class AssistantReleaseGateTest < Minitest::Test
     assert_includes script, "assistant-gateway"
     assert_includes script, "hunter-mcp"
     assert_includes script, "assistant-validator"
-    assert_includes script, "assert_proxy_rejects"
   end
 
-  def test_secret_and_rotation_gates_do_not_print_secret_values
+  def test_secret_gate_does_not_print_secret_values
     secret_gate = ROOT.join("ops/assistant/check_secret_leaks.sh").read
-    rotation_gate = ROOT.join("ops/assistant/rotation_drill.sh").read
 
     assert_includes secret_gate, "gitleaks git --redact"
     assert_includes secret_gate, "git rev-list --all"
     assert_includes secret_gate, "docker compose --profile assistant logs --no-color"
     assert_includes secret_gate, "docker image save"
     refute_match(/cat\s+.*secret/i, secret_gate)
-
-    assert_includes rotation_gate, "assert_all_authenticate failure"
-    assert_includes rotation_gate, "assert_all_authenticate success"
-    assert_includes rotation_gate, "ASSISTANT_RABBITMQ_REPROVISION"
-    refute_match(/echo\s+.*password/i, rotation_gate)
   end
 
   def test_ci_runs_dependency_image_sbom_and_secret_gates
@@ -56,7 +48,6 @@ class AssistantReleaseGateTest < Minitest::Test
     end
     assert_includes workflow, "check_secret_leaks.sh"
     assert_includes workflow, "test_network_denials.sh"
-    assert_includes workflow, "rotation_drill.sh"
   end
 
   def test_project_context_and_production_checklist_record_the_enablement_boundary

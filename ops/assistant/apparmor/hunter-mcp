@@ -26,8 +26,6 @@ profile hunter-mcp flags=(attach_disconnected,mediate_deleted) {
 
   /dev/init rix,
   /hunter-mcp rix,
-  /run/assistant/secrets/assistant_gateway_mcp_token r,
-  /run/assistant/secrets/assistant_mcp_hunter_token r,
   /etc/hosts r,
   /etc/hostname r,
   /etc/resolv.conf r,
