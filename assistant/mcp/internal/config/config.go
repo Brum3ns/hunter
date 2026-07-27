@@ -7,7 +7,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -29,13 +28,11 @@ type Config struct {
 }
 
 func Load() (Config, error) {
-	gatewayPath := envOr("ASSISTANT_GATEWAY_MCP_TOKEN_FILE", "/run/assistant/secrets/assistant_gateway_mcp_token")
-	hunterPath := envOr("ASSISTANT_MCP_HUNTER_TOKEN_FILE", "/run/assistant/secrets/assistant_mcp_hunter_token")
-	gatewayToken, err := ReadSecret(gatewayPath)
+	gatewayToken, err := secretFromEnv("ASSISTANT_GATEWAY_MCP_TOKEN")
 	if err != nil {
 		return Config{}, fmt.Errorf("load gateway credential: %w", err)
 	}
-	hunterToken, err := ReadSecret(hunterPath)
+	hunterToken, err := secretFromEnv("ASSISTANT_MCP_HUNTER_TOKEN")
 	if err != nil {
 		return Config{}, fmt.Errorf("load Hunter credential: %w", err)
 	}
@@ -58,47 +55,30 @@ func Load() (Config, error) {
 	}, nil
 }
 
-func ReadSecret(path string) (string, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return "", errors.New("secret file unavailable")
+// secretFromEnv reads a machine token from the environment. Secrets used to
+// arrive as 0400 files on a read-only mount, which let this service verify the
+// mode and reject a world-readable key; an environment variable carries no such
+// proof, so the only checks left are on the value itself. The rejection of
+// embedded NUL/CR/LF/tab/space matches the gateway and validator readers, so a
+// token one service accepts is a token all three accept.
+//
+// The value is never echoed: callers get a static reason, never the secret.
+func secretFromEnv(name string) (string, error) {
+	raw, present := os.LookupEnv(name)
+	if !present {
+		return "", errors.New("secret is not set")
 	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return "", errors.New("secret path is not a regular file")
+	if len(raw) > maxSecretBytes {
+		return "", errors.New("secret is too large")
 	}
-	if !safeSecretMode(path, info.Mode().Perm()) {
-		return "", errors.New("secret file mode must be 0400")
+	secret := strings.TrimSpace(raw)
+	if secret == "" {
+		return "", errors.New("secret is empty")
 	}
-	if info.Size() <= 0 || info.Size() > maxSecretBytes {
-		return "", errors.New("secret file size is invalid")
-	}
-
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return "", errors.New("secret file unreadable")
-	}
-	secret := strings.TrimSpace(string(body))
-	if secret == "" || strings.ContainsAny(secret, "\x00\r\n\t ") {
-		return "", errors.New("secret value is invalid")
+	if strings.ContainsAny(secret, "\x00\r\n\t ") {
+		return "", errors.New("secret contains disallowed characters")
 	}
 	return secret, nil
-}
-
-func safeSecretMode(path string, mode os.FileMode) bool {
-	if mode == 0o400 {
-		return true
-	}
-	if mode != 0o600 {
-		return false
-	}
-	// Standalone Compose preserves a file-backed secret's host mode. Permit a
-	// 0600 source only when the in-container read-only bind rejects write opens.
-	file, err := os.OpenFile(path, os.O_WRONLY, 0)
-	if err == nil {
-		_ = file.Close()
-		return false
-	}
-	return errors.Is(err, syscall.EROFS) || errors.Is(err, syscall.EACCES)
 }
 
 func validateBaseURL(raw string, allowedHosts []string) error {

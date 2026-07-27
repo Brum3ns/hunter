@@ -1,61 +1,105 @@
 package config
 
 import (
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestReadSecretRequiresARegularOwnerReadOnlyFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "token")
-	if err := os.WriteFile(path, []byte("secret-token\n"), 0o400); err != nil {
-		t.Fatal(err)
-	}
+func TestSecretFromEnvAcceptsAPlausibleToken(t *testing.T) {
+	t.Setenv("ASSISTANT_TEST_SECRET", "  mcp-token-value  ")
 
-	got, err := ReadSecret(path)
+	got, err := secretFromEnv("ASSISTANT_TEST_SECRET")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("secretFromEnv: %v", err)
 	}
-	if got != "secret-token" {
-		t.Fatalf("got %q", got)
-	}
-
-	if err := os.Chmod(path, 0o440); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ReadSecret(path); err == nil {
-		t.Fatal("accepted a group-readable secret")
+	if got != "mcp-token-value" {
+		t.Fatalf("secretFromEnv = %q, want the trimmed value", got)
 	}
 }
 
-func TestReadSecretRejectsSymlinksEmptyAndOversizedFiles(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "target")
-	if err := os.WriteFile(target, []byte("token"), 0o400); err != nil {
-		t.Fatal(err)
-	}
-	symlink := filepath.Join(dir, "link")
-	if err := os.Symlink(target, symlink); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ReadSecret(symlink); err == nil {
-		t.Fatal("accepted a symlink")
-	}
+func TestSecretFromEnvRejectsUnsetEmptyOversizeAndUnsafeValues(t *testing.T) {
+	// An unset variable stays distinguishable from an empty one, which is why
+	// secretFromEnv uses os.LookupEnv rather than os.Getenv.
+	t.Run("unset", func(t *testing.T) {
+		if _, err := secretFromEnv("ASSISTANT_TEST_SECRET_ABSENT"); err == nil {
+			t.Fatal("want an error for an unset variable")
+		}
+	})
 
-	empty := filepath.Join(dir, "empty")
-	if err := os.WriteFile(empty, nil, 0o400); err != nil {
-		t.Fatal(err)
+	for name, value := range map[string]string{
+		"empty":      "",
+		"whitespace": "   \n",
+		"oversize":   strings.Repeat("k", maxSecretBytes+1),
+		"space":      "has a space",
+		"tab":        "has\ttab",
+		"newline":    "has\nnewline",
+		"carriage":   "has\rreturn",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("ASSISTANT_TEST_SECRET", value)
+			if _, err := secretFromEnv("ASSISTANT_TEST_SECRET"); err == nil {
+				t.Fatalf("want an error for a %s value", name)
+			}
+		})
 	}
-	if _, err := ReadSecret(empty); err == nil {
-		t.Fatal("accepted an empty secret")
-	}
+}
 
-	large := filepath.Join(dir, "large")
-	if err := os.WriteFile(large, make([]byte, maxSecretBytes+1), 0o400); err != nil {
-		t.Fatal(err)
+func TestSecretFromEnvNeverEchoesTheValue(t *testing.T) {
+	const canary = "mcp-canary\nsecret"
+	t.Setenv("ASSISTANT_TEST_SECRET", canary)
+
+	_, err := secretFromEnv("ASSISTANT_TEST_SECRET")
+	if err == nil {
+		t.Fatal("want an error for a value containing a newline")
 	}
-	if _, err := ReadSecret(large); err == nil {
-		t.Fatal("accepted an oversized secret")
+	if strings.Contains(err.Error(), "canary") {
+		t.Fatalf("the error leaked the secret value: %v", err)
+	}
+}
+
+func TestLoadReadsBothMachineTokensFromTheEnvironment(t *testing.T) {
+	t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", "gateway-mcp-token")
+	t.Setenv("ASSISTANT_MCP_HUNTER_TOKEN", "mcp-hunter-token")
+
+	settings, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if settings.GatewayToken != "gateway-mcp-token" {
+		t.Fatalf("GatewayToken = %q", settings.GatewayToken)
+	}
+	if settings.HunterServiceToken != "mcp-hunter-token" {
+		t.Fatalf("HunterServiceToken = %q", settings.HunterServiceToken)
+	}
+	if settings.HunterBaseURL != "http://web:5000" {
+		t.Fatalf("HunterBaseURL = %q, want the default", settings.HunterBaseURL)
+	}
+}
+
+func TestLoadFailsWhenEitherMachineTokenAloneIsMissing(t *testing.T) {
+	t.Run("gateway token missing", func(t *testing.T) {
+		t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", "")
+		t.Setenv("ASSISTANT_MCP_HUNTER_TOKEN", "mcp-hunter-token")
+		if _, err := Load(); err == nil {
+			t.Fatal("want an error when the gateway token is missing")
+		}
+	})
+
+	t.Run("hunter token missing", func(t *testing.T) {
+		t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", "gateway-mcp-token")
+		t.Setenv("ASSISTANT_MCP_HUNTER_TOKEN", "")
+		if _, err := Load(); err == nil {
+			t.Fatal("want an error when the Hunter token is missing")
+		}
+	})
+}
+
+func TestLoadRejectsAHunterURLOutsideTheAllowlist(t *testing.T) {
+	t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", "gateway-mcp-token")
+	t.Setenv("ASSISTANT_MCP_HUNTER_TOKEN", "mcp-hunter-token")
+	t.Setenv("ASSISTANT_HUNTER_URL", "http://evil.example.com")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("want an error for a Hunter URL that is not allowlisted")
 	}
 }
