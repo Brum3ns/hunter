@@ -74,10 +74,25 @@ which is why the Assistant refuses to activate until it is set explicitly.
 ```sh
 docker compose down -v
 docker volume ls | grep assistant_secrets || echo "volume absent (expected)"
-docker compose build
+docker compose build          # NOT optional -- see below
 docker compose up -d
 docker compose ps
 ```
+
+**`docker compose build` is required, not a formality.** In development `web`
+bind-mounts `./web:/app`, so Ruby changes take effect on restart with no rebuild —
+which makes it easy to assume the whole stack behaves that way. It does not.
+`assistant-gateway`, `assistant-validator` and `hunter-mcp` are `build:` services
+with a compiled Go binary baked into the image, so they keep running the OLD
+binary until rebuilt.
+
+A stale gateway binary fails in a specific, confusing way: the pre-simplification
+build read its machine credentials from `/run/assistant/secrets` and its provider
+keys from `/run/secrets`, both of which this change deletes. It therefore exits
+with `assistant gateway configuration rejected`, crash-loops under
+`restart: unless-stopped`, and Rails — which can no longer open a socket to it —
+reports every turn as **`gateway_unreachable`**. The chat unlocks and accepts a
+message, then never answers.
 
 **Expect:** nine services — `db`, `mongo`, `web`, `assistant-gateway`,
 `hunter-mcp`, `assistant-validator`, `runner`, `ansible-executor`, and
