@@ -191,7 +191,6 @@ docker compose -f docker-compose.prod.yaml config
 ops/assistant/verify_compose_security.sh
 ops/assistant/test_network_denials.sh
 ops/assistant/check_secret_leaks.sh
-ops/assistant/rotation_drill.sh
 ```
 
 Production enablement also requires MCP conformance output, dependency and
