@@ -25,3 +25,13 @@ web/node_modules
 secrets/
 !secrets/README.md
 !secrets/examples/
+
+# config/master.key is gitignored, so CI clones never have it and the images CI
+# builds never contained it — but a build from a developer's working tree copied
+# it in via `COPY web/ ./` as root:root 0600. Rails 8.1 reads
+# Rails.application.credentials before falling back to generate_local_secret in
+# development, so the file merely existing made every service that boots Rails as
+# uid 1000 (assistant-token-init, assistant-events) die in Errno::EACCES on it.
+# Nothing in the app reads Rails credentials and production passes SECRET_KEY_BASE
+# through the environment, so the key never belongs in the context.
+web/config/master.key

@@ -115,4 +115,42 @@ class AssistantSecretPathsTest < Minitest::Test
     refute_match(/^ASSISTANT_SECRET_DIR=/, env_example,
       ".env.example still references the retired ASSISTANT_SECRET_DIR")
   end
+
+  # config/master.key is gitignored but was not .dockerignore'd, so `COPY web/ ./`
+  # baked a developer's key into the image as root:root 0600 — while CI, cloning
+  # fresh, never has the file and so never produced such an image. Rails 8.1
+  # consults Rails.application.credentials *before* the development
+  # generate_local_secret fallback (railties configuration.rb#secret_key_base), so
+  # merely having the file present makes every Assistant service that boots Rails
+  # as `user: 1000:1000` die in Errno::EACCES on it: assistant-token-init (fatal —
+  # hunter-mcp gates on service_completed_successfully) and assistant-events
+  # (silently crash-looping under restart: unless-stopped). `web` escaped both ways,
+  # running as root over a bind mount of the host tree. Nothing in the app reads
+  # Rails credentials, and production supplies SECRET_KEY_BASE from the environment,
+  # so the key belongs nowhere near the build context.
+  LOCAL_SECRET_PATHS = %w[web/config/master.key].freeze
+
+  def test_the_build_context_excludes_rails_local_secrets
+    patterns = ROOT.join(".dockerignore").each_line.map(&:strip)
+      .reject { |line| line.empty? || line.start_with?("#") }
+
+    LOCAL_SECRET_PATHS.each do |path|
+      assert docker_context_excludes?(patterns, path),
+        ".dockerignore does not exclude #{path}, so `COPY web/ ./` bakes it into the image"
+    end
+  end
+
+  # Mirrors Docker's rule that the last matching pattern wins and a leading `!`
+  # re-includes, which is what makes the carve-outs under secrets/ safe to keep.
+  def docker_context_excludes?(patterns, path)
+    excluded = false
+    patterns.each do |pattern|
+      negated = pattern.start_with?("!")
+      bare = negated ? pattern[1..] : pattern
+      matches = File.fnmatch?(bare, path, File::FNM_PATHNAME) ||
+        path.start_with?("#{bare.chomp('/')}/")
+      excluded = !negated if matches
+    end
+    excluded
+  end
 end
