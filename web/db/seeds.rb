@@ -95,6 +95,20 @@ if profiles.failed.any?
   warn "[assistant] Could not install provider profiles: #{profiles.failed.join(', ')}. " \
        "A conflicting profile name probably already exists; fix it in Settings."
 end
+# Reachability of the two HTTP services, reported into `docker compose up` output.
+# Advisory only: never raises, never aborts the seed. Skipped unless a provider
+# credential resolved, since an intentionally-unconfigured Assistant has nothing
+# to reach and should not print scary lines.
+if Assistant::ProviderCredentials.available_slugs.any?
+  Assistant::Preflight.call.each do |check|
+    if check.ok
+      puts "[assistant] #{check.service}: #{check.detail}"
+    else
+      warn "[assistant] #{check.service} UNREACHABLE at #{check.url}: #{check.detail}"
+    end
+  end
+end
+
 if profiles.installed.empty? && profiles.untouched.empty?
   puts "[assistant] No provider profile exists; set ASSISTANT_ANTHROPIC_API_KEY or " \
        "ASSISTANT_OPENAI_API_KEY and re-run db:seed to enable the chat."

@@ -90,7 +90,22 @@ module Assistant
       { "error" => { "code" => TRANSPORT_ERROR_CODES.fetch(failure.reason, "gateway_unreachable") } }
     rescue JSON::ParserError
       { "error" => { "code" => "gateway_malformed_response" } }
-    rescue SystemCallError, IOError, SocketError, EOFError, OpenSSL::SSL::SSLError
+    # Distinguished rather than collapsed into one code: "unreachable" used to
+    # cover name resolution, connection refused AND a mid-request disconnect,
+    # which are three different faults with three different fixes. Conflating
+    # them made a running-but-failing gateway indistinguishable from a gateway
+    # that was never listening, and cost real debugging time.
+    rescue SocketError
+      # Name did not resolve: the two containers are not on a shared network.
+      { "error" => { "code" => "gateway_dns_failure" } }
+    rescue Errno::ECONNREFUSED
+      # Resolved, nothing listening: the gateway is crash-looping or exited.
+      { "error" => { "code" => "gateway_connection_refused" } }
+    rescue EOFError, Errno::ECONNRESET, Errno::EPIPE
+      # Accepted the request then dropped it: the gateway is up but the turn
+      # killed the connection (a panic, or a hard restart mid-turn).
+      { "error" => { "code" => "gateway_closed_connection" } }
+    rescue SystemCallError, IOError, OpenSSL::SSL::SSLError
       { "error" => { "code" => "gateway_unreachable" } }
     rescue KeyError
       # ASSISTANT_GATEWAY_INGRESS_TOKEN is unset. Without this the KeyError from

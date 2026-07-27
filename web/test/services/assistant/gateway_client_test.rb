@@ -131,7 +131,10 @@ class Assistant::GatewayClientTest < Minitest::Test
 
     error = run_against(gateway_url: url) { capture_error { Assistant::GatewayClient.run_turn({}) } }
     assert_kind_of Assistant::GatewayClient::Error, error
-    assert_equal "gateway_unreachable", error.code
+    # Distinguished from a DNS failure and from a mid-request disconnect: all three
+    # used to report "gateway_unreachable", which made a gateway that was never
+    # listening indistinguishable from one that was up and dropping the request.
+    assert_equal "gateway_connection_refused", error.code
   end
 
   def test_timeout_becomes_gateway_timeout
@@ -186,6 +189,38 @@ class Assistant::GatewayClientTest < Minitest::Test
     assert_equal "gateway_token_missing", error.code
   ensure
     previous.nil? ? ENV.delete("ASSISTANT_GATEWAY_INGRESS_TOKEN") : ENV["ASSISTANT_GATEWAY_INGRESS_TOKEN"] = previous
+  end
+
+
+  def test_an_unresolvable_host_is_reported_as_a_dns_failure
+    error = run_against(gateway_url: "http://assistant-gateway-does-not-exist.invalid:8081") do
+      capture_error { Assistant::GatewayClient.run_turn({}) }
+    end
+    assert_kind_of Assistant::GatewayClient::Error, error
+    assert_equal "gateway_dns_failure", error.code
+  end
+
+  # A gateway that accepts the connection and then drops it without replying is up
+  # but failing the turn -- a different fault from not listening at all.
+  def test_a_dropped_connection_is_reported_as_a_closed_connection
+    server = TCPServer.new("127.0.0.1", 0)
+    port = server.addr[1]
+    accepter = Thread.new do
+      socket = server.accept
+      socket.close # accept, then hang up without responding
+    rescue IOError
+      nil
+    end
+
+    error = run_against(gateway_url: "http://127.0.0.1:#{port}") do
+      capture_error { Assistant::GatewayClient.run_turn({}) }
+    end
+
+    assert_kind_of Assistant::GatewayClient::Error, error
+    assert_equal "gateway_closed_connection", error.code
+  ensure
+    accepter&.kill
+    server&.close
   end
 
 end
