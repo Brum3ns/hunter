@@ -74,3 +74,23 @@ else
   identity = Assistant::ServiceIdentity.install_from_environment!(raw_mcp_token)
   puts "[assistant] Installed hunter-mcp service identity ##{identity.id}."
 end
+
+# A provider profile per resolvable provider key. Activation derives from the keys
+# alone, but the chat binds a conversation to a profile ROW, so without this a
+# fresh database reports the Assistant active while every conversation fails to
+# start. Existing profiles are never modified: an administrator who disabled one
+# must not have it re-enabled by the next boot.
+profiles = Assistant::ProviderProfileInstaller.call(created_by: user)
+if profiles.installed.any?
+  puts "[assistant] Installed provider profiles: #{profiles.installed.join(', ')}."
+end
+if profiles.untouched.any?
+  puts "[assistant] Left existing provider profiles untouched: #{profiles.untouched.join(', ')}."
+end
+if profiles.skipped.any?
+  puts "[assistant] No usable credential for: #{profiles.skipped.join(', ')} (no profile created)."
+end
+if profiles.installed.empty? && profiles.untouched.empty?
+  puts "[assistant] No provider profile exists; set ASSISTANT_ANTHROPIC_API_KEY or " \
+       "ASSISTANT_OPENAI_API_KEY and re-run db:seed to enable the chat."
+end
