@@ -37,7 +37,7 @@ class AssistantEndToEndTest < ActionDispatch::IntegrationTest
       conversation_id = response.parsed_body.fetch("id")
 
       stub_methods(Assistant::Context::Resolver, find: target) do
-        stub_methods(Assistant::Broker, publish: ->(**attributes) { delivery = attributes.deep_dup }) do
+        stub_methods(Assistant::TurnJob, perform_later: ->(turn_id:, envelope:) { delivery = envelope.deep_dup }) do
           post "/api/v1/assistant/conversations/#{conversation_id}/turns", params: {
             message: "Draft a bounded httpx probe",
             contexts: [ { type: "target", id: "target-e2e" } ]
@@ -46,7 +46,7 @@ class AssistantEndToEndTest < ActionDispatch::IntegrationTest
       end
       assert_response :accepted
       turn = Assistant::Turn.find(response.parsed_body.fetch("id"))
-      raw_grant = delivery.dig(:body, "turn_grant")
+      raw_grant = delivery["turn_grant"]
       assert raw_grant.present?
       assert_equal [ "get_selected_context" ],
         provider_fixture.fetch("tool_calls").map { |call| call.fetch("name") }.uniq

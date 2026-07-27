@@ -20,7 +20,7 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
 
     with_enabled_assistant do
       stub_methods(Assistant::Context::Resolver, find: target) do
-        stub_methods(Assistant::Broker, publish: ->(**attributes) { delivery = attributes.deep_dup }) do
+        stub_methods(Assistant::TurnJob, perform_later: ->(turn_id:, envelope:) { delivery = envelope.deep_dup }) do
           post "/api/v1/assistant/conversations/#{@conversation.id}/turns", params: {
             message: "Draft a safe probe",
             contexts: [ { type: "target", id: "target-1" } ]
@@ -37,7 +37,7 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
       "type" => "target", "id" => "target-1", "label" => "example.test",
       "serializer_version" => "v1"
     }, response.parsed_body.fetch("context_references").sole)
-    raw_grant = delivery.dig(:body, "turn_grant")
+    raw_grant = delivery["turn_grant"]
     assert raw_grant.present?
     refute_includes response.body, raw_grant
     refute_includes response.body, turn.turn_grant.token_digest
@@ -56,7 +56,7 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
     assert_no_difference -> { Assistant::Turn.count } do
       with_enabled_assistant do
         stub_methods(Assistant::Context::Resolver, find: nil) do
-          stub_methods(Assistant::Broker, publish: ->(**) { dispatched = true }) do
+          stub_methods(Assistant::TurnJob, perform_later: ->(**) { dispatched = true }) do
             post "/api/v1/assistant/conversations/#{@conversation.id}/turns", params: {
               message: "Draft a probe", contexts: [ { type: "target", id: "missing" } ]
             }, as: :json
@@ -186,7 +186,7 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
 
   test "dispatch failure returns a stable retryable interruption without leaking authority" do
     with_enabled_assistant do
-      stub_methods(Assistant::Broker, publish: ->(**) { raise "broker down with internal detail" }) do
+      stub_methods(Assistant::TurnJob, perform_later: ->(**) { raise "enqueue down with internal detail" }) do
         post "/api/v1/assistant/conversations/#{@conversation.id}/turns", params: {
           message: "Draft without context", contexts: []
         }, as: :json

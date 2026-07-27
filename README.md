@@ -29,10 +29,9 @@ suites plus:
 ops/assistant/verify_compose_security.sh
 ops/assistant/test_network_denials.sh
 ops/assistant/check_secret_leaks.sh
-ops/assistant/rotation_drill.sh
 ```
 
-The last three checks require a live hardened stack and the pinned scanner
+The last two checks require a live hardened stack and the pinned scanner
 toolchain. Exit status `77` means the required runtime/tool is unavailable; it
 is not a pass. Production remains at `ASSISTANT_ENABLED=false` until
 `docs/security/hunter-assistant-production-checklist.md` is completed and

@@ -97,8 +97,9 @@ it, not editing anything in place.
    `mcp_reader` service identity and mints a fresh one before writing the new
    token file, so the old raw token stops authenticating as soon as
    `hunter-mcp` picks up the new file.
-5. Run `ops/assistant/rotation_drill.sh` (isolated RabbitMQ rotation drill) and
-   `ops/assistant/check_secret_leaks.sh`.
+5. Run `ops/assistant/check_secret_leaks.sh`. (The isolated RabbitMQ rotation
+   drill was removed with the broker; there is no longer an AMQP credential to
+   rotate.)
 6. Confirm old service/queue/grant values all fail and new ones authenticate,
    then re-enable the database assistant setting. The deployment-wide
    `ASSISTANT_ENABLED` kill override remains an independent, separate control.

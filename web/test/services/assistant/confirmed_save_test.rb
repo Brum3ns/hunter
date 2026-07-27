@@ -156,8 +156,8 @@ class Assistant::ConfirmedSaveTest < ActiveSupport::TestCase
       -> { ControlCenter::Ansible::Run.count },
       -> { ControlCenter::Ansible::ExecutorTask.count }
     ] do
-      stub_methods(Assistant::Broker,
-        publish: ->(**) { raise "confirmed save must not publish" }) do
+      stub_methods(Assistant::ValidatorClient,
+        validate: ->(*) { raise "confirmed save must not call the validator" }) do
         stub_methods(Assistant::ValidationDispatcher,
           call: ->(**) { raise "confirmed save must not dispatch validation" }) do
           result = Assistant::ConfirmedSave.call(draft: draft, user: @user, destination: nil)

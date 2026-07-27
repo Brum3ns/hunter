@@ -145,7 +145,17 @@ class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
     published = nil
 
-    stub_methods(Assistant::Broker, publish: ->(**attributes) { published = attributes; true }) do
+    stub_methods(Assistant::ValidatorClient, validate: ->(envelope) {
+      published = envelope
+      {
+        "schema_version" => 1,
+        "event_id" => SecureRandom.uuid,
+        "validation_id" => envelope.fetch("validation_id"),
+        "correlation_id" => envelope.fetch("correlation_id"),
+        "status" => "valid",
+        "codes" => []
+      }
+    }) do
       post "/api/v1/assistant/machine/validations/ansible_playbook",
         params: { draft: { name: "Check", source: source } },
         headers: headers(grant_token), as: :json
@@ -155,7 +165,7 @@ class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
     validation_id = response.parsed_body.dig("validation", "id")
     assert validation_id.present?
     assert_equal "pending", response.parsed_body.dig("validation", "status")
-    assert_equal validation_id, published.dig(:body, "validation_id")
+    assert_equal validation_id, published.fetch("validation_id")
 
     Assistant::ValidationDispatcher.ingest!({
       "schema_version" => 1,

@@ -54,7 +54,6 @@ chmod 0600 "$temporary_dir"/*
 images_file="$temporary_dir/images"
 : > "$images_file"
 for service in \
-  rabbitmq assistant-rabbitmq-init assistant-events assistant-egress \
   hunter-mcp assistant-validator assistant-gateway
 do
   container_id=$(docker compose --profile assistant ps -q "$service")

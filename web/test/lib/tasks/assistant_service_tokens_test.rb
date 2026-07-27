@@ -50,60 +50,57 @@ class AssistantServiceTokensTest < ActiveSupport::TestCase
     clear_environment
   end
 
-  test "bootstrap writes the mcp token to file without printing it" do
-    Dir.mktmpdir do |dir|
-      path = Pathname.new(dir).join("assistant_mcp_hunter_token")
-      output = capture_io do
-        Assistant::BootstrapServiceToken.call(path: path)
-      end.join
+  test "install_from_environment! stores only the digest of the supplied token" do
+    raw = "mcp-token-#{SecureRandom.hex(16)}"
 
-      assert_path_exists path
-      assert_equal "400", (path.stat.mode & 0o777).to_s(8)
-      refute_includes output, path.read.strip, "the raw token was printed"
-      assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
+    identity = Assistant::ServiceIdentity.install_from_environment!(raw)
+
+    assert identity.enabled?
+    assert_equal "hunter-mcp", identity.name
+    assert_equal "mcp_reader", identity.role
+    assert_equal Assistant::ServiceIdentity.digest(raw), identity.token_digest
+    refute_equal raw, identity.token_digest, "the raw token was persisted"
+  end
+
+  test "install_from_environment! is idempotent for an unchanged token" do
+    raw = "mcp-token-#{SecureRandom.hex(16)}"
+    first = Assistant::ServiceIdentity.install_from_environment!(raw)
+
+    assert_no_difference -> { Assistant::ServiceIdentity.count } do
+      assert_equal first.id, Assistant::ServiceIdentity.install_from_environment!(raw).id
     end
   end
 
-  test "bootstrap service token is idempotent" do
-    Dir.mktmpdir do |dir|
-      path = Pathname.new(dir).join("assistant_mcp_hunter_token")
-      Assistant::BootstrapServiceToken.call(path: path)
-      first = path.read
+  test "install_from_environment! rotates an existing enabled mcp reader off" do
+    seeded, = Assistant::ServiceIdentity.generate!(name: "hunter-mcp", role: "mcp_reader")
 
-      Assistant::BootstrapServiceToken.call(path: path)
+    Assistant::ServiceIdentity.install_from_environment!("mcp-token-#{SecureRandom.hex(16)}")
 
-      assert_equal first, path.read, "an existing token file was rewritten"
-      assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
-    end
+    seeded.reload
+    assert_not seeded.enabled?, "the seeded identity was not rotated off"
+    assert_not_nil seeded.rotated_at, "the seeded identity has no rotation timestamp"
+    assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
   end
 
-  test "bootstrap recovers from a stale temp file left by a crashed run" do
-    Dir.mktmpdir do |dir|
-      path = Pathname.new(dir).join("assistant_mcp_hunter_token")
-      stale = path.dirname.join(".#{path.basename}.#{Process.pid}")
-      stale.write("stale")
+  # token_digest carries an UNQUALIFIED unique index, so reverting to a token this
+  # database has already seen must reactivate that row. A blind create! would raise
+  # RecordNotUnique and take db:seed -- and therefore boot -- down with it.
+  test "install_from_environment! can roll back to a previously used token" do
+    first_raw = "mcp-token-#{SecureRandom.hex(16)}"
+    original = Assistant::ServiceIdentity.install_from_environment!(first_raw)
+    Assistant::ServiceIdentity.install_from_environment!("mcp-token-#{SecureRandom.hex(16)}")
 
-      Assistant::BootstrapServiceToken.call(path: path)
+    restored = Assistant::ServiceIdentity.install_from_environment!(first_raw)
 
-      assert_path_exists path
-      assert_equal "400", (path.stat.mode & 0o777).to_s(8)
-      refute_path_exists stale, "the stale temp file was left behind"
-      assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
-    end
+    assert_equal original.id, restored.id
+    assert restored.enabled?
+    assert_nil restored.rotated_at
+    assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
   end
 
-  test "bootstrap rotates an existing enabled mcp reader identity off" do
-    Dir.mktmpdir do |dir|
-      seeded, = Assistant::ServiceIdentity.generate!(name: "hunter-mcp", role: "mcp_reader")
-      assert seeded.enabled?
-      assert_nil seeded.rotated_at
-
-      Assistant::BootstrapServiceToken.call(path: Pathname.new(dir).join("assistant_mcp_hunter_token"))
-
-      seeded.reload
-      assert_not seeded.enabled?, "the seeded identity was not rotated off"
-      assert_not_nil seeded.rotated_at, "the seeded identity has no rotation timestamp"
-      assert_equal 1, Assistant::ServiceIdentity.where(enabled: true, role: "mcp_reader").count
+  test "install_from_environment! refuses a token too short to trust" do
+    assert_raises(ArgumentError) do
+      Assistant::ServiceIdentity.install_from_environment!("short")
     end
   end
 
