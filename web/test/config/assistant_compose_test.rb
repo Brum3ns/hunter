@@ -197,18 +197,19 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
-  # secrets/dev and secrets/prod were retired when the two directories collapsed
-  # into a single secrets/ holding the operator's live provider keys, so ignoring
-  # only the old names shipped those keys to the daemon on every root build.
+  # .env now holds every Assistant secret, so it is the file that must never reach
+  # BuildKit; .env.example is the only member of that family safe to ship.
+  # secrets/ no longer feeds any service, but an operator upgrading in place may
+  # still have real keys sitting there, so the directory stays excluded outright —
+  # with no carve-outs, since its documentation and examples were deleted.
   def test_local_credentials_are_excluded_from_every_root_image_build_context
     dockerignore = ROOT.join(".dockerignore").read.lines.map(&:strip)
 
     assert_includes dockerignore, ".env"
     assert_includes dockerignore, ".env.*"
+    assert_includes dockerignore, "!.env.example"
     assert_includes dockerignore, "secrets/"
-    assert_includes dockerignore, "!secrets/README.md"
-    assert_includes dockerignore, "!secrets/examples/"
-    %w[secrets/dev secrets/prod].each do |retired|
+    %w[secrets/dev secrets/prod !secrets/README.md !secrets/examples/].each do |retired|
       refute_includes dockerignore, retired, "#{retired} no longer exists; the rule is dead"
     end
   end
