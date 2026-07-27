@@ -11,7 +11,6 @@ module Assistant
 
     EVENT_KEYS = %w[schema_version event_id correlation_id turn_id provider_profile_id kind data].freeze
     EVENT_DATA_KEYS = {
-      "progress" => %w[status],
       "assistant_message" => %w[body],
       "draft" => %w[artifact_type name content validation_details validation_status validation_version],
       "completed" => %w[input_tokens output_tokens tool_call_count],
@@ -75,8 +74,6 @@ module Assistant
 
     def validate_event_data!(kind, data)
       case kind
-      when "progress"
-        raise InvalidPayload, "invalid_status" unless %w[queued running].include?(data["status"])
       when "assistant_message"
         bounded_string!(data["body"], 1..65_536)
       when "draft"

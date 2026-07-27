@@ -26,6 +26,7 @@ module Assistant
       raise InvalidDraft, static unless static.valid?
 
       request = nil
+      envelope = nil
       Assistant::ValidationRequest.transaction do
         setting = Assistant::Setting.lock.first || Assistant::Setting.instance.lock!
         identity = Assistant::ServiceIdentity.lock.find(service_identity.id)
@@ -42,21 +43,24 @@ module Assistant
           source: static.normalized,
           expires_at: [ locked_grant.expires_at, 5.minutes.from_now ].min
         )
-        Assistant::Broker.publish(
-          exchange: "assistant.validations",
-          routing_key: "assistant.validator.requests",
-          body: {
-            "schema_version" => 1,
-            "validation_id" => request.id,
-            "correlation_id" => locked_turn.correlation_id,
-            "turn_id" => locked_turn.id,
-            "source" => request.source,
-            "expires_at" => request.expires_at.iso8601
-          },
-          persistent: false,
-          expiration: [ ((request.expires_at - Time.current) * 1_000).to_i, 1 ].max
-        )
+        envelope = {
+          "schema_version" => 1,
+          "validation_id" => request.id,
+          "correlation_id" => locked_turn.correlation_id,
+          "turn_id" => locked_turn.id,
+          "source" => request.source,
+          "expires_at" => request.expires_at.iso8601
+        }
       end
+      # The validator call happens AFTER the transaction above commits, never
+      # inside it: `Broker.publish` was a local, fire-and-forget AMQP write,
+      # but a synchronous HTTP round trip in its place would hold four row
+      # locks (Setting, ServiceIdentity, Turn, TurnGrant) open for as long as
+      # the validator takes to answer. The validator now answers synchronously
+      # with the terminal event, so `ingest!` is fed directly from the
+      # response — there is no separate async completion event to wait for.
+      event = Assistant::ValidatorClient.validate(envelope)
+      ingest!(event)
       request.id
     rescue InvalidDraft, Assistant::RateLimiter::LimitExceeded
       raise

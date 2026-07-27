@@ -44,8 +44,6 @@ module Assistant
 
     def ingest!(turn, kind, data)
       case kind
-      when "progress"
-        turn.update!(status: data.fetch("status"), started_at: running_time(turn, data))
       when "assistant_message"
         turn.conversation.messages.create!(
           turn: turn,
@@ -72,11 +70,6 @@ module Assistant
       end
     end
     private_class_method :ingest!
-
-    def running_time(turn, data)
-      data["status"] == "running" ? (turn.started_at || Time.current) : turn.started_at
-    end
-    private_class_method :running_time
 
     def mark_running!(turn)
       return if turn.status == "running"

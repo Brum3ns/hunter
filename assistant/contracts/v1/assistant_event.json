@@ -10,15 +10,9 @@
     "correlation_id": { "type": "string", "format": "uuid", "maxLength": 36 },
     "turn_id": { "type": "integer", "minimum": 1 },
     "provider_profile_id": { "type": "integer", "minimum": 1 },
-    "kind": { "type": "string", "enum": ["progress", "assistant_message", "draft", "completed", "error"] },
+    "kind": { "type": "string", "enum": ["assistant_message", "draft", "completed", "error"] },
     "data": {
       "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["status"],
-          "properties": { "status": { "type": "string", "enum": ["queued", "running"] } }
-        },
         {
           "type": "object",
           "additionalProperties": false,

@@ -33,12 +33,13 @@ class Assistant::ValidationDispatcherTest < ActiveSupport::TestCase
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = @original_allowlist
   end
 
-  test "stores an encrypted grant-bound request before transient dispatch" do
-    published = nil
+  test "stores an encrypted grant-bound request, then calls the validator after commit" do
+    validated_envelope = nil
     validation_id = nil
-    stub_methods(Assistant::Broker, publish: ->(**attributes) { published = attributes; true }) do
-      validation_id = dispatch_validation
-      request = Assistant::ValidationRequest.find(validation_id)
+
+    stub_methods(Assistant::ValidatorClient, validate: lambda { |envelope|
+      validated_envelope = envelope
+      request = Assistant::ValidationRequest.find(envelope.fetch("validation_id"))
 
       assert_equal @turn, request.turn
       assert_equal @grant, request.turn_grant
@@ -50,47 +51,73 @@ class Assistant::ValidationDispatcherTest < ActiveSupport::TestCase
         "SELECT source FROM assistant_validation_requests WHERE id = #{ActiveRecord::Base.connection.quote(request.id)}"
       )
       refute_includes raw, "hosts"
+
+      terminal_event(envelope)
+    }) do
+      validation_id = dispatch_validation
     end
 
-    assert_equal "assistant.validations", published.fetch(:exchange)
-    assert_equal "assistant.validator.requests", published.fetch(:routing_key)
-    assert_equal false, published.fetch(:persistent)
-    assert_equal validation_id, published.dig(:body, "validation_id")
-    assert_equal SOURCE, published.dig(:body, "source")
-    refute_includes published.to_json, @grant.token_digest
+    assert_equal validation_id, validated_envelope.fetch("validation_id")
+    assert_equal SOURCE, validated_envelope.fetch("source")
+    refute_includes validated_envelope.to_json, @grant.token_digest
+
+    request = Assistant::ValidationRequest.find(validation_id)
+    assert_equal "valid", request.status
+    assert_nil request.source
   end
 
-  test "invalid static policy creates no request and publishes nothing" do
-    published = false
+  # F10: a synchronous HTTP round trip must never run while the dispatch
+  # transaction's four row locks (Setting, ServiceIdentity, Turn, TurnGrant)
+  # are still held — that transaction commits, and only then is the
+  # validator called. `open_transactions` here is not the test's own
+  # transactional-fixtures wrapper (constant for the whole test); it is the
+  # EXTRA nesting level that `call`'s own `Assistant::ValidationRequest.transaction`
+  # would add if the validator call were made from inside it.
+  test "the validator call happens after the dispatch transaction commits, not while locks are held" do
+    baseline_depth = ActiveRecord::Base.connection.open_transactions
+    observed_depth = nil
+
+    stub_methods(Assistant::ValidatorClient, validate: lambda { |envelope|
+      observed_depth = ActiveRecord::Base.connection.open_transactions
+      terminal_event(envelope)
+    }) do
+      dispatch_validation
+    end
+
+    assert_equal baseline_depth, observed_depth
+  end
+
+  test "invalid static policy creates no request and never calls the validator" do
+    validated = false
     ENV.delete("ASSISTANT_ANSIBLE_MODULE_ALLOWLIST")
 
-    stub_methods(Assistant::Broker, publish: ->(**) { published = true }) do
+    stub_methods(Assistant::ValidatorClient, validate: ->(*) { validated = true }) do
       error = assert_raises(Assistant::ValidationDispatcher::InvalidDraft) do
         dispatch_validation
       end
       assert_includes error.result.codes, "assistant_ansible_policy_unconfigured"
     end
 
-    refute published
+    refute validated
     assert_equal 0, Assistant::ValidationRequest.count
   end
 
-  test "terminal ingestion clears source and keeps only encrypted normalized result" do
-    validation_id = nil
-    stub_methods(Assistant::Broker, publish: true) do
-      validation_id = dispatch_validation
-    end
+  test "ingest! on a terminal event clears source and keeps only the encrypted normalized result" do
+    request = Assistant::ValidationRequest.create!(
+      turn: @turn, turn_grant: @grant, status: "pending",
+      source: SOURCE, expires_at: 5.minutes.from_now
+    )
 
     Assistant::ValidationDispatcher.ingest!({
       "schema_version" => 1,
       "event_id" => SecureRandom.uuid,
-      "validation_id" => validation_id,
+      "validation_id" => request.id,
       "correlation_id" => @turn.correlation_id,
       "status" => "valid",
       "codes" => []
     })
 
-    request = Assistant::ValidationRequest.find(validation_id)
+    request.reload
     assert_equal "valid", request.status
     assert_nil request.source
     assert_equal SOURCE, request.result.fetch("normalized")
@@ -101,42 +128,75 @@ class Assistant::ValidationDispatcherTest < ActiveSupport::TestCase
     refute_includes row.fetch("result"), "hosts"
   end
 
-  test "a second validation cannot be queued while one is pending" do
-    publications = 0
+  # The old async model queued a second request while the first sat
+  # "pending" awaiting an out-of-band completion event. The synchronous
+  # model's equivalent "in flight" window is the validator round trip
+  # itself: a second dispatch attempted WHILE the first request's validator
+  # call has not yet returned must still be rejected.
+  test "a second validation cannot be dispatched while the first is still in flight" do
+    validations = 0
 
-    stub_methods(Assistant::Broker, publish: ->(**) { publications += 1 }) do
-      dispatch_validation
-      error = assert_raises(Assistant::RateLimiter::LimitExceeded) do
-        dispatch_validation
+    stub_methods(Assistant::ValidatorClient, validate: lambda { |envelope|
+      validations += 1
+      if validations == 1
+        error = assert_raises(Assistant::RateLimiter::LimitExceeded) { dispatch_validation }
+        assert_equal "validation_in_flight", error.code
       end
-      assert_equal "validation_in_flight", error.code
+      terminal_event(envelope)
+    }) do
+      dispatch_validation
     end
 
-    assert_equal 1, publications
-    assert_equal 1, Assistant::ValidationRequest.where(turn: @turn, status: "pending").count
+    assert_equal 1, validations
+    assert_equal 1, Assistant::ValidationRequest.where(turn: @turn).count
   end
 
-  test "shutdown after static validation prevents persistence and publication" do
+  test "shutdown after static validation prevents persistence and never calls the validator" do
     static = Assistant::DraftValidation::AnsibleStatic.call(SOURCE)
-    published = false
+    validated = false
 
     stub_methods(Assistant::DraftValidation::AnsibleStatic,
       call: lambda { |_yaml|
         Assistant::KillSwitch.disable!(user: users(:one))
         static
       }) do
-      stub_methods(Assistant::Broker, publish: ->(**) { published = true }) do
+      stub_methods(Assistant::ValidatorClient, validate: ->(*) { validated = true }) do
         assert_raises(Assistant::ValidationDispatcher::DispatchFailed) do
           dispatch_validation
         end
       end
     end
 
-    refute published
+    refute validated
     assert_equal 0, Assistant::ValidationRequest.count
   end
 
+  test "a validator failure marks the request failed and raises DispatchFailed" do
+    stub_methods(Assistant::ValidatorClient,
+      validate: ->(*) { raise Assistant::ValidatorClient::Error, "validator_unreachable" }) do
+      assert_raises(Assistant::ValidationDispatcher::DispatchFailed) do
+        dispatch_validation
+      end
+    end
+
+    request = Assistant::ValidationRequest.sole
+    assert_equal "failed", request.status
+    assert_nil request.source
+    assert_includes request.result.fetch("codes"), "validator_dispatch_failed"
+  end
+
   private
+
+  def terminal_event(envelope)
+    {
+      "schema_version" => 1,
+      "event_id" => SecureRandom.uuid,
+      "validation_id" => envelope.fetch("validation_id"),
+      "correlation_id" => envelope.fetch("correlation_id"),
+      "status" => "valid",
+      "codes" => []
+    }
+  end
 
   def dispatch_validation
     Assistant::ValidationDispatcher.call(

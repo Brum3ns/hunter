@@ -1,4 +1,13 @@
 module Assistant
+  # Builds the turn envelope and claims the turn ("created" -> "queued"), but
+  # does NOT enqueue the gateway job itself. That is deliberately left to the
+  # caller (`Assistant::TurnCreator#dispatch`): this method's own `with_lock`
+  # only re-joins whatever transaction the caller already has open, so a
+  # `perform_later` call made from in here would still execute before that
+  # outer transaction commits. Solid Queue's `queue` database is separate from
+  # the primary one in production, so an enqueue made before commit could let
+  # a worker read the turn as still "created" and silently no-op. See
+  # `turn_creator.rb` for where the enqueue actually happens.
   module TurnDispatcher
     module_function
 
@@ -32,13 +41,6 @@ module Assistant
         Assistant::QueueContracts.validate_turn_job!(body)
 
         turn.update!(status: "queued", queued_at: Time.current)
-        Assistant::Broker.publish(
-          exchange: "assistant.turns",
-          routing_key: "assistant.gateway.turns",
-          body: body,
-          persistent: false,
-          expiration: Assistant::Config::HARD_LIMITS.fetch(:grant_ttl_seconds) * 1_000
-        )
         body
       end
     end

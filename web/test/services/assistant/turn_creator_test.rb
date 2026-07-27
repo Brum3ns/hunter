@@ -11,13 +11,18 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     )
   end
 
-  test "persists the disclosed context grant and audit before publishing" do
-    published = nil
+  test "persists the disclosed context grant and audit before enqueuing the turn job" do
+    enqueued = nil
     with_enabled_assistant do
       stub_methods(Assistant::Context::Resolver, find: @target) do
-        stub_methods(Assistant::Broker, publish: lambda { |**attributes|
-          published = attributes
-          persisted = Assistant::Turn.find(attributes.dig(:body, "turn_id"))
+        stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
+          enqueued = attributes
+          # The job is enqueued only after TurnCreator's own transaction has
+          # committed, so by the time this stub runs the turn must already be
+          # readable as "queued" — proving the enqueue did not happen from
+          # inside that transaction (see turn_creator.rb#dispatch).
+          persisted = Assistant::Turn.find(attributes.fetch(:turn_id))
+          assert_equal "queued", persisted.status
           assert_equal "Draft a safe probe", persisted.user_message.body
           assert_equal [ [ "target", "target-1" ] ],
             persisted.context_references.order(:id).pluck(:resource_type, :resource_id)
@@ -38,7 +43,8 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_equal [ { "type" => "target", "id" => "target-1" } ], grant.resources
     assert_equal Assistant::Grants::Issuer::TOOLS, grant.tools
     assert_equal "example.test", @turn.context_references.sole.label
-    refute_equal published.dig(:body, "turn_grant"), grant.token_digest
+    assert_equal @turn.id, enqueued.fetch(:turn_id)
+    refute_equal enqueued.dig(:envelope, "turn_grant"), grant.token_digest
   end
 
   test "invalid context rolls back the complete turn record set" do
@@ -62,11 +68,11 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_equal counts, record_counts
   end
 
-  test "publish failure interrupts the persisted turn and revokes its grant" do
+  test "an enqueue failure interrupts the persisted turn and revokes its grant" do
     turn = nil
 
     with_enabled_assistant do
-      stub_methods(Assistant::Broker, publish: ->(**) { raise "broker down" }) do
+      stub_methods(Assistant::TurnJob, perform_later: ->(**) { raise "queue adapter down" }) do
         turn = Assistant::TurnCreator.call(
           conversation: @conversation,
           user: @user,
@@ -119,7 +125,7 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     end
 
     with_enabled_assistant do
-      stub_methods(Assistant::Broker, publish: ->(**) { true }) do
+      stub_methods(Assistant::TurnJob, perform_later: ->(**) { true }) do
         Assistant::TurnCreator.call(
           conversation: @conversation,
           user: @user,
@@ -137,15 +143,15 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 
-  test "rate rejection persists no turn authority and never publishes" do
+  test "rate rejection persists no turn authority and never enqueues" do
     counts = record_counts
-    published = false
+    enqueued = false
     limit = Assistant::RateLimiter::LimitExceeded.new(
       "turn_rate_minute_exceeded", retry_after_seconds: 30
     )
 
     stub_methods(Assistant::RateLimiter, consume!: ->(**) { raise limit }) do
-      stub_methods(Assistant::Broker, publish: ->(**) { published = true }) do
+      stub_methods(Assistant::TurnJob, perform_later: ->(**) { enqueued = true }) do
         assert_raises(Assistant::RateLimiter::LimitExceeded) do
           with_enabled_assistant do
             Assistant::TurnCreator.call(
@@ -160,7 +166,7 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     end
 
     assert_equal counts, record_counts
-    refute published
+    refute enqueued
   end
 
   private

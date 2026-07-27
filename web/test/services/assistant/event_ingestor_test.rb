@@ -53,7 +53,7 @@ class Assistant::EventIngestorTest < ActiveSupport::TestCase
     assert_equal 12, @turn.input_tokens
     assert_not_nil Assistant::TurnGrant.find_by!(turn: @turn).revoked_at
     assert_raises(Assistant::EventIngestor::InvalidEvent) do
-      Assistant::EventIngestor.call(event("progress", "status" => "running"))
+      Assistant::EventIngestor.call(event("assistant_message", "body" => "too late"))
     end
   end
 

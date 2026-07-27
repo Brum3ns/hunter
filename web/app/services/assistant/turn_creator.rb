@@ -125,7 +125,7 @@ module Assistant
     private_class_method :disclosure_label
 
     def dispatch(turn, raw_grant)
-      Assistant::Turn.transaction do
+      envelope = Assistant::Turn.transaction do
         setting = Assistant::Setting.lock.find(Assistant::Setting.instance.id)
         profile = Assistant::ProviderProfile.lock.find(turn.provider_profile_id)
         turn.lock!
@@ -136,6 +136,16 @@ module Assistant
 
         Assistant::TurnDispatcher.call(turn: turn, raw_grant: raw_grant)
       end
+      # Enqueued here, after the transaction above has actually committed —
+      # not inside it, and not inside TurnDispatcher.call's own `with_lock`
+      # (which only re-joins this same transaction). Solid Queue's `queue`
+      # database is separate from the primary one in production, so the job
+      # can be picked up the instant it is enqueued; enqueuing any earlier
+      # risks a worker reading the turn before the "queued" write is visible,
+      # hitting the job's own status guard, and silently stranding the turn.
+      # A failure here is caught below exactly like any other dispatch
+      # failure, so the turn is never left stuck in "queued".
+      Assistant::TurnJob.perform_later(turn_id: turn.id, envelope: envelope)
       turn.reload
     rescue Rejected => error
       interrupt_dispatch!(turn, reason: error.code)

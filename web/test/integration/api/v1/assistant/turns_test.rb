@@ -110,8 +110,8 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
       "correlation_id" => turn.correlation_id,
       "turn_id" => turn.id,
       "provider_profile_id" => turn.provider_profile_id,
-      "kind" => "progress",
-      "data" => { "status" => "running" }
+      "kind" => "assistant_message",
+      "data" => { "body" => "too late" }
     }
     error = assert_raises(Assistant::EventIngestor::InvalidEvent) do
       Assistant::EventIngestor.call(payload)
