@@ -13,14 +13,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	amqp "github.com/rabbitmq/amqp091-go"
 	"hunter.local/assistant/validator/internal/check"
 )
 
 const (
-	validationQueue       = "assistant.validator.requests"
-	validationExchange    = "assistant.validation_events"
-	validationRoutingKey  = "assistant.rails.validation_events"
 	maxJobBytes           = 128 << 10
 	maxSourceBytes        = 64 << 10
 	maxValidationDuration = 5 * time.Minute
@@ -99,84 +95,6 @@ func (processor Processor) Process(parent context.Context, job Job) Event {
 	event.Status = result.Status
 	event.Codes = append([]string(nil), result.Codes...)
 	return event
-}
-
-func Run(ctx context.Context, amqpURL string, processor Processor) error {
-	connection, err := amqp.DialConfig(amqpURL, amqp.Config{Heartbeat: 10 * time.Second, Locale: "en_US"})
-	if err != nil {
-		return errors.New("validator queue connection failed")
-	}
-	defer connection.Close()
-	channel, err := connection.Channel()
-	if err != nil {
-		return errors.New("validator queue channel failed")
-	}
-	defer channel.Close()
-	if err := channel.Qos(1, 0, false); err != nil {
-		return errors.New("validator queue QoS failed")
-	}
-	if err := channel.Confirm(false); err != nil {
-		return errors.New("validator queue confirms unavailable")
-	}
-	confirmations := channel.NotifyPublish(make(chan amqp.Confirmation, 1))
-	deliveries, err := channel.Consume(validationQueue, "hunter-assistant-validator", false, false, false, false, nil)
-	if err != nil {
-		return errors.New("validator queue consume failed")
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case delivery, ok := <-deliveries:
-			if !ok {
-				return errors.New("validator queue closed")
-			}
-			if delivery.ContentType != "application/json" {
-				_ = delivery.Nack(false, false)
-				continue
-			}
-			job, decodeErr := DecodeJob(delivery.Body, time.Now().UTC())
-			if decodeErr != nil {
-				_ = delivery.Nack(false, false)
-				continue
-			}
-			event := processor.Process(ctx, job)
-			if publishEvent(ctx, channel, confirmations, event) == nil {
-				_ = delivery.Ack(false)
-			} else {
-				_ = delivery.Nack(false, true)
-			}
-		}
-	}
-}
-
-func publishEvent(ctx context.Context, channel *amqp.Channel, confirmations <-chan amqp.Confirmation, event Event) error {
-	payload, err := json.Marshal(event)
-	if err != nil {
-		return errors.New("validator event encoding failed")
-	}
-	if err := channel.PublishWithContext(ctx, validationExchange, validationRoutingKey, false, false, amqp.Publishing{
-		ContentType:   "application/json",
-		DeliveryMode:  amqp.Transient,
-		MessageId:     event.EventID,
-		CorrelationId: event.CorrelationID,
-		Timestamp:     time.Now().UTC(),
-		Body:          payload,
-	}); err != nil {
-		return errors.New("validator event publish failed")
-	}
-	select {
-	case confirmation := <-confirmations:
-		if !confirmation.Ack {
-			return errors.New("validator event publish rejected")
-		}
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(5 * time.Second):
-		return errors.New("validator event publish confirmation timed out")
-	}
 }
 
 func validResult(result check.Result) bool {

@@ -1,0 +1,9 @@
+{
+  "cases": [
+    { "name": "missing_bearer",   "authorization": "",                    "host": "VALID_HOST", "origin": "",           "want_status": 401, "want_code": "unauthorized" },
+    { "name": "wrong_bearer",     "authorization": "Bearer wrong-token",  "host": "VALID_HOST", "origin": "",           "want_status": 401, "want_code": "unauthorized" },
+    { "name": "unknown_host",     "authorization": "Bearer VALID_TOKEN",  "host": "evil.example.com", "origin": "",     "want_status": 403, "want_code": "host_not_allowed" },
+    { "name": "unknown_origin",   "authorization": "Bearer VALID_TOKEN",  "host": "VALID_HOST", "origin": "http://evil", "want_status": 403, "want_code": "origin_not_allowed" },
+    { "name": "accepted",         "authorization": "Bearer VALID_TOKEN",  "host": "VALID_HOST", "origin": "",           "want_status": 200, "want_code": "" }
+  ]
+}
