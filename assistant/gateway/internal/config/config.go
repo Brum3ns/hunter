@@ -10,7 +10,6 @@ import (
 const (
 	maxSecretBytes = 16 << 10
 	MCPURL         = "http://hunter-mcp:8080/mcp"
-	ProxyURL       = "http://assistant-egress:3128"
 
 	// placeholderPrefix mirrors Rails' ProviderCredentials::PLACEHOLDER so the
 	// two implementations classify the same environment-supplied value

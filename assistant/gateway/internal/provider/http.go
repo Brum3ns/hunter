@@ -7,11 +7,8 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"slices"
 	"time"
-
-	"hunter.local/assistant/gateway/internal/config"
 )
 
 var ErrProviderBodyTooLarge = errors.New("provider body exceeds limit")
@@ -21,17 +18,29 @@ const (
 	maxProviderResponseBytes = 512 << 10
 )
 
+// providerHosts is the only set of destinations this client will reach. It used
+// to be enforced twice: once here and once by the squid allowlist the gateway was
+// forced to proxy through. squid is gone, so this is now the sole enforcement
+// point for provider egress — which is why the check is applied at BOTH layers
+// below: `boundedTransport.RoundTrip` vets the request URL, and `DialContext`
+// vets the address actually dialled, so a redirect or a rewritten URL cannot
+// reach a host this list does not name.
+var providerHosts = []string{"api.openai.com", "api.anthropic.com"}
+
 func NewRestrictedHTTPClient() (*http.Client, error) {
-	proxyURL, err := url.Parse(config.ProxyURL)
-	if err != nil || proxyURL.Scheme != "http" || proxyURL.Host != "assistant-egress:3128" || proxyURL.User != nil {
-		return nil, errors.New("invalid compiled provider proxy")
-	}
 	dialer := &net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}
 	transport := &http.Transport{
-		Proxy: http.ProxyURL(proxyURL),
+		// No Proxy: the gateway now reaches the provider directly. Explicitly nil
+		// rather than omitted so no HTTP_PROXY/HTTPS_PROXY variable in the
+		// container environment can silently redirect provider traffic.
+		Proxy: nil,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			if address != proxyURL.Host {
-				return nil, errors.New("direct provider connection rejected")
+			host, port, err := net.SplitHostPort(address)
+			if err != nil {
+				return nil, errors.New("provider destination rejected")
+			}
+			if port != "443" || !slices.Contains(providerHosts, host) {
+				return nil, errors.New("provider destination rejected")
 			}
 			return dialer.DialContext(ctx, network, address)
 		},
@@ -61,7 +70,7 @@ type boundedTransport struct {
 }
 
 func (transport boundedTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	if request.URL.Scheme != "https" || !slices.Contains([]string{"api.openai.com", "api.anthropic.com"}, request.URL.Hostname()) || (request.URL.Port() != "" && request.URL.Port() != "443") {
+	if request.URL.Scheme != "https" || !slices.Contains(providerHosts, request.URL.Hostname()) || (request.URL.Port() != "" && request.URL.Port() != "443") {
 		return nil, errors.New("provider destination rejected")
 	}
 	if request.ContentLength > transport.maxRequestBytes {
