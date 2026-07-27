@@ -72,17 +72,12 @@ func Load() (Config, error) {
 	for reference, name := range providerSecretEnv {
 		// os.LookupEnv, not os.Getenv: Getenv collapses "unset" and "set to
 		// empty" into the same "", which would make an absent key
-		// indistinguishable from an empty one. ProviderStatus is only ever
-		// asked to classify a value that is known to be present; a variable
-		// that was never set is classified "absent" right here, matching
-		// Ruby's ENV[...].nil? check in provider_credentials.rb.
+		// indistinguishable from an empty one. Both halves of the lookup go
+		// to ProviderStatus so it can make the same distinction Ruby's
+		// reason_for makes with its ENV[...].nil? check.
 		raw, present := os.LookupEnv(name)
 		values[reference] = raw
-		status := "absent"
-		if present {
-			status = ProviderStatus(raw)
-		}
-		if status == "valid" {
+		if ProviderStatus(raw, present) == "valid" {
 			available = append(available, reference)
 		}
 	}
@@ -96,18 +91,24 @@ func Load() (Config, error) {
 	}, nil
 }
 
-// ProviderStatus classifies a provider key value known to be present in the
-// environment, mirroring web/app/services/assistant/provider_credentials.rb's
-// reason_for order exactly: oversize is decided on the raw byte length, then
-// empty after stripping whitespace, then placeholder (case-insensitive
-// "replace_with_" prefix), else valid. The value's contents are never
-// included in the result.
+// ProviderStatus classifies one provider key environment variable into a
+// single stable reason code, returning exactly one of "absent", "oversize",
+// "empty", "placeholder" or "valid" and nothing else. present is the second
+// return of os.LookupEnv, so an unset variable is distinguishable from one
+// set to the empty string.
 //
-// It cannot itself report "absent" — that classification depends on whether
-// the environment variable existed at all, a distinction already lost once a
-// value has been reduced to a bare string. Load makes that determination with
-// os.LookupEnv before calling this function.
-func ProviderStatus(value string) string {
+// The order mirrors web/app/services/assistant/provider_credentials.rb's
+// reason_for exactly, and must keep doing so — a contract test pins the two
+// vocabularies together. absent first, then oversize on the RAW byte length,
+// then empty after stripping whitespace, then placeholder (case-insensitive
+// "replace_with_" prefix), else valid. Ordering oversize ahead of empty is
+// load-bearing: an over-long run of whitespace is oversize, not empty.
+//
+// The value's contents are never included in the result.
+func ProviderStatus(value string, present bool) string {
+	if !present {
+		return "absent"
+	}
 	if len(value) > maxSecretBytes {
 		return "oversize"
 	}

@@ -95,11 +95,32 @@ func TestLoadFailsWithoutMachineCredentials(t *testing.T) {
 	}
 }
 
+// Each machine token is checked in isolation. Zeroing both at once (above)
+// passes even if one side of Load's || were dropped, so each token gets a case
+// where it is the *only* thing wrong.
+func TestLoadFailsWhenEitherMachineTokenAloneIsMissing(t *testing.T) {
+	t.Run("MCP token missing, ingress token valid", func(t *testing.T) {
+		t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", "")
+		t.Setenv("ASSISTANT_GATEWAY_INGRESS_TOKEN", strings.Repeat("i", 32))
+		if _, err := Load(); err == nil {
+			t.Fatal("expected an error when only the MCP token is missing")
+		}
+	})
+
+	t.Run("ingress token missing, MCP token valid", func(t *testing.T) {
+		t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", strings.Repeat("m", 32))
+		t.Setenv("ASSISTANT_GATEWAY_INGRESS_TOKEN", "")
+		if _, err := Load(); err == nil {
+			t.Fatal("expected an error when only the ingress token is missing")
+		}
+	})
+}
+
 // A provider key that is never set and one that is set to an empty string
-// must both fail to become available. This is the one place Go's os.Getenv
-// cannot mirror Ruby's ENV[...].nil? directly (see Load's comment on
-// os.LookupEnv), so it gets its own end-to-end assertion through Load rather
-// than through ProviderStatus, which never sees the "absent" case.
+// must both fail to become available: "absent" and "empty" are distinct
+// reason codes but neither is usable. ProviderStatus covers the codes
+// themselves; this asserts Load wires os.LookupEnv's presence flag through
+// correctly rather than collapsing it.
 func TestLoadTreatsAnUnsetProviderKeyTheSameAsAnEmptyOne(t *testing.T) {
 	setMachineTokens(t)
 	unsetEnv(t, "ASSISTANT_ANTHROPIC_API_KEY")
@@ -114,40 +135,43 @@ func TestLoadTreatsAnUnsetProviderKeyTheSameAsAnEmptyOne(t *testing.T) {
 	}
 }
 
-func TestProviderStatusReasonsAreStableAndLeakNothing(t *testing.T) {
-	if got := ProviderStatus("replace_with_openai_api_key"); got != "placeholder" {
-		t.Fatalf("expected placeholder, got %q", got)
-	}
-	if got := ProviderStatus("REPLACE_WITH_ANTHROPIC_API_KEY"); got != "placeholder" {
-		t.Fatalf("expected case-insensitive placeholder match, got %q", got)
-	}
-	if got := ProviderStatus("sk-canary"); got != "valid" {
-		t.Fatalf("expected valid, got %q", got)
-	}
-	if strings.Contains(ProviderStatus("sk-canary"), "sk-canary") {
-		t.Fatal("a reason code leaked the secret value")
-	}
-}
-
-func TestProviderStatusCoversEmptyAndOversize(t *testing.T) {
-	if got := ProviderStatus(""); got != "empty" {
-		t.Fatalf("expected empty, got %q", got)
-	}
-	if got := ProviderStatus("   \n\t"); got != "empty" {
-		t.Fatalf("expected whitespace-only to be empty, got %q", got)
-	}
-	if got := ProviderStatus(strings.Repeat("k", maxSecretBytes+1)); got != "oversize" {
-		t.Fatalf("expected oversize, got %q", got)
-	}
-}
-
+// Every reason code in the shared vocabulary, produced directly by
+// ProviderStatus. The whitespace-only-and-oversize row is the ordering guard:
 // Ruby's reason_for decides oversize on the raw byte size before it ever
-// strips whitespace, so a value that is both oversize and all-whitespace must
-// report oversize, not empty. The two implementations diverging on this
-// ordering is exactly what a later contract test asserts against.
-func TestProviderStatusOversizeTakesPriorityOverEmpty(t *testing.T) {
-	if got := ProviderStatus(strings.Repeat(" ", maxSecretBytes+1)); got != "oversize" {
-		t.Fatalf("expected oversize to take priority over empty, got %q", got)
+// strips, so that input must report oversize rather than empty. A later
+// contract test pins this vocabulary against Ruby's and needs every code
+// reachable through this one exported function.
+func TestProviderStatusCoversEveryReasonCode(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		value   string
+		present bool
+		want    string
+	}{
+		{name: "unset variable", value: "", present: false, want: "absent"},
+		{name: "unset beats a value that would otherwise classify", value: "sk-live", present: false, want: "absent"},
+		{name: "oversize", value: strings.Repeat("k", maxSecretBytes+1), present: true, want: "oversize"},
+		{name: "oversize whitespace is not empty", value: strings.Repeat(" ", maxSecretBytes+1), present: true, want: "oversize"},
+		{name: "exactly at the limit is not oversize", value: strings.Repeat("k", maxSecretBytes), present: true, want: "valid"},
+		{name: "empty string", value: "", present: true, want: "empty"},
+		{name: "whitespace only", value: "   \n\t", present: true, want: "empty"},
+		{name: "placeholder", value: "replace_with_openai_api_key", present: true, want: "placeholder"},
+		{name: "placeholder is case insensitive", value: "REPLACE_WITH_ANTHROPIC_API_KEY", present: true, want: "placeholder"},
+		{name: "placeholder after surrounding whitespace", value: "  replace_with_key\n", present: true, want: "placeholder"},
+		{name: "valid", value: "sk-ant-real", present: true, want: "valid"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := ProviderStatus(testCase.value, testCase.present); got != testCase.want {
+				t.Fatalf("ProviderStatus(%d bytes, present=%v) = %q, want %q",
+					len(testCase.value), testCase.present, got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestProviderStatusNeverLeaksTheValue(t *testing.T) {
+	if got := ProviderStatus("sk-canary", true); strings.Contains(got, "sk-canary") {
+		t.Fatalf("a reason code leaked the secret value: %q", got)
 	}
 }
 

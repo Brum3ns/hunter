@@ -78,7 +78,7 @@ func TestAMalformedKeyReportedAvailableIsDroppedRatherThanExiting(t *testing.T) 
 	t.Setenv("ASSISTANT_ANTHROPIC_API_KEY", "sk-live with-an-internal-space")
 	t.Setenv("ASSISTANT_OPENAI_API_KEY", "")
 
-	if got := config.ProviderStatus("sk-live with-an-internal-space"); got != "valid" {
+	if got := config.ProviderStatus("sk-live with-an-internal-space", true); got != "valid" {
 		t.Fatalf("precondition: expected the malformed key to report valid, got %q", got)
 	}
 	settings, err := config.Load()
