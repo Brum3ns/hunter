@@ -34,7 +34,15 @@ module Assistant
           [ error_event(turn, error.code) ]
         end
 
-      ingest_all!(events)
+      # A response carrying no events would leave the turn `running` with nothing
+      # to observe, so an empty array is itself a failure.
+      events = [ error_event(turn, "gateway_returned_no_events") ] if events.empty?
+
+      begin
+        ingest_all!(events)
+      rescue StandardError => error
+        recover!(turn, error)
+      end
     end
 
     private
@@ -46,6 +54,37 @@ module Assistant
       ActiveRecord::Base.transaction do
         events.each { |event| Assistant::EventIngestor.call(event) }
       end
+    end
+
+    # Ingestion can reject a whole response — an unknown event kind, a binding
+    # mismatch, a malformed payload. Letting that exception escape `perform` would
+    # leave the turn `running` forever with nothing recorded, which is precisely
+    # the silent failure this transport change exists to remove. So a rejected
+    # response still has to terminate the turn.
+    #
+    # The first attempt goes back through the normal validated ingestion path so
+    # the failure is audited like any other event. Only if that also fails does
+    # this write the turn row directly.
+    def recover!(turn, cause)
+      return if turn.reload.terminal?
+
+      ingest_all!([ error_event(turn, ingestion_failure_code(cause)) ])
+    rescue StandardError
+      turn.update!(
+        status: "failed", completed_at: Time.current, error_code: "event_ingestion_failed"
+      )
+      Assistant::TurnGrant.where(turn: turn, revoked_at: nil).update_all(
+        revoked_at: Time.current, updated_at: Time.current
+      )
+    end
+
+    # `InvalidEvent#code` is already a stable, non-sensitive reason code. Any other
+    # exception is collapsed to a generic code rather than risking its message
+    # reaching the turn's error_code.
+    def ingestion_failure_code(cause)
+      return cause.code if cause.is_a?(Assistant::EventIngestor::InvalidEvent)
+
+      "event_ingestion_failed"
     end
 
     def error_event(turn, code)

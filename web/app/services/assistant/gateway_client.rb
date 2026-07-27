@@ -92,6 +92,10 @@ module Assistant
       { "error" => { "code" => "gateway_malformed_response" } }
     rescue SystemCallError, IOError, SocketError, EOFError, OpenSSL::SSL::SSLError
       { "error" => { "code" => "gateway_unreachable" } }
+    rescue KeyError
+      # ASSISTANT_GATEWAY_INGRESS_TOKEN is unset. Without this the KeyError from
+      # `token` would escape `run_turn` and strand the turn instead of failing it.
+      { "error" => { "code" => "gateway_token_missing" } }
     end
     private_class_method :fetch
 

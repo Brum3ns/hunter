@@ -12,9 +12,25 @@ require "active_job/test_helper"
 class Assistant::TurnJobTest < Minitest::Test
   include ActiveJob::TestHelper
 
-  FakeTurn = Struct.new(:id, :status, :provider_profile_id, :correlation_id, :started_at) do
+  FakeTurn = Struct.new(:id, :status, :provider_profile_id, :correlation_id, :started_at,
+                        :completed_at, :error_code) do
     def update!(attrs)
       attrs.each { |key, value| public_send("#{key}=", value) }
+    end
+
+    def reload
+      self
+    end
+
+    def terminal?
+      %w[completed failed interrupted].include?(status)
+    end
+  end
+
+  # Stands in for the TurnGrant relation the recovery path revokes.
+  class FakeGrantScope
+    def update_all(_attrs)
+      1
     end
   end
 
@@ -133,20 +149,75 @@ class Assistant::TurnJobTest < Minitest::Test
     assert_equal 1, error_event["schema_version"]
   end
 
-  def test_gateway_is_called_exactly_once_even_when_ingestion_itself_raises
+  # A turn left `running` with nothing recorded is the silent failure this whole
+  # transport change exists to remove, so a response ingestion rejects must still
+  # terminate the turn -- and must not cost a second (billed) gateway call.
+  def test_a_rejected_response_still_terminates_the_turn_with_one_gateway_call
     gateway_calls = 0
-    stub_methods(Assistant::GatewayClient, run_turn: ->(*) { gateway_calls += 1; [ { "kind" => "assistant_message" } ] }) do
-      stub_methods(Assistant::EventIngestor, call: ->(_event) { raise "boom" }) do
+    ingest_attempts = []
+    ingestor = lambda do |event|
+      ingest_attempts << event
+      raise Assistant::EventIngestor::InvalidEvent, "unknown_event_kind" if ingest_attempts.length == 1
+
+      :accepted
+    end
+
+    stub_methods(Assistant::GatewayClient, run_turn: ->(*) { gateway_calls += 1; [ { "kind" => "bogus" } ] }) do
+      stub_methods(Assistant::EventIngestor, call: ingestor) do
         find_turn_returning(@turn) do
           without_real_transactions do
-            assert_raises(RuntimeError) do
+            Assistant::TurnJob.new.perform(turn_id: @turn.id, envelope: {})
+          end
+        end
+      end
+    end
+
+    assert_equal 1, gateway_calls, "the gateway must not be called a second time"
+    assert_equal 2, ingest_attempts.length, "the recovery error event was not ingested"
+    recovery = ingest_attempts.last
+    assert_equal "error", recovery["kind"]
+    assert_equal "unknown_event_kind", recovery.dig("data", "code")
+    assert_equal @turn.id, recovery["turn_id"]
+  end
+
+  # If even the recovery event cannot be ingested, the row itself is failed so the
+  # turn is never left mid-flight.
+  def test_the_turn_row_is_failed_when_even_the_recovery_event_cannot_be_ingested
+    grants = []
+    stub_methods(Assistant::GatewayClient, run_turn: ->(*) { [ { "kind" => "bogus" } ] }) do
+      stub_methods(Assistant::EventIngestor, call: ->(_event) { raise "boom" }) do
+        stub_methods(Assistant::TurnGrant, where: ->(*) { grants << :queried; FakeGrantScope.new }) do
+          find_turn_returning(@turn) do
+            without_real_transactions do
               Assistant::TurnJob.new.perform(turn_id: @turn.id, envelope: {})
             end
           end
         end
       end
     end
-    assert_equal 1, gateway_calls
+
+    assert_equal "failed", @turn.status
+    assert_equal "event_ingestion_failed", @turn.error_code
+    refute_nil @turn.completed_at
+    assert_equal [ :queried ], grants, "the turn's grants were not revoked"
+  end
+
+  # An empty event array would otherwise leave the turn `running` forever.
+  def test_a_response_with_no_events_fails_the_turn
+    ingested = []
+    stub_methods(Assistant::GatewayClient, run_turn: ->(*) { [] }) do
+      stub_methods(Assistant::EventIngestor, call: ->(event) { ingested << event; :accepted }) do
+        find_turn_returning(@turn) do
+          without_real_transactions do
+            Assistant::TurnJob.new.perform(turn_id: @turn.id, envelope: {})
+          end
+        end
+      end
+    end
+
+    assert_equal 1, ingested.length
+    assert_equal "error", ingested.first["kind"]
+    assert_equal "gateway_returned_no_events", ingested.first.dig("data", "code")
   end
 
   # This is the single-attempt guarantee itself: run the job through the real

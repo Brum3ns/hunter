@@ -173,4 +173,19 @@ class Assistant::GatewayClientTest < Minitest::Test
   # changing `run_turn`'s condition from `== 1` to `== 2` makes this test
   # fail, and reverting `MAX_RESPONSE_BYTES` enforcement makes the oversize
   # test fail — see task-5-report.md.
+
+  # ENV.fetch on a missing ingress token would otherwise raise KeyError straight
+  # out of run_turn, stranding the turn instead of failing it observably.
+  def test_a_missing_ingress_token_becomes_an_error_code
+    previous = ENV["ASSISTANT_GATEWAY_INGRESS_TOKEN"]
+    ENV.delete("ASSISTANT_GATEWAY_INGRESS_TOKEN")
+
+    error = assert_raises(Assistant::GatewayClient::Error) do
+      Assistant::GatewayClient.run_turn({ "schema_version" => 1 })
+    end
+    assert_equal "gateway_token_missing", error.code
+  ensure
+    previous.nil? ? ENV.delete("ASSISTANT_GATEWAY_INGRESS_TOKEN") : ENV["ASSISTANT_GATEWAY_INGRESS_TOKEN"] = previous
+  end
+
 end
