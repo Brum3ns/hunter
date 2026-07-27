@@ -15,28 +15,33 @@ is visible.
 
 If a provider appears selectable in the chat but every turn against it
 terminates as `provider_not_allowed`, this is a known credential-formatting
-limitation, not by itself evidence of compromise: check that provider's key
-file for embedded spaces, tabs, or control characters in the middle of the
-value. Rails' credential preflight classifies a key with internal whitespace
-as `valid` (it only rejects surrounding whitespace), while the gateway's own
-reader rejects any embedded whitespace or control character and silently
-drops that provider, logging only a slug — so the chat still offers a
-provider the gateway has already refused to load. Replace the key file with a
-clean value and restart `assistant-gateway`. Only escalate to the containment
-steps below if the pattern coincides with another trigger condition above.
+limitation, not by itself evidence of compromise: check that provider's
+environment variable (`ASSISTANT_ANTHROPIC_API_KEY` or
+`ASSISTANT_OPENAI_API_KEY`) for embedded spaces, tabs, or control characters
+in the middle of the value. Rails' credential preflight classifies a key with
+internal whitespace as `valid` (it only rejects surrounding whitespace), while
+the gateway's own reader rejects any embedded whitespace or control character
+and silently drops that provider, logging only a slug — so the chat still
+offers a provider the gateway has already refused to load. Replace the
+environment variable with a clean value and recreate `assistant-gateway`.
+Only escalate to the containment steps below if the pattern coincides with
+another trigger condition above.
 
 ## Immediate containment
 
 1. Disable the assistant through `Assistant::KillSwitch.disable!` or the
    administrator settings control. If Rails is unavailable, set
-   `ASSISTANT_ENABLED=false` and stop the gateway, MCP, validator, event
-   consumer, and egress services.
+   `ASSISTANT_ENABLED=false` and stop the gateway, MCP, and validator
+   services.
 2. Confirm all active grants are revoked and the MCP reader identity is
    disabled. Do not re-enable either during investigation.
-3. Block provider keys at OpenAI/Anthropic and deny assistant egress.
-4. Preserve PostgreSQL metadata audits, RabbitMQ configuration metadata,
-   image digests, deployment manifests, and host security logs. Do not enable
-   body tracing or copy conversation/tool bodies into tickets.
+3. Block provider keys at OpenAI/Anthropic. There is no egress proxy to
+   reconfigure any more; cut `assistant-gateway`'s outbound network access at
+   the Docker network or host firewall layer instead.
+4. Preserve PostgreSQL metadata audits, the gateway's and validator's HTTP
+   access logs, the Solid Queue job records for affected turns, image digests,
+   deployment manifests, and host security logs. Do not enable body tracing or
+   copy conversation/tool bodies into tickets.
 5. Isolate affected containers and host. Do not enter a suspect container to
    inspect secrets before collecting host-level evidence.
 
@@ -60,14 +65,17 @@ Rotate in this order so no old credential regains authority:
 1. Keep the global assistant gate disabled.
 2. Revoke active turn grants and disable assistant service identities.
 3. Revoke provider keys at the provider.
-4. Replace the gateway-to-MCP token.
-5. Mint a new digest-only MCP reader identity and replace MCP's raw token file.
-6. Replace Rails, gateway, and validator RabbitMQ passwords independently;
-   reprovision permissions and remove old users.
-7. Replace provider key files and recreate only the affected services.
+4. Replace the gateway-to-MCP token (`ASSISTANT_GATEWAY_MCP_TOKEN`).
+5. Mint a new digest-only MCP reader identity and replace MCP's raw token
+   value (`ASSISTANT_MCP_HUNTER_TOKEN`).
+6. Replace the gateway and validator ingress tokens
+   (`ASSISTANT_GATEWAY_INGRESS_TOKEN`, `ASSISTANT_VALIDATOR_INGRESS_TOKEN`)
+   independently and recreate the services that read them.
+7. Replace provider key environment variables and recreate only the affected
+   services.
 8. If the Docker host was compromised, rotate every Hunter credential,
-   including database, MongoDB, RabbitMQ administrator, Rails secret/encryption,
-   API, runner, executor, and deployment registry credentials.
+   including database, MongoDB, Rails secret/encryption, API, runner,
+   executor, and deployment registry credentials.
 
 Use
 [`hunter-assistant-credential-rotation.md`](hunter-assistant-credential-rotation.md)

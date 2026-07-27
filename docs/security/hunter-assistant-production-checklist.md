@@ -38,12 +38,10 @@ scanning, and deployment.
 
 | Component | Registry reference with digest | Build provenance | Signature/attestation verified |
 |---|---|---|---|
-| Web / Assistant events and initializer | UNSET | UNSET | No |
-| Assistant RabbitMQ | UNSET | UNSET | No |
+| Web | UNSET | UNSET | No |
 | Assistant gateway | UNSET | UNSET | No |
 | Hunter MCP | UNSET | UNSET | No |
 | Assistant validator | UNSET | UNSET | No |
-| Assistant egress | UNSET | UNSET | No |
 
 ## Verification artifacts
 
@@ -64,42 +62,58 @@ mutable “latest” results.
 | CycloneDX SBOM | One per candidate image | UNSET | Not run |
 | SPDX SBOM | One per candidate image | UNSET | Not run |
 | Credential rotation drill | Old rejection/new health output | UNSET | Not run |
-| Live `docker compose up` acceptance run (no keys, empty keys, one real key, `docker compose config` secret review) | Operator-reported output for all four cases in the zero-step activation plan's Step 6 | UNSET | Not run |
+| Live `docker compose up` acceptance run (no keys, empty keys, one real key, `docker compose config` secret review) | Operator-reported output for all four cases; `docker compose config` now inlines live environment-variable secret values rather than file paths, so its output must be captured only in redacted form for this record | UNSET | Not run |
 
 ## Runtime and operations review
 
 - [ ] Activation is derived, not flag-gated: confirm only the intended
-      provider key file(s) are installed in `secrets/` (an absent or empty
-      file disables that provider; this is not itself a finding), and confirm
-      the runtime kill switch (`ASSISTANT_ENABLED=false`, or the database
-      admin off-switch) is available and tested to force every profile off
+      provider environment variable(s) (`ASSISTANT_ANTHROPIC_API_KEY`,
+      `ASSISTANT_OPENAI_API_KEY`) are set to a valid, non-placeholder value for
+      the enabled profile(s) — an absent, empty, or placeholder value disables
+      that provider; this is not itself a finding — and confirm the runtime
+      kill switch (`ASSISTANT_ENABLED=false`, or the database admin
+      off-switch) is available and tested to force every profile off
       regardless of key presence.
 - [ ] The database kill switch is false and there are no active turn grants.
 - [ ] Only the configured session administrator can access the browser surface.
-- [ ] Provider/service/RabbitMQ/grant credentials are distinct and file-mounted
-      only according to the tested credential matrix. This includes the
-      `assistant_secrets` Docker volume (the five `assistant-secrets-init`
-      credentials and the one `assistant-token-init` credential), which has no
-      host source file and is mounted read-only everywhere except those two
-      one-shots.
-- [ ] Secret source ownership/mode and effective read-only mounts were verified.
-- [ ] RabbitMQ tracing is disabled and the temporary provisioner user is absent.
+- [ ] The four assistant ingress/service tokens
+      (`ASSISTANT_GATEWAY_INGRESS_TOKEN`, `ASSISTANT_VALIDATOR_INGRESS_TOKEN`,
+      `ASSISTANT_GATEWAY_MCP_TOKEN`, `ASSISTANT_MCP_HUNTER_TOKEN`) are set and
+      pairwise distinct from each other and from both provider keys, per the
+      tested credential matrix.
+- [ ] No service definition in the resolved Compose configuration mounts
+      `./secrets`, references an `assistant_secrets` volume, or hands its
+      whole `.env` to a service via `env_file` that should not receive
+      provider keys.
+- [ ] `POST /turns` on `assistant-gateway` and `POST /validations` on
+      `assistant-validator` each reject an unauthenticated or
+      wrongly-authenticated request, and reject a request whose Host or Origin
+      is not on the configured allowlist.
+- [ ] `runner` and `ansible-executor` do not receive
+      `ASSISTANT_ANTHROPIC_API_KEY` or `ASSISTANT_OPENAI_API_KEY` in the
+      resolved Compose configuration.
 - [ ] Production networks match the tested matrix; no Assistant port, Docker
-      socket, host mount, database path, executor path, or direct Internet path
-      was added.
+      socket, host mount, database path, or executor path was added, and no
+      assistant service other than `assistant-gateway` has an outbound
+      Internet route. `assistant-gateway`'s own outbound reach is now
+      unrestricted — the squid egress allowlist was removed — which is a
+      recorded accepted risk, not a gap to close here; see
+      `docs/superpowers/specs/2026-07-27-assistant-infra-simplification-delta.md`.
 - [ ] Service-specific seccomp denial probes pass on the deployment
-      kernel/runtime for all four assistant services, and each still declares
-      its `seccomp=` profile in the resolved Compose configuration. The four
+      kernel/runtime for all three assistant services (`assistant-gateway`,
+      `hunter-mcp`, `assistant-validator`), and each still declares its
+      `seccomp=` profile in the resolved Compose configuration. The three
       services run under Docker's built-in `docker-default` AppArmor profile;
       the custom profiles under `ops/assistant/apparmor/` are shipped but not
       loaded or referenced by Compose (removed 2026-07-26 — see
       `docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md`),
       which is the accepted baseline, not a gap to close here.
 - [ ] Transcript/audit/backup retention and immediate-delete wording were
-      reviewed against deployment policy, including any host backup process
-      that captures Docker volumes: the `assistant_secrets` volume is now an
-      at-rest location for generated machine credentials and is in scope for
-      that review and its retention window.
+      reviewed against deployment policy. There is no `assistant_secrets`
+      Docker volume any more — secrets live only in the process environment,
+      sourced from the host's `.env` file — so review the host's `.env`
+      handling and backup process under the deployment's normal file-retention
+      policy instead.
 - [ ] The credential-rotation and incident-response runbooks were exercised by
       the named operators; last rotation date (UTC): **UNSET**.
 - [ ] Monitoring is metadata-only and alert ownership/escalation is recorded.

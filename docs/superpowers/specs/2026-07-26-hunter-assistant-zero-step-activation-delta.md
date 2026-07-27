@@ -2,6 +2,25 @@
 
 Status: **APPROVED**
 
+> **Amendment (2026-07-27).** Activation is still derived, not flag-gated —
+> only its input changed. `Assistant::ProviderCredentials` now classifies a
+> process environment variable (`ASSISTANT_ANTHROPIC_API_KEY` /
+> `ASSISTANT_OPENAI_API_KEY`) instead of a key file under `secrets/`. The
+> three file-only reason codes this document assumes throughout —
+> `symlink`, `bad_mode`, and `unreadable` — **no longer exist**; only
+> `absent`, `empty`, `placeholder`, `oversize`, and `valid` remain.
+> `DEFAULT_DIRECTORY`, `ACCEPTED_MODES`, and the `PREFIX_BYTES` read
+> optimisation this document describes are deleted, and the catalog's
+> `secret_file` key is renamed `secret_env`. Every other file-based mechanism
+> this document describes — the two bootstrap one-shots, the
+> `assistant_secrets` Docker volume, the RabbitMQ dependency ordering that
+> gated `web`, and the gateway's read-only bind mount of `./secrets` — was
+> removed by the same change. Read this document as history of *why*
+> activation is derived, not as a description of the current mechanism. Full
+> accounting of what replaced each piece is in
+> [`2026-07-27-assistant-infra-simplification-delta.md`](2026-07-27-assistant-infra-simplification-delta.md),
+> which amends this document.
+
 Base documents:
 
 - `docs/superpowers/specs/2026-07-25-hunter-assistant-security-design.md`

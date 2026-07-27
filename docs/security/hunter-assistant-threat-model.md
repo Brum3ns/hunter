@@ -10,10 +10,11 @@ production checklist is approved.
 ## Scope
 
 This threat model covers Hunter's administrator-only assistant, including the
-browser chat, Rails assistant endpoints and persistence, assistant RabbitMQ
-vhost, provider gateway, Go MCP broker, outbound proxy, and network-constrained
-Ansible draft validator. The assistant authors drafts only. Existing Control
-Center paths remain the sole save and execution authorities.
+browser chat, Rails assistant endpoints and persistence, the direct HTTP call
+Rails makes to the provider gateway, the provider gateway itself, the Go MCP
+broker, and the network-constrained Ansible draft validator. The assistant
+authors drafts only. Existing Control Center paths remain the sole save and
+execution authorities.
 
 The full design is
 [`docs/superpowers/specs/2026-07-25-hunter-assistant-security-design.md`](../superpowers/specs/2026-07-25-hunter-assistant-security-design.md).
@@ -30,30 +31,35 @@ The full design is
 
 ## Trust boundaries
 
-Rails, PostgreSQL, RabbitMQ's control plane, and the Docker host are trusted.
-The browser is trusted only after session authentication, CSRF verification,
-and exact `ADMIN_USERNAME` authorization. Provider output, selected record
-content, the provider gateway, MCP broker, validator input, and all prompt text
-are untrusted.
+Rails, PostgreSQL, and the Docker host are trusted. The browser is trusted only
+after session authentication, CSRF verification, and exact `ADMIN_USERNAME`
+authorization. Provider output, selected record content, the provider gateway,
+MCP broker, validator input, and all prompt text are untrusted.
 
 Docker-host control is administrative control over the entire deployment.
-File-mounted secrets reduce routine exposure but do not defend against a
-host administrator who can replace images, enter containers, or remount files.
+Every assistant secret is supplied as a process environment variable rather
+than a mounted file, so a host administrator who can inspect a container,
+read `/proc/<pid>/environ`, or run `docker compose config` can already read
+it; this is treated as within the existing Docker-host trust boundary, not a
+new one, and the resulting reduction in routine-exposure protection is
+recorded as an accepted consequence in
+[`docs/superpowers/specs/2026-07-27-assistant-infra-simplification-delta.md`](../superpowers/specs/2026-07-27-assistant-infra-simplification-delta.md).
 Hunter has no dependency on an external deployment-control product.
 
 ## Data flow
 
 ```text
 Browser session + CSRF
-  -> Rails assistant API
+  -> Rails assistant API (202 response, browser polls)
   -> encrypted PostgreSQL state + metadata-only audit
-  -> non-durable assistant RabbitMQ turn
-  -> provider gateway
-       -> allowlisted HTTPS egress -> selected OpenAI or Anthropic profile
+  -> Solid Queue job holds a bearer-token-authenticated HTTP call to the
+     provider gateway (internal network only)
+       -> HTTPS -> selected OpenAI or Anthropic profile
        -> authenticated MCP request + opaque turn grant
   -> Go MCP broker
   -> MCP-reader authentication + same turn grant
   -> sanitized Rails machine API
+  <- ordered array of closed-schema assistant events, ingested atomically
 
 Confirmed save:
 Browser review + CSRF
@@ -87,12 +93,17 @@ forbidden.
 
 ### Credential theft
 
-Provider, gateway-to-MCP, MCP-to-Hunter, and queue credentials are separate.
-Raw service values are file-mounted only into required containers. Hunter
-stores only service/grant digests. Logging filters cover authorization,
-provider bodies, message bodies, drafts, validation details, and raw grants.
-RabbitMQ messages are non-durable and tracing is disabled for the assistant
-vhost.
+Provider, gateway-ingress, validator-ingress, gateway-to-MCP, and MCP-to-Hunter
+credentials are separate environment variables, each declared only on the
+service(s) that need it — never through a shared `env_file` — so `runner` and
+`ansible-executor` never receive a provider key. Hunter stores only
+service/grant digests. Logging filters cover authorization, provider bodies,
+message bodies, drafts, validation details, and raw grants. The gateway's
+`/turns` and the validator's `/validations` are reachable only from the
+internal Rails-facing network and each require their own bearer token,
+checked with a constant-time comparison, plus Host/Origin allowlisting; there
+is no broker vhost or message-tracing surface to disable because there is no
+broker.
 
 ### Confused deputy and token passthrough
 
@@ -105,10 +116,15 @@ ordinary Hunter module routes.
 ### SSRF and egress escape
 
 Provider base URLs and headers are not browser-configurable. The gateway knows
-only the fixed OpenAI and Anthropic HTTPS endpoints, rejects redirects, and
-requires the internal egress proxy. The proxy denies plaintext HTTP, arbitrary
-domains, loopback, private, link-local, metadata, and invalid-certificate
-destinations. Gateway networking provides no direct Internet route.
+only the fixed OpenAI and Anthropic HTTPS endpoints and rejects redirects, but
+it no longer sits behind an allowlisted egress proxy: squid and its
+provider-domain allowlist were removed along with the RabbitMQ transport (see
+the infrastructure-simplification delta). The gateway therefore has ordinary
+outbound network reach from within its container; this is accepted as a
+residual risk precisely because the gateway is also the component that parses
+untrusted provider output. No other assistant service gained an Internet
+route — `hunter-mcp` and `assistant-validator` remain confined to their
+internal networks.
 
 ### Draft-to-execution escalation
 
