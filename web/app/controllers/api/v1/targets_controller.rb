@@ -3,6 +3,8 @@ module Api
     # Target module API — read-only list + detail over the MongoDB `alive`
     # collection. Shares the service layer with the web department.
     class TargetsController < BaseController
+      api_scope :targets
+
       # GET /api/v1/targets
       def index
         filters = filter_params

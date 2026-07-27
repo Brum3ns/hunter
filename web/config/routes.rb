@@ -94,6 +94,11 @@ Rails.application.routes.draw do
       # Target module: read-only list + detail over the alive collection.
       resources :targets, only: %i[index show]
 
+      # Sitemap module: read-only endpoint list for job target selection.
+      namespace :sitemap do
+        resources :endpoints, only: %i[index]
+      end
+
       # CVE tracking module: browse list, single CVE, and an LLM-facing
       # "new since" feed. `cves/new` precedes the :show route so it isn't
       # swallowed as an id.
