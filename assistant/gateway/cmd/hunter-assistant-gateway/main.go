@@ -37,29 +37,6 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	var ready atomic.Bool
-	// One mux serves both routes so the process needs only one listening
-	// socket. /healthz is registered immediately so the idle path below can
-	// still answer health checks; /turns is added later, once a processor
-	// exists — http.ServeMux.Handle is safe to call while the server is
-	// already serving, since registration is guarded by the mux's own lock.
-	mux := http.NewServeMux()
-	mux.Handle("/healthz", newHealthHandler(&ready))
-	// ReadTimeout/WriteTimeout must cover a full turn: the grant TTL is 300s,
-	// so 310s leaves margin. ReadHeaderTimeout and MaxHeaderBytes stay tight —
-	// they are the slow-loris defence, and a turn's headers are tiny
-	// regardless of how long its body takes to arrive or its response takes
-	// to produce.
-	turnServer := &http.Server{
-		Addr: listenAddress, Handler: mux,
-		ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 310 * time.Second,
-		WriteTimeout: 310 * time.Second, IdleTimeout: 5 * time.Second,
-		MaxHeaderBytes: 4 << 10,
-	}
-	go func() {
-		if err := turnServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			stop()
-		}
-	}()
 
 	var openAIAdapter, anthropicAdapter provider.Adapter
 	var activeProfiles []string
@@ -73,35 +50,74 @@ func main() {
 		}
 		openAIAdapter, anthropicAdapter, activeProfiles = resolveAdapters(settings, providerClient)
 	}
+
+	// processor stays nil on the idle path: no provider credential resolved, so
+	// there is nothing to run a turn with. That is a steady state rather than a
+	// startup window — it is the default on a fresh compose up — which is why
+	// newServeMux still mounts /turns for it.
+	var processor *turn.Processor
 	if len(activeProfiles) == 0 {
 		log.Print("assistant gateway idle: no usable provider credential installed")
-		blockUntilShutdown(ctx, turnServer)
-		return
+	} else {
+		log.Printf("assistant gateway ready: profiles=%s", strings.Join(activeProfiles, ","))
+		mcpClient, err := mcpclient.New(settings.GatewayMCPToken)
+		if err != nil {
+			log.Fatal("MCP client configuration rejected")
+		}
+		// A profile not present in AvailableProfiles maps to a nil entry in this
+		// gateway's adapter table. Gateway.Handle checks for that nil explicitly
+		// and returns the stable "provider_not_allowed" event rather than
+		// dereferencing it, so a turn naming an unconfigured provider terminates
+		// cleanly instead of panicking.
+		gateway := provider.NewGateway(openAIAdapter, anthropicAdapter)
+		processor = &turn.Processor{Gateway: gateway, Connect: turn.ConnectMCP(mcpClient)}
 	}
-	log.Printf("assistant gateway ready: profiles=%s", strings.Join(activeProfiles, ","))
 
-	mcpClient, err := mcpclient.New(settings.GatewayMCPToken)
-	if err != nil {
-		log.Fatal("MCP client configuration rejected")
+	// ReadTimeout/WriteTimeout must cover a full turn: the grant TTL is 300s,
+	// so 310s leaves margin. ReadHeaderTimeout and MaxHeaderBytes stay tight —
+	// they are the slow-loris defence, and a turn's headers are tiny
+	// regardless of how long its body takes to arrive or its response takes
+	// to produce.
+	turnServer := &http.Server{
+		Addr: listenAddress, Handler: newServeMux(&ready, processor, settings.IngressToken),
+		ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 310 * time.Second,
+		WriteTimeout: 310 * time.Second, IdleTimeout: 5 * time.Second,
+		MaxHeaderBytes: 4 << 10,
 	}
-	// A profile not present in AvailableProfiles maps to a nil entry in this
-	// gateway's adapter table. Gateway.Handle checks for that nil explicitly
-	// and returns the stable "provider_not_allowed" event rather than
-	// dereferencing it, so a turn naming an unconfigured provider terminates
-	// cleanly instead of panicking.
-	gateway := provider.NewGateway(openAIAdapter, anthropicAdapter)
-	processor := &turn.Processor{Gateway: gateway, Connect: turn.ConnectMCP(mcpClient)}
+	go func() {
+		if err := turnServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			stop()
+		}
+	}()
 
+	if processor != nil {
+		ready.Store(true)
+	}
+	blockUntilShutdown(ctx, &ready, turnServer)
+}
+
+// newServeMux builds the one mux the process serves. It is fully populated
+// before the server starts listening; nothing is registered on it afterwards.
+//
+// /turns is mounted unconditionally, including on the idle path where
+// processor is nil. Mounting it only when a processor exists would leave an
+// idle gateway answering a turn with Go's plain-text "404 page not found",
+// which Rails cannot read as the JSON error envelope it parses on every
+// non-2xx response — it would surface a decode failure instead of "gateway
+// not ready". The Ready gate, backed by the handler's nil-Processor guard, is
+// what turns that state into the documented 503 gateway_not_ready.
+func newServeMux(ready *atomic.Bool, processor *turn.Processor, ingressToken string) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("/healthz", newHealthHandler(ready))
 	mux.Handle("/turns", turn.NewTurnHandler(turn.HandlerOptions{
 		Processor:      processor,
-		IngressToken:   settings.IngressToken,
+		IngressToken:   ingressToken,
 		AllowedHosts:   splitList(os.Getenv("ASSISTANT_GATEWAY_ALLOWED_HOSTS")),
 		AllowedOrigins: splitList(os.Getenv("ASSISTANT_GATEWAY_ALLOWED_ORIGINS")),
 		MaxConcurrent:  intFromEnv("ASSISTANT_MAX_CONCURRENT_TURNS", 2),
-		Ready:          &ready,
+		Ready:          ready,
 	}))
-	ready.Store(true)
-	blockUntilShutdown(ctx, turnServer)
+	return mux
 }
 
 // resolveAdapters builds an adapter for each profile the config preflight
@@ -140,14 +156,16 @@ func resolveAdapters(settings config.Config, providerClient *http.Client) (provi
 	return openAIAdapter, anthropicAdapter, active
 }
 
-// blockUntilShutdown blocks until the signal context is cancelled, then
-// shuts turnServer down. Serving itself already happens in the background
-// goroutine started around ListenAndServe, so this is just what keeps main
-// from returning early: the idle path calls it with only /healthz mounted
-// (ready is never stored true, so it keeps reporting 503 the whole time),
-// and the ready path calls it once /turns is mounted too.
-func blockUntilShutdown(ctx context.Context, turnServer *http.Server) {
+// blockUntilShutdown blocks until the signal context is cancelled, then marks
+// the gateway unready and shuts turnServer down. Serving itself already
+// happens in the background goroutine around ListenAndServe, so this is just
+// what keeps main from returning early. Clearing ready first means any request
+// racing the shutdown gets 503 rather than being handed to a processor whose
+// process is on its way out — on the idle path ready was never set, so the
+// store is a no-op.
+func blockUntilShutdown(ctx context.Context, ready *atomic.Bool, turnServer *http.Server) {
 	<-ctx.Done()
+	ready.Store(false)
 	shutdownContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_ = turnServer.Shutdown(shutdownContext)

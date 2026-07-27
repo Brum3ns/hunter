@@ -24,7 +24,7 @@ func TestDecodeTurnJobIsClosedAndBounded(t *testing.T) {
 	expanded["unexpected"] = true
 	unsafe, _ := json.Marshal(expanded)
 	if _, err := DecodeTurnJob(unsafe, time.Now()); err == nil {
-		t.Fatal("accepted an unknown queue field")
+		t.Fatal("accepted an unknown turn envelope field")
 	}
 }
 

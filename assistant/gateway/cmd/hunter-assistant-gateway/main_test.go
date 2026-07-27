@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -45,7 +46,7 @@ func TestBlockUntilShutdownBlocksUntilContextCancelledThenShutsDown(t *testing.T
 
 	done := make(chan struct{})
 	go func() {
-		blockUntilShutdown(ctx, turnServer)
+		blockUntilShutdown(ctx, &ready, turnServer)
 		close(done)
 	}()
 
@@ -65,6 +66,114 @@ func TestBlockUntilShutdownBlocksUntilContextCancelledThenShutsDown(t *testing.T
 
 	if ready.Load() {
 		t.Fatal("idle path must never report ready")
+	}
+}
+
+// Shutdown must flip readiness off before the server stops, so a request that
+// races the shutdown is answered 503 rather than being let through to a
+// process on its way out.
+func TestBlockUntilShutdownClearsReadyBeforeShuttingDown(t *testing.T) {
+	var ready atomic.Bool
+	ready.Store(true)
+	turnServer := &http.Server{Addr: "127.0.0.1:0", Handler: newHealthHandler(&ready)}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	blockUntilShutdown(ctx, &ready, turnServer)
+
+	if ready.Load() {
+		t.Fatal("readiness must be cleared before shutdown")
+	}
+}
+
+// The idle gateway — no usable provider credential, which is the default on a
+// fresh compose up — must still route POST /turns to the handler, so the
+// caller gets the JSON gateway_not_ready envelope. Leaving the route unmounted
+// would return Go's plain-text 404, which Rails cannot parse as an error
+// envelope, turning "gateway not ready" into an opaque decode failure.
+func TestIdleServeMuxStillRoutesTurnsAndReportsNotReady(t *testing.T) {
+	t.Setenv("ASSISTANT_GATEWAY_ALLOWED_HOSTS", "assistant-gateway:8081")
+	var ready atomic.Bool
+	mux := newServeMux(&ready, nil, "secret-token")
+
+	request := httptest.NewRequest(http.MethodPost, "/turns", strings.NewReader("{}"))
+	request.Host = "assistant-gateway:8081"
+	request.Header.Set("Authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	mux.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503: %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Error struct{ Code string } `json:"error"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("idle /turns response was not a JSON error envelope (%q): %v", response.Body.String(), err)
+	}
+	if body.Error.Code != "gateway_not_ready" {
+		t.Fatalf("error code = %q, want %q", body.Error.Code, "gateway_not_ready")
+	}
+}
+
+func TestServeMuxKeepsHealthzOnTheIdlePath(t *testing.T) {
+	var ready atomic.Bool
+	mux := newServeMux(&ready, nil, "secret-token")
+
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://localhost/healthz", nil))
+
+	if response.Code != http.StatusServiceUnavailable || response.Body.Len() != 0 {
+		t.Fatalf("status=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
+func TestSplitListTrimsAndDropsBlankEntries(t *testing.T) {
+	for name, testCase := range map[string]struct {
+		value string
+		want  []string
+	}{
+		"empty":           {"", nil},
+		"single":          {"a:1", []string{"a:1"}},
+		"spaced":          {" a:1 , b:2 ", []string{"a:1", "b:2"}},
+		"trailing comma":  {"a:1,", []string{"a:1"}},
+		"only separators": {",,", []string{}},
+		"only whitespace": {"   ", []string{}},
+		"internal blank":  {"a:1,,b:2", []string{"a:1", "b:2"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := splitList(testCase.value)
+			if len(got) != len(testCase.want) {
+				t.Fatalf("splitList(%q) = %v, want %v", testCase.value, got, testCase.want)
+			}
+			for index := range got {
+				if got[index] != testCase.want[index] {
+					t.Fatalf("splitList(%q) = %v, want %v", testCase.value, got, testCase.want)
+				}
+			}
+		})
+	}
+}
+
+func TestIntFromEnvFallsBackOnAnythingUnusable(t *testing.T) {
+	for name, testCase := range map[string]struct {
+		value string
+		want  int
+	}{
+		"unset":       {"", 2},
+		"valid":       {"5", 5},
+		"not numeric": {"many", 2},
+		"zero":        {"0", 2},
+		"negative":    {"-1", 2},
+		"float":       {"1.5", 2},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("ASSISTANT_MAX_CONCURRENT_TURNS", testCase.value)
+			if got := intFromEnv("ASSISTANT_MAX_CONCURRENT_TURNS", 2); got != testCase.want {
+				t.Fatalf("intFromEnv(%q) = %d, want %d", testCase.value, got, testCase.want)
+			}
+		})
 	}
 }
 

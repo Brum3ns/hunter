@@ -11,7 +11,14 @@ import (
 	"time"
 )
 
-const maxRequestBytes = 64 << 10
+// maxRequestBytes is the HTTP body cap. It is defined as maxJobBytes rather
+// than as an independent number so the transport can never reject a body that
+// DecodeTurnJob would have accepted: user_message alone is bounded at 64KiB,
+// and the envelope carries a turn grant, up to ten context references and
+// nine further fields on top of it, so a legitimate maximum-size turn already
+// exceeds 64KiB — by more still once the message holds multibyte UTF-8.
+// Referencing the constant is what keeps the two bounds from drifting apart.
+const maxRequestBytes = maxJobBytes
 
 type HandlerOptions struct {
 	Processor      *Processor
@@ -56,14 +63,25 @@ func NewTurnHandler(opts HandlerOptions) http.Handler {
 			writeCode(response, http.StatusForbidden, "origin_not_allowed")
 			return
 		}
+		// CutPrefix, not TrimPrefix: TrimPrefix returns the header unchanged when
+		// the scheme is absent, which would accept a bare "Authorization: <token>"
+		// as though it were "Bearer <token>". Requiring the scheme keeps the
+		// accepted form to exactly the one Rails sends.
+		//
 		// ConstantTimeCompare, not ==: this is a bearer-token comparison, and a
-		// timing side channel on it would leak the token one byte at a time.
-		presented := strings.TrimPrefix(request.Header.Get("Authorization"), "Bearer ")
-		if subtle.ConstantTimeCompare([]byte(presented), []byte(opts.IngressToken)) != 1 {
+		// timing side channel on it would leak the token one byte at a time. The
+		// short-circuit on a missing scheme is not such a channel — it reveals
+		// only whether the caller sent a scheme, which the caller already knows.
+		presented, hasScheme := strings.CutPrefix(request.Header.Get("Authorization"), "Bearer ")
+		if !hasScheme || subtle.ConstantTimeCompare([]byte(presented), []byte(opts.IngressToken)) != 1 {
 			writeCode(response, http.StatusUnauthorized, "unauthorized")
 			return
 		}
-		if opts.Ready != nil && !opts.Ready.Load() {
+		// A nil Processor is the idle gateway: the route is mounted so this
+		// answers with the documented envelope, but there is nothing behind it.
+		// Checked alongside Ready — never after it — so the nil is impossible to
+		// reach at the Process call below whatever Ready happens to say.
+		if opts.Processor == nil || (opts.Ready != nil && !opts.Ready.Load()) {
 			writeCode(response, http.StatusServiceUnavailable, "gateway_not_ready")
 			return
 		}
