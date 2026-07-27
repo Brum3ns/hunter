@@ -11,7 +11,7 @@ module Assistant
   # credential classified `valid` — configure no key for a provider and no profile
   # appears for it.
   module ProviderProfileInstaller
-    Result = Data.define(:installed, :skipped, :untouched)
+    Result = Data.define(:installed, :skipped, :untouched, :failed)
 
     module_function
 
@@ -23,6 +23,7 @@ module Assistant
       installed = []
       skipped = []
       untouched = []
+      failed = []
 
       ProviderCredentials.statuses.each do |status|
         if ProviderProfile.exists?(catalog_slug: status.slug)
@@ -30,12 +31,22 @@ module Assistant
         elsif !status.available
           skipped << status.slug
         else
-          create!(status.slug, created_by: created_by, now: now)
-          installed << status.slug
+          begin
+            create!(status.slug, created_by: created_by, now: now)
+            installed << status.slug
+          rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+            # Never abort the seed. Compose runs `db:seed && foreman start`, so a
+            # raise here means the web server never starts at all — an unusable
+            # Assistant would take the whole application down with it. A name
+            # collision with a hand-made profile is enough to trigger this.
+            # Matches Config.configuration_reasons: an Assistant that cannot be
+            # configured is disabled with a reason, never boot-blocking.
+            failed << status.slug
+          end
         end
       end
 
-      Result.new(installed: installed, skipped: skipped, untouched: untouched)
+      Result.new(installed: installed, skipped: skipped, untouched: untouched, failed: failed)
     end
 
     # Only the catalog slug, the name and the review stamp are set here: the model,

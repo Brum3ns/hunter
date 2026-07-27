@@ -90,6 +90,11 @@ end
 if profiles.skipped.any?
   puts "[assistant] No usable credential for: #{profiles.skipped.join(', ')} (no profile created)."
 end
+if profiles.failed.any?
+  # Reported, never raised: the seed must not stop `foreman start` from running.
+  warn "[assistant] Could not install provider profiles: #{profiles.failed.join(', ')}. " \
+       "A conflicting profile name probably already exists; fix it in Settings."
+end
 if profiles.installed.empty? && profiles.untouched.empty?
   puts "[assistant] No provider profile exists; set ASSISTANT_ANTHROPIC_API_KEY or " \
        "ASSISTANT_OPENAI_API_KEY and re-run db:seed to enable the chat."

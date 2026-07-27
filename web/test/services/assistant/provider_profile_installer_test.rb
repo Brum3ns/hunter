@@ -120,4 +120,48 @@ class Assistant::ProviderProfileInstallerTest < Minitest::Test
       refute_nil attrs[:reviewed_at], "an enabled profile has no review stamp"
     end
   end
+
+  # Compose runs `db:seed && foreman start`, so a raise here would stop the web
+  # server booting at all. An Assistant that cannot be configured must degrade, not
+  # take the application down.
+  def test_a_failing_profile_is_reported_and_never_aborts_the_seed
+    with_env(ANTHROPIC => "sk-ant-real", OPENAI => "sk-openai-real") do
+      result = stub_methods(
+        Assistant::ProviderProfile,
+        exists?: ->(catalog_slug:) { false },
+        create!: ->(_attrs) { raise ActiveRecord::RecordNotUnique, "duplicate name" }
+      ) do
+        Assistant::ProviderProfileInstaller.call(created_by: FakeUser.new)
+      end
+
+      assert_empty result.installed
+      assert_equal %w[anthropic_primary openai_primary], result.failed.sort
+    end
+  end
+
+  # One bad profile must not stop the other provider from being installed.
+  def test_one_failing_profile_does_not_block_the_other
+    calls = 0
+    with_env(ANTHROPIC => "sk-ant-real", OPENAI => "sk-openai-real") do
+      result = stub_methods(
+        Assistant::ProviderProfile,
+        exists?: ->(catalog_slug:) { false },
+        create!: lambda { |_attrs|
+          calls += 1
+          # RecordNotUnique rather than RecordInvalid: the latter needs a real
+          # record, and instantiating one would load the schema from a database
+          # this test deliberately never touches.
+          raise ActiveRecord::RecordNotUnique, "duplicate name" if calls == 1
+
+          FakeProfile.new(2)
+        }
+      ) do
+        Assistant::ProviderProfileInstaller.call(created_by: FakeUser.new)
+      end
+
+      assert_equal 1, result.failed.length
+      assert_equal 1, result.installed.length
+    end
+  end
+
 end
