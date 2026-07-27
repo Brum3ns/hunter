@@ -113,6 +113,12 @@ services:
       # Control Center — Whiterabbit standalone sender.
       WHITERABBIT_BIN: ${WHITERABBIT_BIN:-/usr/local/bin/whiterabbit}
       CMDSCRIPT_HASH_SALT: ${CMDSCRIPT_HASH_SALT:-}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_HTTP_PORT: ${RABBITMQ_HTTP_PORT:-15672}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-hunter}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-hunter}
+      RABBITMQ_TOKEN: ${RABBITMQ_TOKEN:-}
       CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
       ANSIBLE_LEASE_SECONDS: ${ANSIBLE_LEASE_SECONDS:-45}
       ANSIBLE_CLAIM_TIMEOUT_SECONDS: ${ANSIBLE_CLAIM_TIMEOUT_SECONDS:-300}
@@ -164,6 +170,32 @@ services:
       start_period: 90s
     tty: true
     stdin_open: true
+
+  # Whiterabbit's broker, for Control Center — NOT the Assistant.
+  # The Assistant used to share this service as its turn transport; it now talks
+  # to the gateway over HTTP and needs no broker at all. What remains here exists
+  # solely because the whiterabbit CLI that `web` shells out to uses RabbitMQ, so
+  # the stock image replaces the old custom build: no assistant vhost, no
+  # per-service AMQP users, no provisioning one-shot, no secrets mount.
+  # The default user is an administrator because whiterabbit's -info calls the
+  # management API.
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-hunter}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-hunter}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "0.0.0.0:5673:5672"
+      - "0.0.0.0:15672:15672"
 
   runner:
     build:
@@ -351,6 +383,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  rabbitmq_data: {}
   hunter_db:
   mongodb_data:
 

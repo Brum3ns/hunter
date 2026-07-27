@@ -41,7 +41,7 @@ corresponds to a failure mode the change could plausibly still have.
 | Gateway/validator ingress rejection behaviour | Every error code covered, incl. wrong-bearer, check-order precedence, and real-concurrency saturation |
 | Gateway and validator agree on the shared ingress contract | `assistant/contracts/v1/http_ingress_cases.json` read by both suites; guard confirmed to fire when one service diverges |
 | Go and Ruby classify provider keys identically | Nine inputs compared, including both oversize boundaries |
-| Compose topology and secret placement | 8 services, 0 `./secrets` mounts, no `assistant_secrets` volume, no provider key on `runner`/`ansible-executor` |
+| Compose topology and secret placement | 8 Assistant-relevant services (plus Whiterabbit's broker), 0 `./secrets` mounts, no `assistant_secrets` volume, no provider key on `runner`/`ansible-executor` |
 | Rails boots with the AMQP broker deleted | `Assistant::Broker` undefined; app loads |
 | Activation reports enabled from environment alone | `Assistant::Activation.state` → `active=true, reason=active, slugs=["openai_primary","anthropic_primary"]` |
 
@@ -79,9 +79,16 @@ docker compose up -d
 docker compose ps
 ```
 
-**Expect:** eight services — `db`, `mongo`, `web`, `assistant-gateway`,
-`hunter-mcp`, `assistant-validator`, `runner`, `ansible-executor`. All healthy,
-none restarting.
+**Expect:** nine services — `db`, `mongo`, `web`, `assistant-gateway`,
+`hunter-mcp`, `assistant-validator`, `runner`, `ansible-executor`, and
+`rabbitmq`. All healthy, none restarting.
+
+`rabbitmq` is **not** part of the Assistant. The Assistant used to share it as a
+turn transport; it now reaches the gateway over HTTP and needs no broker. The
+service survives only because Control Center's `whiterabbit` CLI uses RabbitMQ,
+so it runs the stock image with no Assistant vhost, AMQP users, or provisioning
+one-shot. `assistant-gateway`, `assistant-validator` and `hunter-mcp` are not on
+the `default` network, so none of them can reach it at all.
 
 `hunter-mcp` is the one to watch: it used to read its two tokens from files on
 the deleted volume and `log.Fatal` if they were absent. It now reads
@@ -92,10 +99,13 @@ whitespace.
 ## Step 2 — Confirm the deleted failure modes are gone
 
 ```sh
-docker compose logs 2>&1 | grep -Ei "master.key|EACCES|traces|amqp|rabbit|squid" || echo "clean"
+docker compose logs web assistant-gateway assistant-validator hunter-mcp 2>&1 \
+  | grep -Ei "master.key|EACCES|traces|amqp|rabbit|squid" || echo "clean"
 ```
 
-**Expect:** `clean`. Two boot-blocking defects found on 2026-07-27 — a
+**Expect:** `clean`. Note the log scope is limited to the four services this
+change touched — Whiterabbit's `rabbitmq` legitimately logs about AMQP. Two
+boot-blocking defects found on 2026-07-27 — a
 root-owned `config/master.key` in a `user: 1000` container, and `/api/traces`
 requiring a RabbitMQ plugin the image never enabled — both lived in machinery
 this change deletes.

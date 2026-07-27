@@ -7,7 +7,7 @@ class AssistantSecretPathsTest < Minitest::Test
   COMPOSE_FILES = %w[docker-compose.yaml docker-compose.prod.yaml].freeze
 
   REMOVED_SERVICES = %w[
-    rabbitmq assistant-egress assistant-events
+    assistant-egress assistant-events
     assistant-secrets-init assistant-token-init assistant-rabbitmq-init
   ].freeze
   PROVIDER_KEY_ENV = %w[ASSISTANT_ANTHROPIC_API_KEY ASSISTANT_OPENAI_API_KEY].freeze
