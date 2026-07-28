@@ -50,12 +50,13 @@ export default class extends Controller {
     const stored = sessionStorage.getItem("hunter.jobSelection")
     if (!stored) return
     sessionStorage.removeItem("hunter.jobSelection")
+    let parsed = null
     try {
-      this.pendingSelection = JSON.parse(stored)
+      parsed = JSON.parse(stored)
     } catch {
-      this.pendingSelection = null
+      parsed = null
     }
-    if (this.pendingSelection) this.openSendWithSelection()
+    if (parsed) this.openSendWithSelection(parsed)
   }
 
   disconnect() {
@@ -804,7 +805,11 @@ export default class extends Controller {
   // `t` is the template row that was clicked. It is undefined when the dialog
   // is opened from a handed-off selection with no template chosen yet (see
   // openSendWithSelection) — guard against that instead of assuming a template.
+  // A per-row open is always a fresh one-off send, so it clears any handoff
+  // selection (openSendWithSelection re-assigns pendingSelection afterward).
   openSend(t) {
+    this.pendingSelection = null
+    if (this.hasSelectionSummaryTarget) this.selectionSummaryTarget.textContent = ""
     this.sendTemplate = t || null
     this.sendNameTarget.textContent = this.sendTemplate ? this.sendTemplate.name : "(choose a template below)"
     this.sendTargetsTarget.value = ""
@@ -813,16 +818,17 @@ export default class extends Controller {
     this.sendDelayTarget.value = "0"
     this.sendResultTarget.classList.add("hidden")
     this.sendResultTarget.textContent = ""
-    if (this.hasSelectionSummaryTarget && !this.pendingSelection) this.selectionSummaryTarget.textContent = ""
     if (!this.sendDialogTarget.open) this.sendDialogTarget.showModal()
   }
 
   // Entry point for a handed-off selection (Target/Sitemap "Send to job").
   // There is no template context yet, so default to the first loaded template
   // (falling back to whatever sendTemplate already held, typically null) and
-  // let the user change it from the list as usual before submitting.
-  openSendWithSelection() {
+  // let the user change it from the list as usual before submitting. openSend
+  // clears pendingSelection, so assign it AFTER opening, then preview.
+  openSendWithSelection(selection) {
     this.openSend(this.templates?.[0] || this.sendTemplate)
+    this.pendingSelection = selection
     this.previewTargets()
   }
 
@@ -830,17 +836,26 @@ export default class extends Controller {
   // manual targets are currently typed into the dialog's textarea.
   async previewTargets() {
     if (!this.pendingSelection || !this.hasSelectionSummaryTarget) return
-    const body = {
-      ...this.pendingSelection,
-      targets: this.sendTargetsTarget.value.split("\n").map((s) => s.trim()).filter(Boolean),
-    }
+    const body = { ...this.pendingSelection, targets: this._manualTargets() }
     const { ok, data } = await apiFetch(this.resolveUrlValue, { method: "POST", body })
     this.selectionSummaryTarget.textContent = ok && data
       ? `${data.count} targets selected`
       : "Could not resolve the selected targets."
   }
 
-  closeSend() { this.sendDialogTarget.close() }
+  // The send dialog's manual "Targets (one per line)" textarea as a trimmed,
+  // blank-free array — the shape both resolve_targets and jobs#create expect.
+  _manualTargets() {
+    return this.sendTargetsTarget.value.split("\n").map((s) => s.trim()).filter(Boolean)
+  }
+
+  // Canceling/closing discards any handed-off selection so a subsequent send
+  // never ships a stale, invisible selection.
+  closeSend() {
+    this.pendingSelection = null
+    if (this.hasSelectionSummaryTarget) this.selectionSummaryTarget.textContent = ""
+    this.sendDialogTarget.close()
+  }
 
   async submitJob() {
     if (!this.sendTemplate) {
@@ -850,7 +865,7 @@ export default class extends Controller {
     }
     const body = {
       template: this.sendTemplate.name,
-      targets: this.sendTargetsTarget.value.split("\n").map((s) => s.trim()).filter(Boolean),
+      targets: this._manualTargets(),
       selections: this.pendingSelection ? this.pendingSelection.selections : [],
       queue_name: this.sendQueueTarget.value.trim() || "test",
       target_chunk: Number(this.sendChunkTarget.value) || 0,
