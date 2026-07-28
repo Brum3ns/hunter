@@ -6,5 +6,7 @@
 Rails.application.config.filter_parameters += [
   :passw, :email, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn, :cvv, :cvc,
   :private_key, :ssh_password, :private_key_passphrase, :become_password,
-  :serialized_value, :execution_payload
+  :serialized_value, :execution_payload,
+  :turn_grant, :service_token, :authorization, :provider_response,
+  :message_body, :draft_content, :validation_details
 ]

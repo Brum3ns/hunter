@@ -1,0 +1,94 @@
+{
+  "cases": [
+    {
+      "name": "unknown shell tool",
+      "tool": "shell",
+      "arguments": {},
+      "expected": "unknown_tool"
+    },
+    {
+      "name": "enumeration tool",
+      "tool": "list_all_targets",
+      "arguments": {},
+      "expected": "unknown_tool"
+    },
+    {
+      "name": "token request tool",
+      "tool": "get_service_token",
+      "arguments": {},
+      "expected": "unknown_tool"
+    },
+    {
+      "name": "write tool",
+      "tool": "save_template",
+      "arguments": {},
+      "expected": "unknown_tool"
+    },
+    {
+      "name": "send tool",
+      "tool": "send_job",
+      "arguments": {},
+      "expected": "unknown_tool"
+    },
+    {
+      "name": "schedule tool",
+      "tool": "schedule_job",
+      "arguments": {},
+      "expected": "unknown_tool"
+    },
+    {
+      "name": "execute tool",
+      "tool": "execute_playbook",
+      "arguments": {},
+      "expected": "unknown_tool"
+    },
+    {
+      "name": "arbitrary URL resource",
+      "tool": "get_selected_context",
+      "arguments": { "type": "target", "id": "https://example.test/all" },
+      "expected": "invalid_tool_input"
+    },
+    {
+      "name": "metadata resource URL",
+      "tool": "get_selected_context",
+      "arguments": { "type": "target", "id": "http://169.254.169.254/latest/meta-data" },
+      "expected": "invalid_tool_input"
+    },
+    {
+      "name": "redirect resource URL",
+      "tool": "get_selected_context",
+      "arguments": { "type": "target", "id": "https://redirect.invalid/to/private" },
+      "expected": "invalid_tool_input"
+    },
+    {
+      "name": "path traversal resource",
+      "tool": "get_selected_context",
+      "arguments": { "type": "target", "id": "../../all" },
+      "expected": "invalid_tool_input"
+    },
+    {
+      "name": "unknown input field",
+      "tool": "get_selected_context",
+      "arguments": { "type": "target", "id": "abc", "url": "https://example.test" },
+      "expected": "invalid_tool_input"
+    },
+    {
+      "name": "oversized JSON",
+      "tool": "validate_ansible_draft",
+      "generator": "oversized_source",
+      "expected": "invalid_tool_input"
+    },
+    {
+      "name": "deep JSON",
+      "tool": "get_selected_context",
+      "generator": "deep_json",
+      "expected": "invalid_tool_input"
+    },
+    {
+      "name": "malformed Unicode",
+      "tool": "validate_ansible_draft",
+      "generator": "malformed_utf8",
+      "expected": "invalid_tool_input"
+    }
+  ]
+}

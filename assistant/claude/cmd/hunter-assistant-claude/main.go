@@ -1,0 +1,232 @@
+package main
+
+import (
+	"crypto/subtle"
+	"encoding/json"
+	"errors"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"hunter.local/assistant/claude/internal/chat"
+)
+
+const listenAddress = "0.0.0.0:8083"
+
+// maxRequestBytes bounds the /chat body. A prompt plus an optional session id
+// comfortably fits well under this; it exists as a slow-loris / oversized-body
+// defence, not as a meaningful product limit.
+const maxRequestBytes = 64 << 10
+
+func main() {
+	if len(os.Args) == 2 && os.Args[1] == "-healthcheck" {
+		if err := checkHealth(); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
+	token := os.Getenv("ASSISTANT_CLAUDE_INGRESS_TOKEN")
+	allowedHosts := splitList(os.Getenv("ASSISTANT_CLAUDE_ALLOWED_HOSTS"))
+	if token == "" {
+		log.Print("WARNING: ASSISTANT_CLAUDE_INGRESS_TOKEN is empty — /chat ingress auth is DISABLED; the service trusts the internal network only. Set a token to require a bearer credential.")
+	}
+
+	// The claude CLI can take a while on a real turn (model latency + no
+	// tools means no early return); this is the one knob that lets an
+	// operator raise it without a rebuild, mirroring intFromEnv's role in
+	// the gateway's config.
+	timeout := time.Duration(intFromEnv("ASSISTANT_CLAUDE_TIMEOUT_SECONDS", 120)) * time.Second
+
+	server := &http.Server{
+		Addr:              listenAddress,
+		Handler:           newServeMux(token, allowedHosts, "claude"),
+		ReadHeaderTimeout: 2 * time.Second,
+		ReadTimeout:       timeout,
+		WriteTimeout:      timeout,
+		IdleTimeout:       5 * time.Second,
+		MaxHeaderBytes:    4 << 10,
+	}
+
+	log.Printf("assistant-claude listening on %s", listenAddress)
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal("assistant-claude server exited")
+	}
+}
+
+// newServeMux builds the one mux the process serves. There is no
+// MCP/processor/readiness gate here (unlike the gateway) — the official
+// claude CLI is either usable or it errors per-request, so /chat is always
+// mounted and always answers.
+func newServeMux(token string, allowedHosts []string, claudeBin string) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("/healthz", newHealthHandler())
+	mux.Handle("/chat", newChatHandler(token, allowedHosts, claudeBin))
+	return mux
+}
+
+func newHealthHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Cache-Control", "no-store")
+		response.Header().Set("X-Content-Type-Options", "nosniff")
+		if request.Method != http.MethodGet {
+			response.Header().Set("Allow", http.MethodGet)
+			response.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		response.WriteHeader(http.StatusNoContent)
+	})
+	return mux
+}
+
+type chatRequestBody struct {
+	Prompt    string  `json:"prompt"`
+	SessionID *string `json:"session_id"`
+}
+
+type chatResponseBody struct {
+	SessionID string `json:"session_id"`
+	Reply     string `json:"reply"`
+}
+
+// newChatHandler builds the authenticated POST /chat route: the checks run in
+// a fixed order — method, host, bearer token, then body — so that an
+// unauthenticated or disallowed request is rejected before its body is ever
+// read or a claude process is ever spawned. claudeBin names the executable to
+// run ("claude" in prod; a fake or harmless binary like "true" in tests).
+func newChatHandler(token string, allowedHosts []string, claudeBin string) http.Handler {
+	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			writeCode(response, http.StatusMethodNotAllowed, "method_not_allowed")
+			return
+		}
+		if !slices.Contains(allowedHosts, request.Host) {
+			writeCode(response, http.StatusForbidden, "host_not_allowed")
+			return
+		}
+		// An empty configured token disables ingress auth entirely: the service
+		// then trusts the network boundary alone (assistant-rails-claude is an
+		// internal-only Docker network whose sole other member is web, and the
+		// service publishes no host port). This is the intended single-user /
+		// local-dev posture; a deployment that wants the second lock sets a
+		// non-empty ASSISTANT_CLAUDE_INGRESS_TOKEN and the check below enforces
+		// it. main() logs loudly at startup when auth is disabled.
+		if token != "" {
+			// CutPrefix, not TrimPrefix: TrimPrefix returns the header unchanged
+			// when the scheme is absent, which would accept a bare
+			// "Authorization: <token>" as though it were "Bearer <token>".
+			// ConstantTimeCompare defends the token comparison against a timing
+			// side channel; the short-circuit on a missing scheme only reveals
+			// whether the caller sent one, which is not a secret.
+			presented, hasScheme := strings.CutPrefix(request.Header.Get("Authorization"), "Bearer ")
+			if !hasScheme || subtle.ConstantTimeCompare([]byte(presented), []byte(token)) != 1 {
+				writeCode(response, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+		}
+
+		payload, err := io.ReadAll(io.LimitReader(request.Body, maxRequestBytes+1))
+		if err != nil || len(payload) > maxRequestBytes {
+			writeCode(response, http.StatusBadRequest, "invalid_request")
+			return
+		}
+		var body chatRequestBody
+		if err := json.Unmarshal(payload, &body); err != nil || strings.TrimSpace(body.Prompt) == "" {
+			writeCode(response, http.StatusBadRequest, "invalid_request")
+			return
+		}
+		var sessionID string
+		if body.SessionID != nil {
+			sessionID = *body.SessionID
+		}
+
+		result, err := chat.Run(request.Context(), claudeBin, chat.Request{Prompt: body.Prompt, SessionID: sessionID})
+		if err != nil {
+			status, code := mapChatError(err)
+			writeCode(response, status, code)
+			return
+		}
+
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(response).Encode(chatResponseBody{SessionID: result.SessionID, Reply: result.Reply})
+	})
+}
+
+// mapChatError turns a chat.Run error into the stable code Rails matches on
+// and an HTTP status. It never includes CLI output or any credential — only
+// one of a small fixed set of codes ever leaves this process on failure.
+func mapChatError(err error) (int, string) {
+	switch {
+	case errors.Is(err, chat.ErrLoginRequired):
+		// The operator needs to run `claude login` on the persistent volume;
+		// this is a transient, operator-actionable state, not a caller error.
+		return http.StatusServiceUnavailable, "claude_login_required"
+	case errors.Is(err, chat.ErrMalformed):
+		return http.StatusBadGateway, "claude_malformed_response"
+	case errors.Is(err, chat.ErrCLIFailed):
+		return http.StatusBadGateway, "claude_error"
+	default:
+		return http.StatusBadGateway, "claude_error"
+	}
+}
+
+func writeCode(response http.ResponseWriter, status int, code string) {
+	response.Header().Set("Content-Type", "application/json")
+	response.WriteHeader(status)
+	_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"code": code}})
+}
+
+// splitList parses a comma-separated environment value into its trimmed,
+// non-empty entries. An empty or all-blank input yields an empty slice, not a
+// slice holding one empty string, so an unset allowlist denies everything
+// instead of accidentally matching an empty Host.
+func splitList(value string) []string {
+	if value == "" {
+		return nil
+	}
+	fields := strings.Split(value, ",")
+	list := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if trimmed := strings.TrimSpace(field); trimmed != "" {
+			list = append(list, trimmed)
+		}
+	}
+	return list
+}
+
+// intFromEnv reads a positive integer environment variable, falling back to
+// fallback when it is unset, empty, or fails to parse as one.
+func intFromEnv(name string, fallback int) int {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return fallback
+	}
+	return value
+}
+
+func checkHealth() error {
+	client := &http.Client{
+		Timeout:       2 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	response, err := client.Get("http://127.0.0.1:8083/healthz")
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		return errors.New("unhealthy")
+	}
+	return nil
+}

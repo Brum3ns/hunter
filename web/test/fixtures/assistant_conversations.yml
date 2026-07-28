@@ -1,0 +1,16 @@
+_fixture:
+  model_class: Assistant::Conversation
+
+one:
+  user: one
+  provider_profile: openai
+  status: active
+  title: First assistant conversation
+  expires_at: <%= 6.days.from_now %>
+
+other_user:
+  user: two
+  provider_profile: openai
+  status: active
+  title: Other user's conversation
+  expires_at: <%= 6.days.from_now %>

@@ -1,0 +1,24 @@
+title = "Hunter Assistant secret scan"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Purpose-built adversarial fixtures contain inert secret-shaped strings"
+paths = [
+  '''^assistant/testdata/adversarial/''',
+  '''^web/test/fixtures/files/assistant_adversarial_contexts\.yml$''',
+]
+
+[[allowlists]]
+description = "Checked-in provider examples contain placeholders only"
+paths = [
+  '''^secrets/examples/''',
+]
+
+[[allowlists]]
+description = "Deployment-managed source files are scanned for propagation separately"
+paths = [
+  '''^secrets/dev/''',
+  '''^secrets/prod/''',
+]

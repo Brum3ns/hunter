@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hunter.invalid/contracts/v1/turn_job.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "correlation_id", "turn_id", "conversation_id", "user_id", "provider_profile", "user_message", "context_references", "turn_grant", "expires_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "correlation_id": { "type": "string", "format": "uuid", "maxLength": 36 },
+    "turn_id": { "type": "integer", "minimum": 1 },
+    "conversation_id": { "type": "integer", "minimum": 1 },
+    "user_id": { "type": "integer", "minimum": 1 },
+    "provider_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "catalog_slug", "provider", "model", "secret_ref", "input_limit", "output_limit", "tool_call_limit", "retention_posture", "reviewed_at"],
+      "properties": {
+        "profile_id": { "type": "integer", "minimum": 1 },
+        "catalog_slug": { "type": "string", "maxLength": 100 },
+        "provider": { "type": "string", "enum": ["openai", "anthropic"] },
+        "model": { "type": "string", "maxLength": 200 },
+        "secret_ref": { "type": "string", "enum": ["openai_primary", "anthropic_primary"] },
+        "input_limit": { "type": "integer", "minimum": 1, "maximum": 32768 },
+        "output_limit": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "tool_call_limit": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "retention_posture": { "type": "string", "enum": ["standard", "zero_data_retention"] },
+        "reviewed_at": { "type": "string", "format": "date-time", "maxLength": 64 }
+      }
+    },
+    "user_message": { "type": "string", "minLength": 1, "maxLength": 65536 },
+    "context_references": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "id", "label", "serializer_version"],
+        "properties": {
+          "type": { "type": "string", "enum": ["program", "target", "cve", "vulnerability", "whiterabbit_template", "ansible_playbook"] },
+          "id": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "label": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "serializer_version": { "const": "v1" }
+        }
+      }
+    },
+    "turn_grant": { "type": "string", "minLength": 32, "maxLength": 256 },
+    "expires_at": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}

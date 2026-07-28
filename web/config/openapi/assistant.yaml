@@ -1,0 +1,387 @@
+paths:
+  /api/v1/assistant/bootstrap:
+    get:
+      tags: ["Assistant"]
+      summary: "Load assistant administration state"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200": { description: "Assistant settings, safe profiles, and owned conversations." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: "The session user is not the configured assistant administrator." }
+  /api/v1/assistant/context_options:
+    get:
+      tags: ["Assistant"]
+      summary: "Find bounded assistant context options"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: type, in: query, required: true, schema: { type: string, enum: [program, target, cve, vulnerability, whiterabbit_template, ansible_playbook] } }
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+      responses:
+        "200": { description: "At most twenty type, ID, and label rows." }
+        "400": { description: "Missing or unsupported context type." }
+        "503": { description: "The assistant kill switch is off." }
+  /api/v1/assistant/context_previews:
+    post:
+      tags: ["Assistant"]
+      summary: "Preview exact sanitized assistant context"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                references:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string, enum: [program, target, cve, vulnerability, whiterabbit_template, ansible_playbook] }
+                      id: { type: string }
+                    required: [type, id]
+                    additionalProperties: false
+              required: [references]
+              additionalProperties: false
+      responses:
+        "200": { description: "Versioned sanitized previews for every exact reference." }
+        "400": { description: "The reference list is malformed or exceeds ten entries." }
+        "422": { description: "At least one reference is missing, unsafe, unsupported, or oversized; no partial preview is returned." }
+        "503": { description: "The assistant kill switch is off." }
+  /api/v1/assistant/machine/grant:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Introspect the current assistant turn grant"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses:
+        "200": { description: "Exact tools, resources, expiry, correlation ID, and remaining budgets." }
+        "401": { description: "Invalid assistant service identity." }
+        "403": { description: "Invalid, expired, revoked, or mismatched turn grant." }
+  /api/v1/assistant/machine/contexts/{resource_type}/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one exact sanitized context record"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: resource_type, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "Versioned sanitized context plus correlation ID and remaining-budget headers." }
+        "403": { description: "The tool or exact resource is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413": { description: "The sanitized result exceeded a grant limit." }
+  /api/v1/assistant/machine/artifacts/{resource_type}/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one exact sanitized artifact example"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: resource_type, in: path, required: true, schema: { type: string, enum: [whiterabbit_template, ansible_playbook] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "Versioned sanitized artifact example." }
+        "403": { description: "The tool or exact resource is not granted." }
+        "422": { description: "Secret-pattern detection rejected the complete artifact." }
+  /api/v1/assistant/machine/policies/{artifact_type}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch a versioned assistant authoring policy"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: artifact_type, in: path, required: true, schema: { type: string, enum: [whiterabbit_template, ansible_playbook] } }
+      responses:
+        "200": { description: "Non-secret closed authoring policy." }
+        "403": { description: "The policy tool is not granted." }
+  /api/v1/assistant/machine/validations/{artifact_type}:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Submit an effect-free assistant draft validation"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: artifact_type, in: path, required: true, schema: { type: string, enum: [whiterabbit_template, ansible_playbook] } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, additionalProperties: false } } }
+      responses:
+        "200": { description: "Synchronous Whiterabbit result or accepted asynchronous validation." }
+        "429": { description: "An isolated validation is already in flight for this turn." }
+        "413": { description: "Request body exceeded 64 KiB." }
+        "501": { description: "Validator is not installed yet." }
+  /api/v1/assistant/machine/validation_results/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Get a turn-bound assistant validation result"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "Normalized validation state and redacted codes." }
+        "403": { description: "The result is not bound to the current grant." }
+        "501": { description: "Validator is not installed yet." }
+  /api/v1/assistant/conversations:
+    get:
+      tags: ["Assistant"]
+      summary: "List owned assistant conversations"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200": { description: "Owned conversations." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: ["Assistant"]
+      summary: "Create an assistant conversation"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { provider_profile_id: { type: integer } }
+              required: [provider_profile_id]
+              additionalProperties: false
+      responses:
+        "201": { description: "Created conversation pinned to the selected profile." }
+        "403": { description: "Invalid CSRF token or administrator required." }
+        "503": { description: "The assistant kill switch is off." }
+  /api/v1/assistant/conversations/{id}:
+    get:
+      tags: ["Assistant"]
+      summary: "Get one owned assistant conversation"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: "Conversation with decrypted messages for its owner." }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: ["Assistant"]
+      summary: "Delete one owned assistant conversation"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "204": { description: "Conversation content was hard-deleted." }
+        "403": { description: "Invalid CSRF token or administrator required." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/conversations/{conversation_id}/turns:
+    post:
+      tags: ["Assistant"]
+      summary: "Create and dispatch an owned assistant turn"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: conversation_id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { type: string, minLength: 1, maxLength: 65536 }
+                contexts:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: object
+                    properties: { type: { type: string }, id: { type: string } }
+                    required: [type, id]
+                    additionalProperties: false
+              required: [message, contexts]
+              additionalProperties: false
+      responses:
+        "202": { description: "The persisted turn is queued; no raw grant is returned." }
+        "403": { description: "Invalid CSRF token or administrator required." }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "The turn or an exact context reference is invalid." }
+        "429": { description: "The per-user turn-start or concurrency limit was reached." }
+        "503": { description: "The assistant is disabled or dispatch was interrupted." }
+  /api/v1/assistant/turns/{id}:
+    get:
+      tags: ["Assistant"]
+      summary: "Poll one owned assistant turn"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: "Turn state, messages, disclosed context references, and draft summaries." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/turns/{id}/cancel:
+    post:
+      tags: ["Assistant"]
+      summary: "Cancel one owned assistant turn"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: "Turn is terminal and its active grant is revoked." }
+        "403": { description: "Invalid CSRF token or administrator required." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/drafts/{id}:
+    get:
+      tags: ["Assistant"]
+      summary: "Review one owned assistant draft"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: "Escaped source and server-derived validation/save eligibility." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/drafts/{draft_id}/confirmed_save:
+    post:
+      tags: ["Assistant"]
+      summary: "Save a fully reviewed and revalidated assistant draft"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: draft_id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirmation:
+                  type: object
+                  properties:
+                    name: { type: string, maxLength: 200 }
+                    content_digest: { type: string, pattern: "^[0-9a-f]{64}$" }
+                    validation_version: { type: string }
+                    diff_digest: { type: [string, "null"], pattern: "^[0-9a-f]{64}$" }
+                    destination:
+                      type: [object, "null"]
+                      properties:
+                        type: { type: string, enum: [whiterabbit_template, ansible_playbook] }
+                        id: { type: string }
+                        lock_version: { type: string }
+                      required: [type, id, lock_version]
+                      additionalProperties: false
+                  required: [name, content_digest, validation_version, diff_digest, destination]
+                  additionalProperties: false
+              required: [confirmation]
+              additionalProperties: false
+      responses:
+        "200": { description: "An existing artifact was updated after current validation and optimistic-lock confirmation." }
+        "201": { description: "A new artifact was created after current validation and confirmation." }
+        "403": { description: "Invalid CSRF token or administrator required." }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "The reviewed destination is stale or missing." }
+        "422": { description: "Confirmation, current validation, or domain persistence failed." }
+  /api/v1/assistant/provider_profiles:
+    get:
+      tags: ["Assistant"]
+      summary: "List approved assistant provider profiles"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      responses: { "200": { description: "Profiles without credentials or endpoint configuration." } }
+    post:
+      tags: ["Assistant"]
+      summary: "Create an approved assistant provider profile"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssistantProviderProfileInput" }
+      responses:
+        "201": { description: "Created provider profile." }
+        "422": { description: "Profile validation failed." }
+  /api/v1/assistant/provider_profiles/{id}:
+    get:
+      tags: ["Assistant"]
+      summary: "Get an approved assistant provider profile"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "200": { description: "Safe profile metadata." }, "404": { $ref: "#/components/responses/NotFound" } }
+    patch:
+      tags: ["Assistant"]
+      summary: "Update an approved assistant provider profile"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssistantProviderProfileInput" } } } }
+      responses: { "200": { description: "Updated provider profile." }, "422": { description: "Profile validation failed." } }
+    put:
+      tags: ["Assistant"]
+      summary: "Replace allowed assistant provider profile fields"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssistantProviderProfileInput" } } } }
+      responses: { "200": { description: "Updated provider profile." }, "422": { description: "Profile validation failed." } }
+    delete:
+      tags: ["Assistant"]
+      summary: "Delete an unused assistant provider profile"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { "204": { description: "Deleted provider profile." }, "422": { description: "The profile is still referenced." } }
+  /api/v1/assistant/settings:
+    get:
+      tags: ["Assistant"]
+      summary: "Get assistant kill-switch and retention settings"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      responses: { "200": { description: "Bounded assistant settings." } }
+    patch:
+      tags: ["Assistant"]
+      summary: "Update assistant kill-switch and retention settings"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssistantSettingsInput" } } } }
+      responses: { "200": { description: "Updated settings." }, "422": { description: "Retention is outside hard bounds." } }
+    put:
+      tags: ["Assistant"]
+      summary: "Replace allowed assistant setting fields"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssistantSettingsInput" } } } }
+      responses: { "200": { description: "Updated settings." }, "422": { description: "Retention is outside hard bounds." } }
+components:
+  schemas:
+    AssistantProviderProfileInput:
+      type: object
+      properties:
+        provider_profile:
+          type: object
+          properties:
+            name: { type: string, maxLength: 200 }
+            catalog_slug: { type: string }
+            enabled: { type: boolean }
+            tool_call_limit: { type: integer, minimum: 1, maximum: 8 }
+            retention_posture: { type: string, enum: [standard, zero_data_retention] }
+            reviewed_at: { type: string, format: date-time }
+          additionalProperties: false
+      required: [provider_profile]
+      additionalProperties: false
+    AssistantSettingsInput:
+      type: object
+      properties:
+        settings:
+          type: object
+          properties:
+            assistant_enabled: { type: boolean }
+            transcript_retention_days: { type: integer, minimum: 1, maximum: 30 }
+            audit_retention_days: { type: integer, minimum: 1, maximum: 365 }
+          additionalProperties: false
+      required: [settings]
+      additionalProperties: false

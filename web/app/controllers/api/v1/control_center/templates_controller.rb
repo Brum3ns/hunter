@@ -6,6 +6,8 @@ module Api
       # TemplateYaml into structured attrs; the model's TemplateValidator still
       # runs, so the command allowlist can't be bypassed via YAML.
       class TemplatesController < BaseController
+        api_scope :control_center
+
         def index
           templates = ::ControlCenter::Template.order(:name)
           render json: { templates: templates.map { |t| serialize(t) } }
@@ -20,8 +22,11 @@ module Api
         def create
           attrs, yaml_errors = build_attrs
           return render_yaml_errors(yaml_errors) if yaml_errors.any?
-          template = ::ControlCenter::Template.new(attrs.merge("created_by" => Current.user&.username))
-          return render_unprocessable(template) unless template.save
+          result = ::ControlCenter::Templates::Persist.call(
+            record: ::ControlCenter::Template.new, attributes: attrs, user: Current.user
+          )
+          template = result.record
+          return render_unprocessable(template) unless result.success?
           render json: serialize(template), status: :created
         end
 
@@ -30,7 +35,10 @@ module Api
           return render_not_found unless template
           attrs, yaml_errors = build_attrs
           return render_yaml_errors(yaml_errors) if yaml_errors.any?
-          return render_unprocessable(template) unless template.update(attrs)
+          result = ::ControlCenter::Templates::Persist.call(
+            record: template, attributes: attrs, user: Current.user
+          )
+          return render_unprocessable(template) unless result.success?
           render json: serialize(template)
         end
 

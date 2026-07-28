@@ -32,7 +32,8 @@ RUN apt-get update -qq && \
       libyaml-dev \
       postgresql-client \
       git \
-      curl && \
+      curl \
+      openssl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

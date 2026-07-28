@@ -22,6 +22,10 @@ development:
   control_center_ansible_reaper:
     command: "ControlCenter::Ansible::RunReaper.call"
     schedule: every minute
+  assistant_retention:
+    class: Assistant::RetentionJob
+    queue: background
+    schedule: every hour
 
 production:
   clear_solid_queue_finished_jobs:
@@ -38,3 +42,7 @@ production:
   control_center_ansible_reaper:
     command: "ControlCenter::Ansible::RunReaper.call"
     schedule: every minute
+  assistant_retention:
+    class: Assistant::RetentionJob
+    queue: background
+    schedule: every hour

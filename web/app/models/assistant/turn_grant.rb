@@ -1,0 +1,78 @@
+require "digest"
+
+module Assistant
+  class TurnGrant < ApplicationRecord
+    IMMUTABLE_ATTRIBUTES = %i[
+      user_id
+      conversation_id
+      turn_id
+      provider_profile_id
+      token_digest
+      resources
+      tools
+      expires_at
+      max_calls
+      max_result_bytes
+      max_total_bytes
+    ].freeze
+
+    self.table_name = "assistant_turn_grants"
+
+    belongs_to :user
+    belongs_to :conversation, class_name: "Assistant::Conversation"
+    belongs_to :turn, class_name: "Assistant::Turn", inverse_of: :turn_grant
+    belongs_to :provider_profile, class_name: "Assistant::ProviderProfile"
+
+    validates :token_digest, presence: true, uniqueness: true,
+      format: { with: /\A\h{64}\z/ }
+    validates :expires_at, presence: true
+    validates :max_calls,
+      numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 8 }
+    validates :call_count,
+      numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+    validates :max_result_bytes, :max_total_bytes,
+      numericality: { only_integer: true, greater_than: 0 }
+    validates :returned_bytes, :reserved_bytes,
+      numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+    validate :bindings_match_turn
+    validate :usage_is_within_limits
+    validate :scope_is_immutable, on: :update
+
+    def self.digest(raw)
+      Digest::SHA256.hexdigest(raw.to_s)
+    end
+
+    private
+
+    def bindings_match_turn
+      return unless turn && conversation
+
+      errors.add(:conversation, "must match the turn") if turn.conversation_id != conversation_id
+      errors.add(:user, "must match the turn") if turn.user_id != user_id
+      return if turn.provider_profile_id == provider_profile_id
+
+      errors.add(:provider_profile, "must match the turn")
+    end
+
+    def usage_is_within_limits
+      if call_count.to_i > max_calls.to_i
+        errors.add(:call_count, "cannot exceed max calls")
+      end
+      if max_total_bytes.to_i < max_result_bytes.to_i
+        errors.add(:max_total_bytes, "must cover one result")
+      end
+      return if returned_bytes.to_i + reserved_bytes.to_i <= max_total_bytes.to_i
+
+      errors.add(:returned_bytes, "and reserved bytes exceed the total budget")
+    end
+
+    def scope_is_immutable
+      IMMUTABLE_ATTRIBUTES.each do |attribute|
+        next unless will_save_change_to_attribute?(attribute)
+
+        error_attribute = attribute.to_s.delete_suffix("_id").to_sym
+        errors.add(error_attribute, "cannot be changed")
+      end
+    end
+  end
+end

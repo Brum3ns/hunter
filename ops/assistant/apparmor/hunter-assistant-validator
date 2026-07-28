@@ -1,0 +1,49 @@
+# NOT applied by default. Compose no longer references this profile (the
+# `apparmor=hunter-assistant-validator` security_opt line was removed from both
+# docker-compose.yaml and docker-compose.prod.yaml on 2026-07-26 — see
+# docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md).
+# Enabling it requires loading it into the host kernel as root before
+# `docker compose up` (`apparmor_parser -r ops/assistant/apparmor/hunter-assistant-validator`)
+# and re-adding the security_opt line; without that, Docker's built-in
+# `docker-default` AppArmor profile applies to this container instead, layered
+# over this service's default-deny seccomp profile (the real constraint on its
+# `ansible-playbook`/`python3` subprocess), read_only root, dropped
+# capabilities, and non-root user as before.
+#include <tunables/global>
+
+profile hunter-assistant-validator flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  network unix stream,
+  network unix dgram,
+  network inet stream,
+  network inet dgram,
+  network inet6 stream,
+  network inet6 dgram,
+  deny network raw,
+  deny mount,
+  deny umount,
+  deny ptrace,
+
+  /dev/init rix,
+  /hunter-assistant-validator rix,
+  /usr/bin/ansible-playbook rix,
+  /usr/bin/python3* rix,
+  /usr/lib/** mr,
+  /usr/share/ansible/** r,
+  /usr/share/python*/** r,
+  /lib/** mr,
+  /etc/ansible/** r,
+  /etc/hosts r,
+  /etc/hostname r,
+  /etc/resolv.conf r,
+  /etc/nsswitch.conf r,
+  /etc/ssl/certs/** r,
+  /proc/sys/net/core/somaxconn r,
+  /proc/sys/net/ipv4/ip_local_port_range r,
+  /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+  /tmp/ rw,
+  /tmp/** rw,
+  /work/ rw,
+  /work/** rw,
+}

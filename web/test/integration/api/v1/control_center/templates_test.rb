@@ -16,9 +16,14 @@ class Api::V1::ControlCenter::TemplatesTest < ActionDispatch::IntegrationTest
   test "creates, lists, shows, updates, and destroys a template" do
     sign_in_as(@user)
 
-    post "/api/v1/control_center/templates", params: valid_body, as: :json
+    post "/api/v1/control_center/templates",
+      params: valid_body.merge(created_by: "forged"), as: :json
     assert_response :created
-    id = JSON.parse(response.body)["id"]
+    body = JSON.parse(response.body)
+    assert_equal %w[commands created_at created_by description id kind name output tags target updated_at yaml],
+      body.keys.sort
+    assert_equal @user.username, body["created_by"]
+    id = body["id"]
 
     get "/api/v1/control_center/templates"
     assert_response :success
@@ -32,6 +37,14 @@ class Api::V1::ControlCenter::TemplatesTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "updated", JSON.parse(response.body)["description"]
 
+    patch "/api/v1/control_center/templates/#{id}",
+      params: { commands: [{ command: "httpx", args: ["a\nb"], operator: "" }] }, as: :json
+    assert_response :unprocessable_entity
+    error = JSON.parse(response.body)
+    assert_equal %w[detail error], error.keys.sort
+    assert_equal "unprocessable_entity", error["error"]
+    assert_equal "updated", ControlCenter::Template.find(id).description
+
     delete "/api/v1/control_center/templates/#{id}"
     assert_response :no_content
   end
@@ -41,6 +54,36 @@ class Api::V1::ControlCenter::TemplatesTest < ActionDispatch::IntegrationTest
     body = valid_body.merge(commands: [{ command: "httpx", args: ["a\nb"], operator: "" }])
     post "/api/v1/control_center/templates", params: body, as: :json
     assert_response :unprocessable_entity
+    error = JSON.parse(response.body)
+    assert_equal %w[detail error], error.keys.sort
+    assert_equal "unprocessable_entity", error["error"]
+    assert error["detail"].any?
+  end
+
+  test "a control center bearer can create and update a template" do
+    _token, raw = ApiToken.generate(user: @user, name: "control-center", scopes: [ "control_center" ])
+    headers = { "Authorization" => "Bearer #{raw}" }
+
+    post "/api/v1/control_center/templates", params: valid_body,
+      headers: headers, as: :json
+    assert_response :created
+    body = JSON.parse(response.body)
+    assert_equal @user.username, body["created_by"]
+
+    patch "/api/v1/control_center/templates/#{body.fetch("id")}",
+      params: { description: "via token" }, headers: headers, as: :json
+    assert_response :success
+    assert_equal "via token", JSON.parse(response.body)["description"]
+  end
+
+  test "a bearer without the control center scope cannot access templates" do
+    _token, raw = ApiToken.generate(user: @user, name: "cves-only", scopes: [ "cves" ])
+
+    get "/api/v1/control_center/templates",
+      headers: { "Authorization" => "Bearer #{raw}" }
+
+    assert_response :forbidden
+    assert_equal "insufficient_scope", JSON.parse(response.body).fetch("error")
   end
 
   test "validate endpoint reports errors without persisting" do

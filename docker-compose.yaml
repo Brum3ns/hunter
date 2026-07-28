@@ -7,7 +7,7 @@ services:
     volumes:
       - hunter_db:/var/lib/postgresql
     ports:
-      - "127.0.0.1:5433:5432"
+      - "0.0.0.0:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
       interval: 5s
@@ -31,7 +31,7 @@ services:
     volumes:
       - mongodb_data:/data/db
     ports:
-      - "127.0.0.1:27017:27017"
+      - "0.0.0.0:27017:27017"
     healthcheck:
       test:
         - CMD
@@ -44,29 +44,15 @@ services:
       retries: 15
       start_period: 5s
 
-  # Local broker so Control Center job submissions land on a visible channel.
-  # Management UI at http://localhost:15672 (same credentials as below).
-  rabbitmq:
-    image: rabbitmq:4-management
-    # Provision the broker user the web service authenticates as. These apply only
-    # on first boot of an empty data dir, so the named volume below must be fresh
-    # (or reset) for a credential change to take effect. The created user is a
-    # full administrator, which also satisfies whiterabbit's -info management API.
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-hunter}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-hunter}
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    ports:
-      - "127.0.0.1:5673:5672"
-      - "127.0.0.1:15672:15672"
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   web:
+    # Rebuild on every `up` so `docker compose up` alone always runs current
+    # code. Compose's default pull_policy only builds an image that is MISSING;
+    # a stale one is reused forever, which silently ran an old gateway binary
+    # against deleted secret mounts and surfaced as gateway_unreachable on every
+    # turn. Layer caching makes an unchanged rebuild near-instant, so the cost is
+    # paid only when something actually changed. Production pins published image
+    # digests instead and must NOT do this.
+    pull_policy: build
     build:
       context: .
       dockerfile: Dockerfile
@@ -75,7 +61,9 @@ services:
         BUNDLE_WITHOUT: ""
     # Load .env into the container. Without this, compose only uses .env for
     # ${VAR} substitution at parse time; env_file makes compose error loudly if
-    # .env is missing or malformed.
+    # .env is missing or malformed. web legitimately needs the two provider
+    # keys (ASSISTANT_ANTHROPIC_API_KEY / ASSISTANT_OPENAI_API_KEY), so this
+    # stays — unlike `runner` below, which must not receive them.
     env_file:
       - .env
     # Single-quoted outer so the Ruby one-liner can use double quotes freely.
@@ -142,9 +130,45 @@ services:
       CONTROL_CENTER_COMMAND_ALLOWLIST: ${CONTROL_CENTER_COMMAND_ALLOWLIST:-}
       ANSIBLE_LEASE_SECONDS: ${ANSIBLE_LEASE_SECONDS:-45}
       ANSIBLE_CLAIM_TIMEOUT_SECONDS: ${ANSIBLE_CLAIM_TIMEOUT_SECONDS:-300}
+      ASSISTANT_ANSIBLE_MODULE_ALLOWLIST: ${ASSISTANT_ANSIBLE_MODULE_ALLOWLIST:-}
+      # Assistant provider keys — the sole activation signal. Leaving both
+      # blank/placeholder (see .env.example) leaves the Assistant cleanly
+      # disabled; setting either one enables it. Read from .env (same as the
+      # gateway below) rather than hardcoded here, so the keys never live in a
+      # committed file and .env is the single source of truth.
+      ASSISTANT_ANTHROPIC_API_KEY: ${ASSISTANT_ANTHROPIC_API_KEY:-}
+      ASSISTANT_OPENAI_API_KEY: ${ASSISTANT_OPENAI_API_KEY:-}
+      # Assistant machine credentials, operator-supplied (generate with
+      # `openssl rand -base64 32`) — see .env.example.
+      ASSISTANT_MCP_HUNTER_TOKEN: ${ASSISTANT_MCP_HUNTER_TOKEN:-}
+      ASSISTANT_GATEWAY_INGRESS_TOKEN: ${ASSISTANT_GATEWAY_INGRESS_TOKEN:-}
+      ASSISTANT_VALIDATOR_INGRESS_TOKEN: ${ASSISTANT_VALIDATOR_INGRESS_TOKEN:-}
+      # Where Rails reaches the gateway/validator over plain HTTP.
+      ASSISTANT_GATEWAY_URL: ${ASSISTANT_GATEWAY_URL:-http://assistant-gateway:8081}
+      ASSISTANT_VALIDATOR_URL: ${ASSISTANT_VALIDATOR_URL:-http://assistant-validator:8082}
+      # Where Rails reaches the Claude Code wrapper, and the bearer it uses.
+      ASSISTANT_CLAUDE_URL: ${ASSISTANT_CLAUDE_URL:-http://assistant-claude:8083}
+      ASSISTANT_CLAUDE_INGRESS_TOKEN: ${ASSISTANT_CLAUDE_INGRESS_TOKEN:-}
+      ASSISTANT_TRANSCRIPT_DAYS: "7"
+      ASSISTANT_AUDIT_DAYS: "90"
+      ASSISTANT_GRANT_TTL_SECONDS: "300"
+      ASSISTANT_MAX_RECORDS: "10"
+      ASSISTANT_MAX_TOOL_CALLS: "8"
+      ASSISTANT_MAX_RESULT_BYTES: "65536"
+      ASSISTANT_MAX_TOTAL_BYTES: "262144"
+      ASSISTANT_TURN_STARTS_PER_MINUTE: "10"
+      ASSISTANT_TURN_STARTS_PER_HOUR: "60"
+      ASSISTANT_MAX_CONCURRENT_TURNS: "2"
+      ASSISTANT_MAX_VALIDATIONS_PER_TURN: "1"
     volumes:
       # Mount source for live reload — code edits hot-reload in the container.
       - ./web:/app
+    networks:
+      - default
+      - assistant-rails-gateway
+      - assistant-rails-validator
+      - assistant-mcp-rails
+      - assistant-rails-claude
     ports:
       - "0.0.0.0:5000:5000"
     depends_on:
@@ -152,19 +176,55 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/up"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
     tty: true
     stdin_open: true
 
+  # Whiterabbit's broker, for Control Center — NOT the Assistant.
+  # The Assistant used to share this service as its turn transport; it now talks
+  # to the gateway over HTTP and needs no broker at all. What remains here exists
+  # solely because the whiterabbit CLI that `web` shells out to uses RabbitMQ, so
+  # the stock image replaces the old custom build: no assistant vhost, no
+  # per-service AMQP users, no provisioning one-shot, no secrets mount.
+  # The default user is an administrator because whiterabbit's -info calls the
+  # management API.
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-hunter}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-hunter}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "0.0.0.0:5673:5672"
+      - "0.0.0.0:15672:15672"
+
   runner:
+    # Rebuild on every `up` — see the note on `web`.
+    pull_policy: build
     build:
       context: .
       dockerfile: runner/Dockerfile
-    env_file: [.env]
+    # No env_file here: .env also carries the two Assistant provider keys, and
+    # this container must never receive them regardless of what .env holds.
+    # Every variable the runner actually needs is declared explicitly below.
     environment:
-      HUNTER_API_URL: http://web:5000
+      HUNTER_API_URL: ${HUNTER_API_URL:-http://web:5000}
       RUNNER_TOKEN: ${RUNNER_TOKEN}
+      RUNNER_NAME: ${RUNNER_NAME:-default}
+      RUNNER_KINDS: ${RUNNER_KINDS:-curl}
       RUNNER_POLL_INTERVAL: ${RUNNER_POLL_INTERVAL:-2}
       # How many curl jobs this runner executes at once. Each job is a blocking
       # curl + result POST, so the pool overlaps them instead of queueing behind
@@ -172,6 +232,7 @@ services:
       RUNNER_MAX_CONCURRENCY: ${RUNNER_MAX_CONCURRENCY:-30}
       CURL_MAX_TIME: ${CURL_MAX_TIME:-30}
       CURL_MAX_OUTPUT: ${CURL_MAX_OUTPUT:-262144}
+      RUNNER_JOB_TTL: ${RUNNER_JOB_TTL:-90}
     depends_on:
       web:
         condition: service_started
@@ -181,8 +242,9 @@ services:
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
     # Sized for the default 30-way pool: each worker is a thread and each curl a
-    # subprocess (both count toward pids_limit), and up to 30 responses buffer in
-    # memory at once. Raise these together with RUNNER_MAX_CONCURRENCY.
+    # subprocess (both count toward the process limit below), and up to 30
+    # responses buffer in memory at once. Raise these together with
+    # RUNNER_MAX_CONCURRENCY.
     mem_limit: 512m
     pids_limit: 256
     restart: unless-stopped
@@ -191,6 +253,8 @@ services:
   # minted in Settings and must carry the dedicated `ansible` capability.
   ansible-executor:
     profiles: ["ansible"]
+    # Rebuild on every `up` — see the note on `web`.
+    pull_policy: build
     build:
       context: .
       dockerfile: ansible_executor/Dockerfile
@@ -221,7 +285,196 @@ services:
     init: true
     restart: unless-stopped
 
+  # MCP tool broker: the only thing the gateway is allowed to call into Hunter
+  # through. Depends only on `web` (its HTTP backend) — no broker, no secrets
+  # volume, no bootstrap one-shot.
+  hunter-mcp:
+    # Rebuild on every `up` — see the note on `web`. Matters most here: the Go
+    # binary is baked into the image, so without this a source change never
+    # reaches the running container.
+    pull_policy: build
+    build:
+      context: ./assistant/mcp
+      dockerfile: Dockerfile
+    environment:
+      ASSISTANT_HUNTER_URL: http://web:5000
+      ASSISTANT_HUNTER_ALLOWED_HOSTS: web:5000
+      ASSISTANT_MCP_ALLOWED_HOSTS: hunter-mcp:8080
+      ASSISTANT_MCP_ALLOWED_ORIGINS: http://assistant-gateway:8081
+      ASSISTANT_GATEWAY_MCP_TOKEN: ${ASSISTANT_GATEWAY_MCP_TOKEN}
+      ASSISTANT_MCP_HUNTER_TOKEN: ${ASSISTANT_MCP_HUNTER_TOKEN}
+    networks:
+      - assistant-gateway-mcp
+      - assistant-mcp-rails
+    depends_on:
+      web:
+        condition: service_started
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/mcp.json
+    init: true
+    mem_limit: 128m
+    cpus: "0.50"
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/hunter-mcp", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # Validates a drafted change before it can be applied. Reachable from `web`
+  # only, over its own internal network — no other service can reach it.
+  assistant-validator:
+    profiles: ["legacy-gateway"]
+    # Rebuild on every `up` — see the note on `web`. Matters most here: the Go
+    # binary is baked into the image, so without this a source change never
+    # reaches the running container.
+    pull_policy: build
+    build:
+      context: ./assistant/validator
+      dockerfile: Dockerfile
+    environment:
+      ASSISTANT_VALIDATOR_INGRESS_TOKEN: ${ASSISTANT_VALIDATOR_INGRESS_TOKEN}
+      ASSISTANT_VALIDATOR_ALLOWED_HOSTS: assistant-validator:8082
+      ASSISTANT_VALIDATOR_ALLOWED_ORIGINS: http://web:5000
+      ASSISTANT_MAX_CONCURRENT_VALIDATIONS: "2"
+    networks:
+      - assistant-rails-validator
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
+      - /work:rw,noexec,nosuid,nodev,size=64m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/validator.json
+    init: true
+    mem_limit: 256m
+    cpus: "1.00"
+    pids_limit: 96
+    healthcheck:
+      test: ["CMD", "/hunter-assistant-validator", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # Runs LLM turns. Reachable from `web` only (assistant-rails-gateway); talks
+  # to hunter-mcp over its own internal network; reaches the provider APIs
+  # (api.anthropic.com / api.openai.com) over the one non-internal network it
+  # carries. Depends on nothing — a keyless gateway just answers
+  # gateway_not_ready until a provider key is installed.
+  assistant-gateway:
+    profiles: ["legacy-gateway"]
+    # Rebuild on every `up` — see the note on `web`. Matters most here: the Go
+    # binary is baked into the image, so without this a source change never
+    # reaches the running container.
+    pull_policy: build
+    build:
+      context: ./assistant/gateway
+      dockerfile: Dockerfile
+    environment:
+      ASSISTANT_GATEWAY_MCP_TOKEN: ${ASSISTANT_GATEWAY_MCP_TOKEN}
+      ASSISTANT_GATEWAY_INGRESS_TOKEN: ${ASSISTANT_GATEWAY_INGRESS_TOKEN}
+      ASSISTANT_ANTHROPIC_API_KEY: ${ASSISTANT_ANTHROPIC_API_KEY:-}
+      ASSISTANT_OPENAI_API_KEY: ${ASSISTANT_OPENAI_API_KEY:-}
+      ASSISTANT_GATEWAY_ALLOWED_HOSTS: assistant-gateway:8081
+      ASSISTANT_GATEWAY_ALLOWED_ORIGINS: http://web:5000
+      ASSISTANT_MAX_CONCURRENT_TURNS: "2"
+    networks:
+      - assistant-rails-gateway
+      - assistant-gateway-mcp
+      - assistant-gateway-egress
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/gateway.json
+    init: true
+    mem_limit: 256m
+    cpus: "1.00"
+    pids_limit: 96
+    healthcheck:
+      test: ["CMD", "/hunter-assistant-gateway", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  # Runs the official Claude Code CLI on the operator's subscription behind a
+  # thin Go HTTP wrapper. Reachable from `web` only (assistant-rails-claude);
+  # reaches api.anthropic.com over the one non-internal network it carries.
+  # The subscription login/session lives on the assistant_claude_home named
+  # volume — the one writable path besides /tmp, since root is read-only.
+  assistant-claude:
+    # Rebuild on every `up` — see the note on `web`. Matters most here: the Go
+    # binary is baked into the image, so without this a source change never
+    # reaches the running container.
+    pull_policy: build
+    build:
+      context: ./assistant/claude
+      dockerfile: Dockerfile
+    environment:
+      ASSISTANT_CLAUDE_INGRESS_TOKEN: ${ASSISTANT_CLAUDE_INGRESS_TOKEN}
+      ASSISTANT_CLAUDE_ALLOWED_HOSTS: assistant-claude:8083
+    networks:
+      - assistant-rails-claude
+      - assistant-claude-egress
+    volumes:
+      - assistant_claude_home:/home/claude
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/claude.json
+    init: true
+    mem_limit: 512m
+    cpus: "1.00"
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "/hunter-assistant-claude", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
 volumes:
+  rabbitmq_data: {}
   hunter_db:
   mongodb_data:
-  rabbitmq_data:
+  assistant_claude_home: {}
+
+networks:
+  assistant-rails-gateway:
+    internal: true
+  assistant-rails-validator:
+    internal: true
+  assistant-gateway-mcp:
+    internal: true
+  assistant-mcp-rails:
+    internal: true
+  assistant-rails-claude:
+    internal: true
+  # The gateway's one non-internal network — outbound only, for
+  # api.anthropic.com / api.openai.com. No other service joins it.
+  assistant-gateway-egress: {}
+  # assistant-claude's one non-internal network — outbound only, for
+  # api.anthropic.com. No other service joins it.
+  assistant-claude-egress: {}

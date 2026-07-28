@@ -81,6 +81,29 @@ Rails.application.routes.draw do
       # URL /api/v1/openapi; the .json suffix also resolves.
       get "openapi", to: "openapi#show"
 
+      namespace :assistant do
+        get "bootstrap", to: "bootstrap#show"
+        get "context_options", to: "context_options#index"
+        post "context_previews", to: "context_previews#create"
+        resources :conversations, only: %i[index show create destroy] do
+          resources :turns, only: %i[create show], shallow: true do
+            post :cancel, on: :member
+          end
+        end
+        resources :drafts, only: :show
+        post "drafts/:draft_id/confirmed_save", to: "confirmed_saves#create"
+        resources :provider_profiles, except: %i[new edit]
+        resource :settings, only: %i[show update]
+        namespace :machine do
+          resource :grant, only: :show, controller: "grants"
+          get "contexts/:resource_type/:id", to: "contexts#show"
+          get "artifacts/:resource_type/:id", to: "artifacts#show"
+          get "policies/:artifact_type", to: "policies#show"
+          post "validations/:artifact_type", to: "validations#create"
+          get "validation_results/:id", to: "validations#show"
+        end
+      end
+
       # Programs module: Monitor change feed + Logs run feed.
       namespace :programs do
         get "changes",   to: "changes#index"

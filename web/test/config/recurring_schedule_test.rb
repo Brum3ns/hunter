@@ -28,5 +28,13 @@ class RecurringScheduleTest < ActiveSupport::TestCase
       assert_equal "ControlCenter::Ansible::RunReaper.call", entry["command"]
       assert_equal "every minute", entry["schedule"]
     end
+
+    test "#{env} schedules assistant retention every hour" do
+      entry = CONFIG.dig(env, "assistant_retention")
+
+      assert entry, "expected assistant retention under #{env}"
+      assert_equal "Assistant::RetentionJob", entry["class"]
+      assert_equal "every hour", entry["schedule"]
+    end
   end
 end

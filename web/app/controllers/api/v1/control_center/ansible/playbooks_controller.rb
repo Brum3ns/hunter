@@ -19,8 +19,7 @@ module Api
           end
 
           def create
-            playbook = ::ControlCenter::Ansible::Playbook.new(created_by: Current.user)
-            persist(playbook, status: :created)
+            persist(::ControlCenter::Ansible::Playbook.new, status: :created)
           end
 
           def update
@@ -74,20 +73,11 @@ module Api
           end
 
           def persist(playbook, status: :ok)
-            attributes = playbook_params
-            requested_ids = attributes.delete(:variable_set_ids) if attributes.key?(:variable_set_ids)
-            playbook.assign_attributes(attributes)
-            variable_sets = requested_ids.nil? ? nil : resolve_variable_sets(playbook, requested_ids)
-            return render_unprocessable(playbook) if requested_ids && !variable_sets
+            result = ::ControlCenter::Ansible::Playbooks::Persist.call(
+              record: playbook, attributes: playbook_params, user: Current.user
+            )
 
-            saved = ::ControlCenter::Ansible::Playbook.transaction do
-              next false unless playbook.save
-
-              replace_variable_sets(playbook, variable_sets) if variable_sets
-              true
-            end
-
-            if saved
+            if result.success?
               render json: serialize(playbook.reload), status: status
             else
               render_unprocessable(playbook)
@@ -98,33 +88,10 @@ module Api
             params.permit(:name, :description, :yaml_content, variable_set_ids: [])
           end
 
-          def resolve_variable_sets(playbook, raw_ids)
-            ids = normalized_ids(raw_ids)
-            unless ids && ids.uniq.length == ids.length
-              playbook.errors.add(:variable_set_ids, "must contain unique integer IDs")
-              return
-            end
-
-            by_id = ::ControlCenter::Ansible::VariableSet.where(id: ids).index_by(&:id)
-            unless by_id.length == ids.length
-              playbook.errors.add(:variable_set_ids, "contains an unknown variable set")
-              return
-            end
-
-            ids.map { |id| by_id.fetch(id) }
-          end
-
           def normalized_ids(raw_ids)
             Array(raw_ids).map { |id| id.is_a?(Integer) ? id : Integer(id, 10) }
           rescue ArgumentError, TypeError
             nil
-          end
-
-          def replace_variable_sets(playbook, variable_sets)
-            playbook.playbook_variable_sets.destroy_all
-            variable_sets.each_with_index do |variable_set, position|
-              playbook.playbook_variable_sets.create!(variable_set: variable_set, position: position)
-            end
           end
 
           def serialize(playbook)

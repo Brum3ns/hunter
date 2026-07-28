@@ -13,3 +13,24 @@ web/vendor/bundle
 web/tmp
 web/log
 web/node_modules
+
+# Never send local credentials to BuildKit, even when no Dockerfile currently
+# copies their containing directory. Secrets now reach every service as
+# environment variables, so .env is the file that holds the operator's live
+# provider API keys and machine tokens; .env.example is the only member of that
+# family safe to ship. secrets/ no longer feeds any service but is still
+# excluded, because an operator upgrading in place may leave real keys there.
+.env
+.env.*
+!.env.example
+secrets/
+
+# config/master.key is gitignored, so CI clones never have it and the images CI
+# builds never contained it — but a build from a developer's working tree copied
+# it in via `COPY web/ ./` as root:root 0600. Rails 8.1 reads
+# Rails.application.credentials before falling back to generate_local_secret in
+# development, so the file merely existing made every service that boots Rails as
+# uid 1000 (web) die in Errno::EACCES on it.
+# Nothing in the app reads Rails credentials and production passes SECRET_KEY_BASE
+# through the environment, so the key never belongs in the context.
+web/config/master.key

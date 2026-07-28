@@ -57,3 +57,33 @@ begin
 rescue Mongo::Error => e
   warn "Skipped program seeds (mongo: #{e.message})"
 end
+
+# Assistant machine identity. hunter-mcp authenticates to the Rails machine API
+# with ASSISTANT_MCP_HUNTER_TOKEN; Postgres stores only its digest. Installing it
+# here — rather than from a bootstrap one-shot writing a shared volume — is what
+# makes `docker compose up` bring the Assistant up ready to go.
+raw_mcp_token = ENV["ASSISTANT_MCP_HUNTER_TOKEN"].to_s
+if raw_mcp_token.strip.empty?
+  puts "[assistant] ASSISTANT_MCP_HUNTER_TOKEN unset; hunter-mcp identity not installed."
+elsif raw_mcp_token.strip.length < Assistant::ServiceIdentity::MIN_TOKEN_LENGTH
+  # Fail loudly rather than installing a weak machine credential, matching how a
+  # weak RUNNER_TOKEN aborts the seed.
+  abort "[assistant] ASSISTANT_MCP_HUNTER_TOKEN must be at least " \
+        "#{Assistant::ServiceIdentity::MIN_TOKEN_LENGTH} characters; generate one with `openssl rand -base64 32`."
+else
+  identity = Assistant::ServiceIdentity.install_from_environment!(raw_mcp_token)
+  puts "[assistant] Installed hunter-mcp service identity ##{identity.id}."
+end
+
+# The Assistant chat runs through the Claude Code service (the legacy provider
+# gateway is disconnected). A conversation still binds to a provider profile ROW,
+# so seed exactly one synthetic "Claude Code" profile — it carries no API secret.
+# find_or_create_by keeps it idempotent and never re-enables one an administrator
+# disabled.
+claude_profile = Assistant::ProviderProfile.find_or_create_by!(catalog_slug: "claude_code") do |profile|
+  profile.name = "Claude Code"
+  profile.created_by = user
+  profile.enabled = true
+  profile.reviewed_at = Time.current
+end
+puts "[assistant] Claude Code provider profile ##{claude_profile.id} present."

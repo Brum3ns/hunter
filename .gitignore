@@ -29,6 +29,13 @@ config/master.key
 .env
 .env*.local
 
+# Assistant credentials are operator-provided. Keep only the checked-in
+# documentation and inert examples under secrets/.
+/secrets/*
+!/secrets/.keep
+!/secrets/README.md
+!/secrets/examples/
+
 ## Environment normalization:
 /.bundle
 /vendor/bundle
@@ -59,8 +66,9 @@ node_modules/
 __pycache__/
 *.py[cod]
 
-# Claude Code stores workstation-specific permissions here.
+# Claude Code stores workstation-specific permissions and worktrees here.
 .claude/settings.local.json
+.claude/worktrees/
 
 # Ignore precompiled javascript packs
 /public/packs

@@ -1,0 +1,80 @@
+{
+  "safe_whiterabbit_draft": {
+    "tool_calls": [
+      {
+        "name": "get_selected_context",
+        "arguments": {
+          "type": "target",
+          "id": "target-e2e"
+        }
+      }
+    ],
+    "events": [
+      {
+        "kind": "assistant_message",
+        "data": {
+          "body": "I prepared a bounded draft for review. Nothing has been saved or run."
+        }
+      },
+      {
+        "kind": "draft",
+        "data": {
+          "artifact_type": "whiterabbit_template",
+          "name": "E2E Assistant probe",
+          "content": "{\"name\":\"E2E Assistant probe\",\"kind\":\"cmdscript\",\"description\":\"Review before saving\",\"commands\":[{\"command\":\"httpx\",\"args\":[\"-silent\",\"-l\",\"__TARGET_FILE__\"],\"operator\":\"\"}]}",
+          "validation_details": {
+            "codes": [],
+            "messages": []
+          },
+          "validation_status": "valid",
+          "validation_version": "whiterabbit-v1"
+        }
+      },
+      {
+        "kind": "completed",
+        "data": {
+          "input_tokens": 64,
+          "output_tokens": 48,
+          "tool_call_count": 1
+        }
+      }
+    ]
+  },
+  "adversarial_envelopes": [
+    {
+      "name": "partial provider stream",
+      "payload": "{\"kind\":\"assistant_message\",\"body\":\"partial",
+      "expected": "invalid_provider_envelope"
+    },
+    {
+      "name": "unknown provider field",
+      "payload": "{\"kind\":\"assistant_message\",\"body\":\"hello\",\"artifact_type\":null,\"name\":null,\"content\":null,\"validation_call_id\":null,\"raw_token\":\"hidden\"}",
+      "expected": "invalid_provider_envelope"
+    },
+    {
+      "name": "terminal escape",
+      "payload": "{\"kind\":\"assistant_message\",\"body\":\"safe\\u001b[31mforged\",\"artifact_type\":null,\"name\":null,\"content\":null,\"validation_call_id\":null}",
+      "expected": "invalid_provider_envelope"
+    },
+    {
+      "name": "deceptive validation claim",
+      "payload": "{\"kind\":\"draft\",\"body\":null,\"artifact_type\":\"ansible_playbook\",\"name\":\"Claimed valid\",\"content\":\"---\\n- hosts: all\",\"validation_call_id\":\"invented-call\"}",
+      "expected": "invalid_provider_envelope"
+    },
+    {
+      "name": "provider fallback request",
+      "payload": "{\"kind\":\"fallback_to_anthropic\",\"body\":null,\"artifact_type\":null,\"name\":null,\"content\":null,\"validation_call_id\":null}",
+      "expected": "invalid_provider_envelope"
+    },
+    {
+      "name": "oversized provider output",
+      "generator": "oversized_body",
+      "expected": "invalid_provider_envelope"
+    },
+    {
+      "name": "malformed provider Unicode",
+      "generator": "malformed_utf8",
+      "expected": "invalid_provider_envelope"
+    }
+  ]
+}
