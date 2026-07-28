@@ -16,6 +16,7 @@ import (
 	artifacts "hunter.local/assistant/mcp/internal/modules/artifacts"
 	contextmod "hunter.local/assistant/mcp/internal/modules/context"
 	policies "hunter.local/assistant/mcp/internal/modules/policies"
+	targets "hunter.local/assistant/mcp/internal/modules/targets"
 	validation "hunter.local/assistant/mcp/internal/modules/validation"
 	"hunter.local/assistant/mcp/internal/redact"
 	"hunter.local/assistant/mcp/internal/runner"
@@ -52,6 +53,7 @@ func main() {
 		artifacts.Module{},
 		policies.Module{},
 		validation.Module{},
+		targets.Module{},
 	)
 	run := runner.New(transportClient, registry, redact.NewChecker(int(settings.MaxResponseBytes)))
 

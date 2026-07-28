@@ -8,6 +8,7 @@ import (
 	artifacts "hunter.local/assistant/mcp/internal/modules/artifacts"
 	contextmod "hunter.local/assistant/mcp/internal/modules/context"
 	policies "hunter.local/assistant/mcp/internal/modules/policies"
+	targets "hunter.local/assistant/mcp/internal/modules/targets"
 	validation "hunter.local/assistant/mcp/internal/modules/validation"
 )
 
@@ -32,7 +33,7 @@ func normalizeSchema(t *testing.T, raw json.RawMessage) string {
 // (semantically normalized) tool definitions to the pre-refactor catalog.
 func TestCatalogMatchesGolden(t *testing.T) {
 	reg := NewRegistry()
-	reg.Add(contextmod.Module{}, artifacts.Module{}, policies.Module{}, validation.Module{})
+	reg.Add(contextmod.Module{}, artifacts.Module{}, policies.Module{}, validation.Module{}, targets.Module{})
 
 	raw, err := os.ReadFile("testdata/catalog_golden.json")
 	if err != nil {
