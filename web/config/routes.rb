@@ -144,7 +144,9 @@ Rails.application.routes.draw do
             post :validate_yaml
           end
         end
-        resources :jobs, only: %i[index show create]
+        resources :jobs, only: %i[index show create] do
+          post :resolve_targets, on: :collection
+        end
         resource :health, only: :show, controller: "health"
         resource :stats, only: :show, controller: "stats"
       end
