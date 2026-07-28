@@ -44,6 +44,26 @@ class Targets::IndexTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "wires the target selection controller with row checkboxes and Send to job" do
+    sign_in_as(@user)
+    doc = {
+      "id" => "1",
+      "target" => { "host" => "grafana.example.com", "ip" => "1.2.3.4", "port" => "443" },
+      "http" => { "status_code" => 200, "title" => "Home" },
+      "tech" => ["PHP"]
+    }
+    stub_index(docs: [doc], count: 1) do
+      get targets_path, params: { q: "nginx" }
+      assert_response :success
+      assert_select "[data-controller~=targets-selection][data-targets-selection-source-value=targets][data-targets-selection-query-value=nginx]"
+      assert_select "input[data-targets-selection-target=checkbox][data-id=?]", "1"
+      assert_select "input[data-targets-selection-target=checkbox][data-action=?]", "targets-selection#toggleRow"
+      assert_select "button[data-action=?]", "targets-selection#selectAllMatching"
+      assert_select "button[data-action=?]", "targets-selection#sendToJob"
+      assert_select "[data-targets-selection-target=count]", text: "0"
+    end
+  end
+
   test "wires infinite scroll with a next-page URL when more pages exist" do
     sign_in_as(@user)
     doc = { "id" => "1", "target" => { "host" => "a.example.com" }, "http" => { "status_code" => 200 } }

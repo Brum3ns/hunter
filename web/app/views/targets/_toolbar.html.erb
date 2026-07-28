@@ -4,6 +4,18 @@
     Assets <span class="rounded bg-white/10 px-1.5 py-0.5 font-semibold text-white"><%= @total %></span>
   </span>
 
+  <button type="button" data-action="targets-selection#selectAllMatching"
+          class="rounded-lg bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10">
+    Select all matching filter
+  </button>
+  <span class="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-zinc-300">
+    Selected: <span data-targets-selection-target="count" class="rounded bg-white/10 px-1.5 py-0.5 font-semibold text-white">0</span>
+  </span>
+  <button type="button" data-action="targets-selection#sendToJob"
+          class="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200">
+    Send to job
+  </button>
+
   <div class="relative ml-auto">
     <details class="group">
       <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10">
