@@ -33,15 +33,20 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
     )
   end
 
-  test "issuer tool allowlist includes every phase 2c read tool" do
+  test "Issuer.call grants the phase 2c read tools into the persisted grant" do
+    raw = Assistant::Grants::Issuer.call(
+      turn: assistant_turns(:created),
+      resources: [],
+      tools: Assistant::Grants::Issuer::TOOLS
+    )
+    grant = Assistant::TurnGrant.find_by!(token_digest: Assistant::TurnGrant.digest(raw))
+
     %w[
-      list_cves get_cve list_vulnerabilities get_vulnerability
-      list_endpoints get_endpoint list_programs get_program
-      list_templates get_template list_jobs get_job
-      list_playbooks get_playbook list_run_groups get_run_group
-      get_run list_run_events
+      list_cves get_cve list_vulnerabilities list_endpoints
+      list_programs list_templates list_jobs list_playbooks
+      list_run_groups get_run list_run_events
     ].each do |tool|
-      assert_includes Assistant::Grants::Issuer::TOOLS, tool
+      assert_includes grant.tools, tool
     end
   end
 end

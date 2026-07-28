@@ -35,17 +35,30 @@ class Assistant::TurnGrantTest < ActiveSupport::TestCase
   end
 
   test "read_scopes_are_known accepts every phase 2c scope slug" do
+    clone = clone_of_issued_grant("phase-2c-secret")
+    clone.read_scopes =
+      %w[targets cves vulnerabilities sitemap programs control_center_templates control_center_jobs control_center_ansible]
+    assert clone.valid?, clone.errors.full_messages.join(", ")
+  end
+
+  test "read_scopes_are_known rejects a known slug mixed with an unknown one" do
+    clone = clone_of_issued_grant("phase-2c-bogus-secret")
+    clone.read_scopes = %w[cves bogus]
+    refute clone.valid?
+    assert(clone.errors[:read_scopes].any? { |message| message.include?("unknown") })
+  end
+
+  private
+
+  def clone_of_issued_grant(secret)
     issue!
     template = Assistant::TurnGrant.order(:id).last
     clone = Assistant::TurnGrant.new(
       template.attributes.except("id", "created_at", "updated_at", "token_digest")
     )
-    clone.token_digest = Assistant::TurnGrant.digest("phase-2c-secret")
-    clone.read_scopes = Assistant::TurnGrant::READ_SCOPES
-    assert clone.valid?, clone.errors.full_messages.join(", ")
+    clone.token_digest = Assistant::TurnGrant.digest(secret)
+    clone
   end
-
-  private
 
   def issue!
     Assistant::Grants::Issuer.call(
