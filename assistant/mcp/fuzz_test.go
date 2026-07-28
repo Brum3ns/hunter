@@ -3,7 +3,7 @@ package mcp_test
 import (
 	"testing"
 
-	"hunter.local/assistant/mcp/internal/tools"
+	"hunter.local/assistant/mcp/internal/resource"
 )
 
 func FuzzToolInput(f *testing.F) {
@@ -13,6 +13,6 @@ func FuzzToolInput(f *testing.F) {
 		if len(input) > 1<<20 {
 			t.Skip()
 		}
-		_, _ = tools.DecodeExactResource(input)
+		_, _ = resource.Decode(input)
 	})
 }

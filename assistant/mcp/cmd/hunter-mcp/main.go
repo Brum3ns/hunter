@@ -13,9 +13,13 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"hunter.local/assistant/mcp/internal/auth"
 	"hunter.local/assistant/mcp/internal/config"
-	"hunter.local/assistant/mcp/internal/hunter"
+	artifacts "hunter.local/assistant/mcp/internal/modules/artifacts"
+	contextmod "hunter.local/assistant/mcp/internal/modules/context"
+	policies "hunter.local/assistant/mcp/internal/modules/policies"
+	validation "hunter.local/assistant/mcp/internal/modules/validation"
 	"hunter.local/assistant/mcp/internal/redact"
-	"hunter.local/assistant/mcp/internal/tools"
+	"hunter.local/assistant/mcp/internal/runner"
+	"hunter.local/assistant/mcp/internal/transport"
 )
 
 const healthURL = "http://127.0.0.1:8080/healthz"
@@ -32,7 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatal("hunter-mcp configuration rejected")
 	}
-	hunterClient, err := hunter.NewHTTPClient(
+	transportClient, err := transport.NewClient(
 		settings.HunterBaseURL,
 		settings.HunterServiceToken,
 		settings.RequestTimeout,
@@ -42,11 +46,20 @@ func main() {
 		log.Fatal("hunter-mcp client configuration rejected")
 	}
 
+	registry := runner.NewRegistry()
+	registry.Add(
+		contextmod.Module{},
+		artifacts.Module{},
+		policies.Module{},
+		validation.Module{},
+	)
+	run := runner.New(transportClient, registry, redact.NewChecker(int(settings.MaxResponseBytes)))
+
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: "hunter-mcp", Title: "Hunter Assistant MCP Broker", Version: "1.0.0"},
 		&mcp.ServerOptions{Capabilities: &mcp.ServerCapabilities{}},
 	)
-	tools.Register(server, tools.NewHandler(hunterClient, redact.NewChecker(int(settings.MaxResponseBytes))))
+	runner.Register(server, run)
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{

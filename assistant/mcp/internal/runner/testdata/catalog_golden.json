@@ -1,0 +1,275 @@
+[
+  {
+    "name": "get_artifact_example",
+    "description": "Return one explicitly granted sanitized artifact example.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "program",
+            "target",
+            "cve",
+            "vulnerability",
+            "whiterabbit_template",
+            "ansible_playbook"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "get_authoring_policy",
+    "description": "Return the non-secret authoring policy for one artifact type.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_type": {
+          "enum": [
+            "whiterabbit_template",
+            "ansible_playbook"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_type"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "get_selected_context",
+    "description": "Return one explicitly granted sanitized Hunter context record.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "program",
+            "target",
+            "cve",
+            "vulnerability",
+            "whiterabbit_template",
+            "ansible_playbook"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "get_validation_result",
+    "description": "Return a validation result bound to this turn.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "validate_ansible_draft",
+    "description": "Validate an Ansible draft without saving or executing it.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "source": {
+              "maxLength": 65536,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "source"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "draft"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "validate_whiterabbit_draft",
+    "description": "Validate a Whiterabbit draft without saving or sending it.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "additionalProperties": false,
+          "properties": {
+            "commands": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "args": {
+                    "items": {
+                      "maxLength": 4096,
+                      "type": "string"
+                    },
+                    "maxItems": 200,
+                    "type": "array"
+                  },
+                  "command": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "operator": {
+                    "maxLength": 4,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "command",
+                  "args"
+                ],
+                "type": "object"
+              },
+              "maxItems": 50,
+              "type": "array"
+            },
+            "description": {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            "kind": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "commands"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "draft"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  }
+]
