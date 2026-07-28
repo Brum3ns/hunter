@@ -65,10 +65,11 @@ module Api
             Current.assistant_turn_grant
           end
 
-          def authorize_tool!(tool, resource_type: nil, resource_id: nil)
+          def authorize_tool!(tool, scope: nil, resource_type: nil, resource_id: nil)
             ::Assistant::Grants::Authorizer.reserve!(
               raw_grant: raw_turn_grant,
               tool: tool,
+              scope: scope,
               resource_type: resource_type,
               resource_id: resource_id
             )
@@ -91,6 +92,7 @@ module Api
               correlation_id: grant.turn.correlation_id,
               tools: grant.tools,
               resources: grant.resources,
+              read_scopes: grant.read_scopes,
               expires_at: grant.expires_at.iso8601,
               calls_remaining: [ grant.max_calls - grant.call_count, 0 ].max,
               bytes_remaining: remaining_bytes(grant)

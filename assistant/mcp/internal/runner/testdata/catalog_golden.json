@@ -118,6 +118,37 @@
     }
   },
   {
+    "name": "get_target",
+    "description": "Return the full record for one target by id.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "get_validation_result",
     "description": "Return a validation result bound to this turn.",
     "input_schema": {
@@ -133,6 +164,50 @@
       "required": [
         "id"
       ],
+      "type": "object"
+    },
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "list_targets",
+    "description": "List and count alive targets, optionally filtered by query, program, or status.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "program": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 40,
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "output_schema": {

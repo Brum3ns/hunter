@@ -136,6 +136,23 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
     assert_equal 1, grant.call_count
   end
 
+  test "a scoped read tool is refused unless its scope is granted" do
+    raw = issue_read_grant
+    grant = Assistant::TurnGrant.order(:id).last
+    grant.update_column(:read_scopes, [])
+
+    assert_authorization_error("scope_not_allowed") do
+      Assistant::Grants::Authorizer.reserve!(raw_grant: raw, tool: "list_targets", scope: "targets")
+    end
+  end
+
+  test "a scoped read tool is allowed when its scope is granted" do
+    raw = issue_read_grant
+
+    assert Assistant::Grants::Authorizer.reserve!(raw_grant: raw, tool: "list_targets", scope: "targets")
+    assert_equal 1, Assistant::TurnGrant.order(:id).last.reload.call_count
+  end
+
   private
 
   def issue_grant
@@ -143,6 +160,14 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
       turn: assistant_turns(:created),
       resources: [ { type: "target", id: "abc" } ],
       tools: [ "get_selected_context" ]
+    )
+  end
+
+  def issue_read_grant
+    Assistant::Grants::Issuer.call(
+      turn: assistant_turns(:created),
+      resources: [],
+      tools: [ "list_targets" ]
     )
   end
 
