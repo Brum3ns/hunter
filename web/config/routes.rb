@@ -104,6 +104,8 @@ Rails.application.routes.draw do
           # Read-only module tools (Phase 2). Scope-gated in the controller.
           get "targets", to: "targets#index"
           get "targets/:id", to: "targets#show"
+          get "cves", to: "cves#index"
+          get "cves/:id", to: "cves#show"
         end
       end
 
