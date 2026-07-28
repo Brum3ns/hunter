@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_23_030001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_28_000808) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -236,15 +236,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_030001) do
     t.datetime "created_at", null: false
     t.string "created_by"
     t.integer "exit_status"
+    t.string "idempotency_key"
+    t.integer "job_delay_ms", default: 0, null: false
+    t.jsonb "manual_targets", default: [], null: false
     t.string "queue_name", default: "test", null: false
+    t.jsonb "selections", default: [], null: false
     t.string "status", default: "pending", null: false
     t.text "stderr"
     t.text "stdout"
+    t.integer "target_chunk", default: 0, null: false
     t.integer "target_count", default: 0, null: false
     t.string "template_name", null: false
     t.jsonb "template_snapshot", default: {}, null: false
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_control_center_jobs_on_created_at"
+    t.index ["created_by", "idempotency_key"], name: "idx_cc_jobs_idempotency", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["status"], name: "index_control_center_jobs_on_status"
     t.index ["template_name"], name: "index_control_center_jobs_on_template_name"
   end
