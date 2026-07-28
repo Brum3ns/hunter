@@ -39,7 +39,10 @@
   </div>
 
   <div class="mt-3 flex min-h-0 w-full flex-1">
-    <div class="flex w-full max-w-md shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
+    <div class="flex w-full max-w-md shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800"
+         data-controller="targets-selection"
+         data-targets-selection-source-value="sitemap"
+         data-targets-selection-query-value="<%= @q %>">
       <%= form_with url: targets_sitemap_path, method: :get,
             data: { sitemap_search: true },
             class: "flex items-center gap-2 border-b border-zinc-200 p-2 dark:border-zinc-800" do %>
@@ -89,6 +92,27 @@
       <% end %>
 
       <%= render "sitemap/origins/filters" %>
+
+      <div class="flex flex-wrap items-center gap-2 border-b border-zinc-200 px-2 py-2 text-xs dark:border-zinc-800">
+        <% if @facets_active %>
+          <button type="button" disabled title="Clear facet filters to select all, or tick rows"
+                  class="cursor-not-allowed rounded-md bg-zinc-100 px-2.5 py-1 text-zinc-400 dark:bg-white/5 dark:text-zinc-600">
+            Select all matching filter
+          </button>
+        <% else %>
+          <button type="button" data-action="targets-selection#selectAllMatching"
+                  class="rounded-md bg-zinc-100 px-2.5 py-1 text-zinc-700 hover:bg-zinc-200 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10">
+            Select all matching filter
+          </button>
+        <% end %>
+        <span class="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2.5 py-1 text-zinc-600 dark:bg-white/5 dark:text-zinc-300">
+          Selected: <span data-targets-selection-target="count" class="rounded bg-zinc-200 px-1.5 py-0.5 font-semibold text-zinc-900 dark:bg-white/10 dark:text-white">0</span>
+        </span>
+        <button type="button" data-action="targets-selection#sendToJob"
+                class="rounded-md bg-zinc-900 px-2.5 py-1 font-semibold text-white hover:bg-zinc-700 dark:bg-white dark:text-black dark:hover:bg-zinc-200">
+          Send to job
+        </button>
+      </div>
 
       <div data-controller="sitemap-tree" class="min-h-0 flex-1 overflow-y-auto slim-scroll py-1 text-sm">
         <ul>

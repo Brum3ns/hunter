@@ -9,6 +9,7 @@ Rails.application.routes.draw do
   get "settings", to: "settings#show"
   namespace :settings do
     resources :runners, only: %i[create destroy]
+    resources :ansible_credentials, only: %i[create update destroy]
     resource :schedule, only: :update
     resource :monitor_config, only: :update
   end
@@ -42,6 +43,13 @@ Rails.application.routes.draw do
     get "/",     to: "templates#index", as: :root
     get "/jobs", to: "jobs#index",      as: :jobs
     get "/statistics", to: "statistics#index", as: :statistics
+    namespace :ansible do
+      get "/", to: "playbooks#index", as: :root
+      resources :playbooks, only: :index
+      resources :inventories, only: :index
+      resources :variable_sets, only: :index
+      resources :runs, only: %i[index show]
+    end
   end
   # Target web department — configurable assets plus their related Sitemap.
   # Sitemap routes must precede /targets/:id so "sitemap" is not treated as an
@@ -86,6 +94,11 @@ Rails.application.routes.draw do
       # Target module: read-only list + detail over the alive collection.
       resources :targets, only: %i[index show]
 
+      # Sitemap module: read-only endpoint list for job target selection.
+      namespace :sitemap do
+        resources :endpoints, only: %i[index]
+      end
+
       # CVE tracking module: browse list, single CVE, and an LLM-facing
       # "new since" feed. `cves/new` precedes the :show route so it isn't
       # swallowed as an id.
@@ -95,13 +108,45 @@ Rails.application.routes.draw do
 
       # Control Center module: Whiterabbit template CRUD + job submission.
       namespace :control_center do
+        namespace :ansible do
+          resources :credentials, only: %i[index show create update destroy]
+          resources :playbooks, only: %i[index show create update destroy] do
+            collection do
+              post :validate
+              post :export
+            end
+          end
+          resources :inventories, only: %i[index show create update destroy] do
+            post :validate, on: :collection
+            member do
+              post :syntax_check
+              post :host_key_scan
+              post :confirm_host_keys
+              post :connectivity_test
+              get "executor_tasks/:task_id", action: :executor_task, as: :executor_task
+            end
+          end
+          resources :variable_sets, only: %i[index show create update destroy] do
+            resources :variables, only: %i[create update destroy]
+          end
+          resources :run_groups, only: %i[index show create] do
+            post :cancel, on: :member
+          end
+          resources :runs, only: :show do
+            post :cancel, on: :member
+            resources :events, only: :index, controller: "run_events"
+          end
+          resource :executor_health, only: :show, controller: "executor_health"
+        end
         resources :templates, only: %i[index show create update destroy] do
           collection do
             post :validate
             post :validate_yaml
           end
         end
-        resources :jobs, only: %i[index show create]
+        resources :jobs, only: %i[index show create] do
+          post :resolve_targets, on: :collection
+        end
         resource :health, only: :show, controller: "health"
         resource :stats, only: :show, controller: "stats"
       end
@@ -109,6 +154,18 @@ Rails.application.routes.draw do
       namespace :runner do
         post "jobs/claim",      to: "jobs#claim"
         post "jobs/:id/result", to: "jobs#result"
+      end
+
+      namespace :ansible_executor do
+        post "tasks/claim", to: "tasks#claim"
+        post "tasks/:id/heartbeat", to: "tasks#heartbeat"
+        post "tasks/:id/result", to: "tasks#result"
+        post "runs/claim", to: "runs#claim"
+        post "runs/:id/start", to: "runs#start"
+        post "runs/:id/heartbeat", to: "runs#heartbeat"
+        get "runs/:id/control", to: "runs#control"
+        post "runs/:id/events", to: "run_events#create"
+        post "runs/:id/result", to: "runs#result"
       end
     end
   end

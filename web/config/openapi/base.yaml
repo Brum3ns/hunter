@@ -10,7 +10,11 @@ info:
     Every endpoint requires authentication by **either**:
     - a signed **session cookie** (browser; CSRF-protected), or
     - an `Authorization: Bearer <token>` header (external clients; CSRF is
-      skipped because there is no cookie and thus no forgery risk).
+    skipped because there is no cookie and thus no forgery risk).
+
+    Endpoints tagged **Ansible Executor Protocol** are machine-only. They use a
+    digest-backed Runner bearer token with the `ansible` capability and do not
+    accept a browser session or ordinary API token.
 
     Mint bearer tokens with `bin/rails api_tokens:create USERNAME=<u>
     NAME=<label> SCOPES=cves,programs`.
@@ -51,6 +55,10 @@ components:
       type: http
       scheme: bearer
       description: "An API token minted via bin/rails api_tokens:create."
+    runnerBearerAuth:
+      type: http
+      scheme: bearer
+      description: "A one-time Runner token whose identity has the ansible capability."
   schemas:
     Error:
       type: object

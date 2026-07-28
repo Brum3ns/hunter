@@ -4,7 +4,9 @@ module ControlCenter
   class Job < ApplicationRecord
     self.table_name = "control_center_jobs"
 
-    STATUSES = %w[pending succeeded failed].freeze
+    # queued -> running -> succeeded|failed. `pending` retained so historical
+    # rows still validate; new submissions start `queued`.
+    STATUSES = %w[queued running succeeded failed pending].freeze
 
     validates :template_name, presence: true
     validates :status, inclusion: { in: STATUSES }

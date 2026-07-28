@@ -56,6 +56,32 @@ module Targets
       0
     end
 
+    # Stream the host string of every asset matching a selection. Yields each
+    # target.host; returns an Enumerator when called without a block. A Mongo
+    # outage logs and returns false (callers must not treat false as "empty").
+    def each_host(q: nil, ids: nil, exclude_ids: nil, &block)
+      return enum_for(:each_host, q: q, ids: ids, exclude_ids: exclude_ids) unless block
+      HunterMongo.ensure_indexes_once!(COLLECTION, INDEXES)
+      collection.find(selection_filter(q, ids, exclude_ids))
+                .projection("target.host" => 1)
+                .each do |doc|
+        host = doc.to_h.dig("target", "host") || doc.dig("target", "host")
+        block.call(host) if host.to_s.strip.present?
+      end
+      true
+    rescue Mongo::Error => e
+      Rails.logger.warn("Targets::MongoSource#each_host failed (#{e.class}: #{e.message})")
+      false
+    end
+
+    # Count assets matching a selection (one per row, pre-dedup). 0 on outage.
+    def count_hosts(q: nil, ids: nil, exclude_ids: nil)
+      collection.count_documents(selection_filter(q, ids, exclude_ids))
+    rescue Mongo::Error => e
+      Rails.logger.warn("Targets::MongoSource#count_hosts failed (#{e.class}: #{e.message})")
+      0
+    end
+
     def find(id)
       oid = to_object_id(id)
       return nil unless oid
@@ -104,6 +130,28 @@ module Targets
       end
     end
     private_class_method :build_filter
+
+    # A selection is a dork/free-text query plus optional include/exclude ids.
+    # Reuses build_filter for the query part and $in/$nin for the id parts,
+    # combining under $and (or collapsing to the single clause).
+    def selection_filter(q, ids, exclude_ids)
+      parsed = SearchParser.call(q)
+      query  = build_filter({}, parsed.free_text.presence, parsed.expression)
+
+      clauses = []
+      clauses << query unless query.empty?
+      oids = Array(ids).filter_map { |i| to_object_id(i) }
+      clauses << { "_id" => { "$in" => oids } } if oids.any?
+      exs = Array(exclude_ids).filter_map { |i| to_object_id(i) }
+      clauses << { "_id" => { "$nin" => exs } } if exs.any?
+
+      case clauses.length
+      when 0 then {}
+      when 1 then clauses.first
+      else { "$and" => clauses }
+      end
+    end
+    private_class_method :selection_filter
 
     def to_object_id(id)
       BSON::ObjectId.from_string(id.to_s)

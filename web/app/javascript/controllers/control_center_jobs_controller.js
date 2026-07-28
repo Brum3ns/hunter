@@ -45,6 +45,8 @@ export default class extends Controller {
       succeeded: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
       failed: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
       pending: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+      running: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+      queued: "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300",
     }[status] || "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
     badge.className = `rounded px-1.5 py-0.5 text-xs font-medium ${tone}`
     badge.textContent = status || "unknown"

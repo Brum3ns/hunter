@@ -6,6 +6,10 @@ import { Controller } from "@hotwired/stimulus"
 // `order`/`display` of every cell. Column metadata (default width/visibility)
 // is read from the server-rendered header cells.
 const STORAGE_KEY = "targets.columns"
+// The row-select checkbox occupies a fixed leading grid track outside the
+// user-managed column set; matches the cell's `w-10` (2.5rem = 40px) box.
+const SELECT_COL = "__select"
+const SELECT_WIDTH = 40
 
 export default class extends Controller {
   static targets = ["header", "body", "head", "row"]
@@ -73,19 +77,27 @@ export default class extends Controller {
     // Fixed px tracks, except the last visible column which flexes to absorb
     // slack so the table fills wide screens; a min-width equal to the fixed sum
     // makes the shared scroll container scroll when columns exceed the width.
-    const total = visible.reduce((sum, c) => sum + this.widths[c], 0)
-    const template = visible
+    // A fixed leading track (SELECT_WIDTH) is always reserved for the row-select
+    // checkbox cell (data-col="__select"); it is never user-hidden, reordered,
+    // resized, or persisted, so it stays first and keeps track-count == cell-count.
+    const total = visible.reduce((sum, c) => sum + this.widths[c], 0) + SELECT_WIDTH
+    const columns = visible
       .map((c, i) =>
         i === visible.length - 1 ? `minmax(${this.widths[c]}px, 1fr)` : `${this.widths[c]}px`
       )
       .join(" ")
+    const template = `${SELECT_WIDTH}px ${columns}`
 
     ;[this.headerTarget, ...this.rowTargets].forEach((rowEl) => {
       rowEl.style.gridTemplateColumns = template
       rowEl.style.minWidth = `${total}px`
       rowEl.querySelectorAll("[data-col]").forEach((cell) => {
         const col = cell.dataset.col
-        if (this.hidden.has(col)) {
+        if (col === SELECT_COL) {
+          // Always visible, always first (order -1 sorts ahead of every column).
+          cell.style.display = ""
+          cell.style.order = "-1"
+        } else if (this.hidden.has(col)) {
           cell.style.display = "none"
         } else {
           cell.style.display = ""

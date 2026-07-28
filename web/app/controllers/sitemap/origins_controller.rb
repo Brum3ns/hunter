@@ -11,6 +11,9 @@ module Sitemap
       @scheme  = params[:scheme].presence
       raw_min  = params[:min_count]
       @min_count = raw_min.present? ? [ raw_min.to_i, 0 ].max : 1
+      @facets_active = params[:path].present? || params[:has_query].present? ||
+                       params[:content_type].present? || Array(params[:methods]).any? ||
+                       Array(params[:status]).any? || @program.present? || @scheme.present?
 
       targets = Sitemap::Target.active.order(:host, :port)
       targets = targets.where(program: @program) if @program

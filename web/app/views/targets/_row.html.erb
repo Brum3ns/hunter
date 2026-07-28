@@ -5,6 +5,15 @@
      data-rowlink-frame-value="target_panel"
      data-action="click->rowlink#open"
      class="grid cursor-pointer items-center border-b border-white/5 text-sm text-zinc-200 hover:bg-white/5 lg:text-[15px]">
+  <%# Full-cell <label> so a click anywhere in the select cell (incl. the padding
+      around the box) hits rowlink's `closest("label")` guard and does not open
+      the detail panel. data-col="__select" ties it to the columns controller's
+      fixed leading track. %>
+  <label class="flex w-10 shrink-0 cursor-pointer items-center justify-center px-3 py-2.5 lg:px-4 lg:py-3.5" data-col="__select">
+    <input type="checkbox" data-targets-selection-target="checkbox"
+           data-action="targets-selection#toggleRow" data-id="<%= target.id %>"
+           class="h-4 w-4 rounded border-white/20 bg-white/5 accent-white" />
+  </label>
   <% TargetsHelper::COLUMNS.each do |col| %>
     <div class="min-w-0 truncate px-3 py-2.5 lg:px-4 lg:py-3.5" data-col="<%= col[:key] %>"
          style="<%= "display:none" unless col[:default] %>">

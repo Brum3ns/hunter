@@ -1,0 +1,60 @@
+<section class="mt-6 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#111315]"
+         data-controller="ansible-inventory-tools"
+         data-action="ansible-authoring:resource-opened@window->ansible-inventory-tools#resourceOpened ansible-authoring:resource-cleared@window->ansible-inventory-tools#resourceCleared"
+         data-ansible-inventory-tools-index-url-value="<%= api_v1_control_center_ansible_inventories_path %>"
+         data-ansible-inventory-tools-playbooks-url-value="<%= api_v1_control_center_ansible_playbooks_path %>">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h2 class="text-base font-semibold">Isolated inventory checks</h2>
+      <p class="mt-1 text-sm text-zinc-500">Save and select an inventory first. SSH, DNS, syntax checks, and scans run only in the isolated executor.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" disabled data-ansible-inventory-tools-target="scanButton"
+              data-action="ansible-inventory-tools#scan"
+              class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium disabled:opacity-50 dark:border-zinc-700">Scan host keys</button>
+      <button type="button" disabled data-ansible-inventory-tools-target="connectButton"
+              data-action="ansible-inventory-tools#connectivity"
+              class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium disabled:opacity-50 dark:border-zinc-700">Test connectivity</button>
+    </div>
+  </div>
+
+  <div class="mt-4 flex flex-wrap items-end gap-2">
+    <label class="min-w-56 flex-1 text-sm font-medium">Playbook for authoritative syntax check
+      <select data-ansible-inventory-tools-target="playbook"
+              data-action="change->ansible-inventory-tools#playbookChanged"
+              class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-normal dark:border-zinc-700 dark:bg-zinc-900">
+        <option value="">Select a playbook</option>
+      </select>
+    </label>
+    <button type="button" disabled data-ansible-inventory-tools-target="syntaxButton"
+            data-action="ansible-inventory-tools#syntax"
+            class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium disabled:opacity-50 dark:border-zinc-700">Run syntax check</button>
+  </div>
+
+  <div data-ansible-inventory-tools-target="status" aria-live="polite" class="mt-3 min-h-6 text-sm text-zinc-500"></div>
+
+  <div class="mt-5 grid gap-5 lg:grid-cols-2">
+    <div>
+      <h3 class="text-sm font-semibold">Stored approved fingerprints</h3>
+      <div data-ansible-inventory-tools-target="storedFingerprints" class="mt-2 space-y-2 text-sm text-zinc-500">Select an inventory to inspect approvals.</div>
+    </div>
+    <div>
+      <h3 class="text-sm font-semibold">Untrusted scan candidates</h3>
+      <p class="mt-1 text-xs text-amber-700 dark:text-amber-300">Candidates are untrusted until every fingerprint is verified out of band and entered below.</p>
+      <div data-ansible-inventory-tools-target="candidates" class="mt-2 space-y-2 text-sm text-zinc-500">No untrusted candidates.</div>
+      <template data-ansible-inventory-tools-target="candidateTemplate">
+        <div data-candidate-row class="rounded-md border border-amber-300 p-3 dark:border-amber-900">
+          <p data-field="candidate-label" class="font-medium"></p>
+          <p data-field="scanned-fingerprint" class="mt-1 break-all font-mono text-xs text-zinc-500"></p>
+          <label class="mt-2 block text-xs font-medium">Expected fingerprint from a trusted channel
+            <input data-field="expected-fingerprint" autocomplete="off" placeholder="SHA256:..."
+                   class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900">
+          </label>
+        </div>
+      </template>
+      <button type="button" hidden data-ansible-inventory-tools-target="confirmButton"
+              data-action="ansible-inventory-tools#confirm"
+              class="mt-3 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900">Confirm verified host keys</button>
+    </div>
+  </div>
+</section>

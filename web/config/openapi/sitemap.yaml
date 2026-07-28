@@ -1,0 +1,37 @@
+paths:
+  /api/v1/sitemap/endpoints:
+    get:
+      tags: ["Sitemap"]
+      x-api-scope: sitemap
+      summary: "List crawled endpoints"
+      description: "Browse the sitemap endpoint inventory (katana ∪ wayback). `q` accepts the same free text + dork expressions as the sitemap page. Used to select job targets."
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: "Free-text and/or dork expression (path/status/method/…)." }
+        - { name: path, in: query, schema: { type: string } }
+        - { name: content_type, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: "Paginated endpoint list."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PageEnvelope"
+                  - type: object
+                    properties:
+                      endpoints: { type: array, items: { $ref: "#/components/schemas/SitemapEndpoint" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
+components:
+  schemas:
+    SitemapEndpoint:
+      type: object
+      properties:
+        id: { type: integer }
+        url: { type: string }
+        path: { type: string }
+        method: { type: string }
+        status_code: { type: integer, nullable: true }
+      required: [id, url]
