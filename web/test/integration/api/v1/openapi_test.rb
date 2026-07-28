@@ -151,4 +151,11 @@ class Api::V1::OpenapiTest < ActionDispatch::IntegrationTest
       assert operations.values.all? { |operation| operation["x-api-scope"] == "control_center" }, path
     end
   end
+
+  test "control_center doc documents resolve_targets and the selection descriptor schema" do
+    doc = ApiDocs::Spec.document(scopes: %w[control_center])
+    assert doc.dig("paths", "/api/v1/control_center/jobs/resolve_targets", "post")
+    schema = doc.dig("components", "schemas", "CcTargetSelection")
+    assert_equal %w[targets sitemap], schema.dig("properties", "source", "enum")
+  end
 end
