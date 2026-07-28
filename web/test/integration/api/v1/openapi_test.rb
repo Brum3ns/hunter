@@ -59,6 +59,13 @@ class Api::V1::OpenapiTest < ActionDispatch::IntegrationTest
     assert_nil output["become_password"]
   end
 
+  test "a sitemap-scoped document exposes the endpoints list and hides other modules" do
+    doc = ApiDocs::Spec.document(scopes: %w[sitemap])
+    assert doc.dig("paths", "/api/v1/sitemap/endpoints", "get"),
+           "sitemap endpoints path should be present for a sitemap-scoped token"
+    refute doc.dig("paths", "/api/v1/cves"), "cves path should be filtered out"
+  end
+
   test "control-center bearer receives the Ansible credential contract" do
     _record, raw = ApiToken.generate(user: @user, name: "control-center", scopes: [ "control_center" ])
 

@@ -47,14 +47,17 @@ class ApiDocs::CoverageTest < ActiveSupport::TestCase
   end
 
   test "x-api-scope is present exactly where the controller declares one and matches it" do
-    scoped = { "/api/v1/cves" => "cves", "/api/v1/vulnerabilities" => "vulnerabilities" }
+    scoped = {
+      "/api/v1/cves" => "cves",
+      "/api/v1/vulnerabilities" => "vulnerabilities",
+      "/api/v1/targets" => "targets",
+    }
     doc = ApiDocs::Spec.document(scopes: nil)
     scoped.each do |path, expected|
       op = doc.dig("paths", path, "get")
       assert_equal expected, op["x-api-scope"], "#{path} GET should declare x-api-scope #{expected}"
     end
     # A no-scope controller's operation must omit x-api-scope.
-    assert_nil doc.dig("paths", "/api/v1/targets", "get", "x-api-scope")
     assert_nil doc.dig("paths", "/api/v1/programs/changes", "get", "x-api-scope")
   end
 end

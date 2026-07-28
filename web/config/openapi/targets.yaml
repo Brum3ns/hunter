@@ -2,6 +2,7 @@ paths:
   /api/v1/targets:
     get:
       tags: ["Targets"]
+      x-api-scope: targets
       summary: "List targets"
       description: "Browse the alive-host inventory. `q` accepts free text plus dork expressions; `sort`/`dir` order the results."
       parameters:
@@ -24,9 +25,11 @@ paths:
                     properties:
                       targets: { type: array, items: { $ref: "#/components/schemas/Target" } }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
   /api/v1/targets/{id}:
     get:
       tags: ["Targets"]
+      x-api-scope: targets
       summary: "Get one target"
       description: "Fetch a target by ObjectId. An invalid ObjectId yields 404."
       parameters:
@@ -34,6 +37,7 @@ paths:
       responses:
         "200": { description: "The target.", content: { application/json: { schema: { $ref: "#/components/schemas/Target" } } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/InsufficientScope" }
         "404": { $ref: "#/components/responses/NotFound" }
 components:
   schemas:
