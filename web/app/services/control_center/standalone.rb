@@ -3,28 +3,21 @@ require "fileutils"
 
 module ControlCenter
   # Orchestrates one standalone job send: render the template into an ephemeral
-  # cmdscript folder, write targets to a temp file, invoke the binary, and clean
-  # up (Dir.mktmpdir removes the tree on block exit). Connection secrets come
-  # from the inherited env, so no host/user/pass/token appears in argv.
+  # cmdscript folder, invoke the binary with the caller-provided target file path,
+  # and clean up (Dir.mktmpdir removes the tree on block exit). Connection secrets
+  # come from the inherited env, so no host/user/pass/token appears in argv.
   module Standalone
     module_function
 
     TIMEOUT = Integer(ENV.fetch("CONTROL_CENTER_JOB_TIMEOUT", "60"))
     MAX_OUTPUT = 262_144
 
-    def submit(template:, targets:, queue_name:, target_chunk: 0, delay: 0)
+    def submit(template:, target_file:, queue_name:, target_chunk: 0, delay: 0)
       Dir.mktmpdir("hunter-cc-") do |dir|
         cmd_dir = File.join(dir, "cmdscript")
         FileUtils.mkdir_p(cmd_dir, mode: 0o700)
         File.write(File.join(cmd_dir, "#{template.name}.yaml"), TemplateRenderer.to_yaml(template))
 
-        target_file = File.join(dir, "targets.txt")
-        File.write(target_file, Array(targets).join("\n"))
-
-        # Whiterabbit only chunks when -target-chunk > 0, and its chunk path aborts
-        # unless -folder-nfs points at an existing directory. Provide one inside the
-        # ephemeral tree so chunked sends work; targets travel inside the message for
-        # target-block templates, so a per-job dir is sufficient here.
         nfs_dir = File.join(dir, "nfs")
         FileUtils.mkdir_p(nfs_dir, mode: 0o700)
 
