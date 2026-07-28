@@ -1,13 +1,37 @@
-package tools
+package runner
 
 import (
 	"encoding/json"
 	"os"
 	"strings"
 	"testing"
+
+	artifacts "hunter.local/assistant/mcp/internal/modules/artifacts"
+	contextmod "hunter.local/assistant/mcp/internal/modules/context"
+	policies "hunter.local/assistant/mcp/internal/modules/policies"
+	validation "hunter.local/assistant/mcp/internal/modules/validation"
 )
 
+// decodeOutcome mirrors the runner's pre-dispatch input handling: an unknown
+// tool maps to unknown_tool, a decode failure to invalid_tool_input.
+func decodeOutcome(reg *Registry, name string, args []byte) string {
+	t, ok := reg.Lookup(name)
+	if !ok {
+		return PublicError(ErrUnknownTool)
+	}
+	if _, err := t.Decode(args); err != nil {
+		return PublicError(ErrInvalidInput)
+	}
+	return ""
+}
+
+// TestAdversarialToolInputFixtures keeps the guarantee that dangerous tool names
+// (shell, list_all_targets, execute_playbook, …) resolve to unknown_tool and that
+// hostile inputs to real tools are rejected as invalid_tool_input.
 func TestAdversarialToolInputFixtures(t *testing.T) {
+	reg := NewRegistry()
+	reg.Add(contextmod.Module{}, artifacts.Module{}, policies.Module{}, validation.Module{})
+
 	fixture, err := os.ReadFile("../../../testdata/adversarial/tool_inputs.json")
 	if err != nil {
 		t.Fatal(err)
@@ -41,9 +65,8 @@ func TestAdversarialToolInputFixtures(t *testing.T) {
 				arguments = append(arguments, []byte(`"}}`)...)
 			}
 
-			_, _, inputErr := decodeInput(testCase.Tool, arguments)
-			if actual := publicError(inputErr); actual != testCase.Expected {
-				t.Fatalf("expected %q, got %q (%v)", testCase.Expected, actual, inputErr)
+			if actual := decodeOutcome(reg, testCase.Tool, arguments); actual != testCase.Expected {
+				t.Fatalf("expected %q, got %q", testCase.Expected, actual)
 			}
 		})
 	}
