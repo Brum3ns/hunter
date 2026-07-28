@@ -230,16 +230,30 @@ func OutputSchema() map[string]any {
 		"additionalProperties": false,
 		"required":             []string{"kind", "body", "artifact_type", "name", "content", "validation_call_id"},
 		"properties": map[string]any{
-			"kind": map[string]any{"type": "string", "enum": []string{"assistant_message", "draft"}},
-			"body": nullableSchema(map[string]any{"type": "string", "minLength": 1, "maxLength": 65536}),
-			"artifact_type": nullableSchema(map[string]any{
-				"type": "string", "enum": []string{"whiterabbit_template", "ansible_playbook"},
-			}),
-			"name":               nullableSchema(map[string]any{"type": "string", "minLength": 1, "maxLength": 200}),
-			"content":            nullableSchema(map[string]any{"type": "string", "minLength": 1, "maxLength": 262144}),
-			"validation_call_id": nullableSchema(map[string]any{"type": "string", "minLength": 1, "maxLength": 255}),
+			"kind": described(`"assistant_message" for a normal chat reply; "draft" only when returning a drafted Whiterabbit template or Ansible playbook.`,
+				map[string]any{"type": "string", "enum": []string{"assistant_message", "draft"}}),
+			"body": described(`Your chat reply text. When kind is "assistant_message" this MUST be a non-empty string holding your entire reply. When kind is "draft" this MUST be null.`,
+				nullableSchema(map[string]any{"type": "string", "minLength": 1, "maxLength": 65536})),
+			"artifact_type": described(`The drafted artifact's type. Set only when kind is "draft"; MUST be null when kind is "assistant_message".`,
+				nullableSchema(map[string]any{"type": "string", "enum": []string{"whiterabbit_template", "ansible_playbook"}})),
+			"name": described(`The drafted artifact's name. Set only when kind is "draft"; MUST be null when kind is "assistant_message".`,
+				nullableSchema(map[string]any{"type": "string", "minLength": 1, "maxLength": 200})),
+			"content": described(`The full text of the drafted artifact. Set only when kind is "draft"; MUST be null when kind is "assistant_message" — never put your chat reply here, that goes in "body".`,
+				nullableSchema(map[string]any{"type": "string", "minLength": 1, "maxLength": 262144})),
+			"validation_call_id": described(`Set only when kind is "draft"; MUST be null when kind is "assistant_message". Copy VERBATIM the id of your tool call that validated this draft — it begins with "toolu_". For an ansible_playbook draft, use the id of your get_validation_result call; for a whiterabbit_template draft, use the id of your validate_whiterabbit_draft call. Do not invent an id and do not use the validation's own id.`,
+				nullableSchema(map[string]any{"type": "string", "minLength": 1, "maxLength": 255})),
 		},
 	}
+}
+
+// described attaches a JSON Schema description to a property so the model knows
+// which field to fill. Structured-output models rely on these; with none, an
+// assistant_message reply was being placed in "content" with "body" left null,
+// failing envelope validation. description is a supported strict-schema keyword
+// (not stripped by strictSchema).
+func described(description string, schema map[string]any) map[string]any {
+	schema["description"] = description
+	return schema
 }
 
 func nullableSchema(schema map[string]any) map[string]any {

@@ -105,7 +105,7 @@ class Assistant::ValidationDispatcherTest < ActiveSupport::TestCase
   test "ingest! on a terminal event clears source and keeps only the encrypted normalized result" do
     request = Assistant::ValidationRequest.create!(
       turn: @turn, turn_grant: @grant, status: "pending",
-      source: SOURCE, expires_at: 5.minutes.from_now
+      source: SOURCE, expires_at: @grant.expires_at
     )
 
     Assistant::ValidationDispatcher.ingest!({

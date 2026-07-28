@@ -14,17 +14,26 @@ class AssistantComposeTest < Minitest::Test
     assistant-gateway
     hunter-mcp
     assistant-validator
+    assistant-claude
   ].freeze
   UNTRUSTED_SERVICES = ASSISTANT_SERVICES
+  # The legacy provider-gateway path is retired from the default stack: these two
+  # services stay hardened and defined, but sit behind the `legacy-gateway`
+  # Compose profile so a default `up` no longer starts them. The Assistant now
+  # runs chat through the Claude Code service instead.
+  LEGACY_PROFILE_SERVICES = %w[assistant-gateway assistant-validator].freeze
   # No Assistant service bind-mounts anything from the host any more: the two
   # provider keys and all four machine tokens arrive as environment variables,
-  # so `volumes:` is empty for every one of them.
-  ALLOWED_HOST_MOUNTS = {}.freeze
+  # so `volumes:` is empty for every one of them — except assistant-claude,
+  # whose Claude Code subscription login/session must survive a restart and so
+  # lives on the assistant_claude_home *named volume* (not a host bind mount).
+  ALLOWED_HOST_MOUNTS = { "assistant-claude" => [ "assistant_claude_home:/home/claude" ] }.freeze
   NETWORKS = {
-    "web" => %w[default assistant-rails-gateway assistant-rails-validator assistant-mcp-rails],
+    "web" => %w[default assistant-rails-gateway assistant-rails-validator assistant-mcp-rails assistant-rails-claude],
     "assistant-gateway" => %w[assistant-rails-gateway assistant-gateway-mcp assistant-gateway-egress],
     "hunter-mcp" => %w[assistant-gateway-mcp assistant-mcp-rails],
-    "assistant-validator" => %w[assistant-rails-validator]
+    "assistant-validator" => %w[assistant-rails-validator],
+    "assistant-claude" => %w[assistant-rails-claude assistant-claude-egress]
   }.freeze
   # Per-service runtime hardening, compared key-by-key between the two files.
   HARDENING_KEYS = %w[
@@ -39,8 +48,9 @@ class AssistantComposeTest < Minitest::Test
       ASSISTANT_SERVICES.each do |name|
         assert services.key?(name), "#{filename}: missing #{name}"
         assert_empty services.fetch(name).fetch("ports", []), "#{filename}: #{name} publishes a port"
-        assert_empty services.fetch(name).fetch("profiles", []),
-          "#{filename}: #{name} still starts only under a Compose profile"
+        expected_profiles = LEGACY_PROFILE_SERVICES.include?(name) ? [ "legacy-gateway" ] : []
+        assert_equal expected_profiles, services.fetch(name).fetch("profiles", []),
+          "#{filename}: #{name} has unexpected Compose profile placement"
       end
 
       UNTRUSTED_SERVICES.each do |name|
@@ -75,6 +85,7 @@ class AssistantComposeTest < Minitest::Test
         assistant-rails-validator
         assistant-gateway-mcp
         assistant-mcp-rails
+        assistant-rails-claude
       ].each do |network|
         assert_equal true, networks.fetch(network)["internal"], "#{filename}: #{network} is externally routed"
       end
@@ -100,6 +111,29 @@ class AssistantComposeTest < Minitest::Test
         shared = validator_networks & service_networks(services.fetch(forbidden_peer))
         assert_empty shared,
           "#{filename}: assistant-validator shares #{shared.join(', ')} with #{forbidden_peer}"
+      end
+    end
+  end
+
+  def test_assistant_claude_has_a_persistent_home_volume
+    each_compose do |filename, config|
+      svc = config.fetch("services").fetch("assistant-claude")
+      mounts = svc.fetch("volumes", []).map { |v| v.is_a?(String) ? v : v.to_a.join(":") }
+      assert(mounts.any? { |m| m.include?("assistant_claude_home") && m.include?("/home/claude") },
+        "#{filename}: assistant-claude must mount the assistant_claude_home volume at /home/claude")
+    end
+  end
+
+  # The retired gateway path must not start on a default `up`. Placing the two
+  # services behind the `legacy-gateway` profile keeps them defined and hardened
+  # (for anyone who deliberately opts back in) while removing them from the
+  # default stack the Claude Code chat replaces.
+  def test_legacy_gateway_and_validator_are_profile_gated
+    each_compose do |filename, config|
+      LEGACY_PROFILE_SERVICES.each do |name|
+        profiles = config.fetch("services").fetch(name).fetch("profiles", [])
+        assert_equal [ "legacy-gateway" ], profiles,
+          "#{filename}: #{name} must sit behind the legacy-gateway profile so a default up does not start it"
       end
     end
   end
@@ -182,6 +216,16 @@ class AssistantComposeTest < Minitest::Test
       # with "reopen exec fifo ... operation not permitted" and exits 255.
       assert_includes allowed, "fstatfs",
         "#{service} seccomp omits fstatfs; runc cannot start the container"
+
+      # Go's net.Listen sets socket options (IPV6_V6ONLY, SO_REUSEADDR) via
+      # setsockopt while opening the listener, before bind/listen. With
+      # defaultErrnoRet=38 a denied setsockopt returns ENOSYS, net.Listen fails
+      # ("setsockopt: function not implemented"), ListenAndServe returns, the
+      # process exits and restart:unless-stopped crash-loops it — so the service
+      # never becomes resolvable and every turn fails as gateway_dns_failure.
+      # getsockopt alone is not enough; the listener path needs setsockopt too.
+      assert_includes allowed, "setsockopt",
+        "#{service} seccomp omits setsockopt; Go's net.Listen cannot open a socket and the container crash-loops"
 
       # ENOSYS rather than EPERM: a denied syscall must look unimplemented so the
       # runtime's own fallback paths engage instead of hard-failing. The syscall is

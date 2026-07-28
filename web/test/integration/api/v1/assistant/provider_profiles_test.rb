@@ -17,7 +17,7 @@ class Api::V1::Assistant::ProviderProfilesTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     body = response.parsed_body
-    assert_equal 2, body.fetch("provider_profiles").length
+    assert_equal Assistant::ProviderProfile.count, body.fetch("provider_profiles").length
     refute_includes response.body, "secret_ref"
     refute_includes response.body, "base_url"
     refute_includes response.body, "headers"

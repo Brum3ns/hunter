@@ -13,7 +13,10 @@ module Assistant
     module_function
 
     def statuses
-      ProviderCatalog.entries.values.map { |entry| status(entry) }
+      # Only API-key providers are classified here. A catalog entry with no
+      # secret_env (the synthetic Claude Code profile) carries no credential to
+      # classify and must not appear as "skipped"/"absent".
+      ProviderCatalog.entries.values.select { |entry| entry.secret_env.present? }.map { |entry| status(entry) }
     end
 
     def available_slugs

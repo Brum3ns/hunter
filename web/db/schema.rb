@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_28_002651) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -78,6 +78,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_000001) do
   end
 
   create_table "assistant_conversations", force: :cascade do |t|
+    t.string "claude_session_id"
     t.datetime "created_at", null: false
     t.datetime "expires_at", null: false
     t.bigint "provider_profile_id", null: false
@@ -263,7 +264,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_000001) do
     t.index ["turn_grant_id"], name: "index_assistant_validation_requests_on_turn_grant_id"
     t.index ["turn_id", "status"], name: "idx_assistant_validation_requests_turn_status"
     t.index ["turn_id"], name: "index_assistant_validation_requests_on_turn_id"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'valid'::character varying, 'invalid'::character varying, 'failed'::character varying, 'expired'::character varying]::text[])", name: "assistant_validation_requests_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'valid'::character varying::text, 'invalid'::character varying::text, 'failed'::character varying::text, 'expired'::character varying::text])", name: "assistant_validation_requests_status"
   end
 
   create_table "control_center_ansible_credentials", force: :cascade do |t|

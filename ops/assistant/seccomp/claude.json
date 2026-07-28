@@ -1,0 +1,111 @@
+{
+  "comment": "Seccomp profile for the assistant-claude service. Unlike the three Go services (gateway/mcp/validator), this container runs the official Claude Code CLI, a Node.js program whose runtime needs a large, moving syscall set (TTY ioctls, clone3, io_uring probes, memfd, epoll/eventfd variants). A hand-maintained ERRNO allowlist would crash-loop the moment Node reached for a syscall we forgot, so this profile is allow-by-default with a denylist of the escape-relevant syscalls instead. It is defense-in-depth on top of the container's stronger controls (cap_drop ALL, no-new-privileges, read_only root, non-root uid 1000, pids/mem/cpu limits, and network isolation), which already neuter the capability-gated syscalls. Denied syscalls return ENOSYS (38) rather than EPERM so any runtime fallback path (e.g. libuv's io_uring probe) engages cleanly.",
+  "defaultAction": "SCMP_ACT_ALLOW",
+  "archMap": [
+    {
+      "architecture": "SCMP_ARCH_X86_64",
+      "subArchitectures": [
+        "SCMP_ARCH_X86",
+        "SCMP_ARCH_X32"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_AARCH64",
+      "subArchitectures": [
+        "SCMP_ARCH_ARM"
+      ]
+    }
+  ],
+  "syscalls": [
+    {
+      "comment": "Mounting, namespace pivoting and the new fs* mount API — hand back the container-escape power that cap_drop already denies; refused here by name so nothing can re-enable them by accident.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "mount",
+        "mount_setattr",
+        "umount",
+        "umount2",
+        "pivot_root",
+        "chroot",
+        "unshare",
+        "setns",
+        "fsopen",
+        "fsconfig",
+        "fsmount",
+        "fspick",
+        "move_mount",
+        "open_tree",
+        "open_by_handle_at",
+        "name_to_handle_at"
+      ]
+    },
+    {
+      "comment": "Kernel module and kexec surface — never used by Node; loading code into the kernel is a direct escape.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "init_module",
+        "finit_module",
+        "delete_module",
+        "create_module",
+        "query_module",
+        "get_kernel_syms",
+        "kexec_load",
+        "kexec_file_load",
+        "reboot"
+      ]
+    },
+    {
+      "comment": "Process tracing / cross-process memory — Node never traces; ptrace and process_vm_* would let this container read or steer neighbouring processes.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "ptrace",
+        "process_vm_readv",
+        "process_vm_writev"
+      ]
+    },
+    {
+      "comment": "eBPF, perf and kernel keyring — broad kernel attack surface unrelated to running a chat CLI.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "bpf",
+        "perf_event_open",
+        "add_key",
+        "request_key",
+        "keyctl"
+      ]
+    },
+    {
+      "comment": "Host-wide time, accounting, swap and legacy priv syscalls — not needed by an unprivileged application container.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "settimeofday",
+        "stime",
+        "clock_settime",
+        "clock_adjtime",
+        "adjtimex",
+        "acct",
+        "swapon",
+        "swapoff",
+        "quotactl",
+        "nfsservctl",
+        "_sysctl",
+        "uselib",
+        "personality",
+        "ustat",
+        "sysfs",
+        "ioperm",
+        "iopl",
+        "modify_ldt",
+        "vm86",
+        "vm86old",
+        "lookup_dcookie",
+        "userfaultfd"
+      ]
+    }
+  ]
+}

@@ -167,14 +167,11 @@ class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
     assert_equal "pending", response.parsed_body.dig("validation", "status")
     assert_equal validation_id, published.fetch("validation_id")
 
-    Assistant::ValidationDispatcher.ingest!({
-      "schema_version" => 1,
-      "event_id" => SecureRandom.uuid,
-      "validation_id" => validation_id,
-      "correlation_id" => assistant_turns(:created).correlation_id,
-      "status" => "valid",
-      "codes" => []
-    })
+    # The validator now answers synchronously: the POST above already fed the
+    # terminal "valid" event (returned by the stubbed ValidatorClient) into
+    # ValidationDispatcher#ingest! within the same request, so the row is already
+    # terminal here. Re-ingesting it — the old asynchronous-completion pattern —
+    # would raise validation_already_terminal; the result is simply retrieved.
     get "/api/v1/assistant/machine/validation_results/#{validation_id}",
       headers: headers(grant_token)
 

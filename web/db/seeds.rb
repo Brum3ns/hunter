@@ -75,41 +75,15 @@ else
   puts "[assistant] Installed hunter-mcp service identity ##{identity.id}."
 end
 
-# A provider profile per resolvable provider key. Activation derives from the keys
-# alone, but the chat binds a conversation to a profile ROW, so without this a
-# fresh database reports the Assistant active while every conversation fails to
-# start. Existing profiles are never modified: an administrator who disabled one
-# must not have it re-enabled by the next boot.
-profiles = Assistant::ProviderProfileInstaller.call(created_by: user)
-if profiles.installed.any?
-  puts "[assistant] Installed provider profiles: #{profiles.installed.join(', ')}."
+# The Assistant chat runs through the Claude Code service (the legacy provider
+# gateway is disconnected). A conversation still binds to a provider profile ROW,
+# so seed exactly one synthetic "Claude Code" profile — it carries no API secret.
+# find_or_create_by keeps it idempotent and never re-enables one an administrator
+# disabled.
+claude_profile = Assistant::ProviderProfile.find_or_create_by!(catalog_slug: "claude_code") do |profile|
+  profile.name = "Claude Code"
+  profile.created_by = user
+  profile.enabled = true
+  profile.reviewed_at = Time.current
 end
-if profiles.untouched.any?
-  puts "[assistant] Left existing provider profiles untouched: #{profiles.untouched.join(', ')}."
-end
-if profiles.skipped.any?
-  puts "[assistant] No usable credential for: #{profiles.skipped.join(', ')} (no profile created)."
-end
-if profiles.failed.any?
-  # Reported, never raised: the seed must not stop `foreman start` from running.
-  warn "[assistant] Could not install provider profiles: #{profiles.failed.join(', ')}. " \
-       "A conflicting profile name probably already exists; fix it in Settings."
-end
-# Reachability of the two HTTP services, reported into `docker compose up` output.
-# Advisory only: never raises, never aborts the seed. Skipped unless a provider
-# credential resolved, since an intentionally-unconfigured Assistant has nothing
-# to reach and should not print scary lines.
-if Assistant::ProviderCredentials.available_slugs.any?
-  Assistant::Preflight.call.each do |check|
-    if check.ok
-      puts "[assistant] #{check.service}: #{check.detail}"
-    else
-      warn "[assistant] #{check.service} UNREACHABLE at #{check.url}: #{check.detail}"
-    end
-  end
-end
-
-if profiles.installed.empty? && profiles.untouched.empty?
-  puts "[assistant] No provider profile exists; set ASSISTANT_ANTHROPIC_API_KEY or " \
-       "ASSISTANT_OPENAI_API_KEY and re-run db:seed to enable the chat."
-end
+puts "[assistant] Claude Code provider profile ##{claude_profile.id} present."

@@ -36,7 +36,7 @@ func (adapter *OpenAIAdapter) Generate(ctx context.Context, request Request, exe
 	if err := validateRequest(request); err != nil {
 		return Result{}, err
 	}
-	format := responses.ResponseFormatTextConfigParamOfJSONSchema("hunter_assistant_result", OutputSchema())
+	format := responses.ResponseFormatTextConfigParamOfJSONSchema("hunter_assistant_result", strictSchemaMap(OutputSchema()))
 	format.OfJSONSchema.Strict = openai.Bool(true)
 	input := responses.ResponseInputParam{
 		responses.ResponseInputItemParamOfMessage(request.UserContent, responses.EasyInputMessageRoleUser),
@@ -115,7 +115,7 @@ func openAITools() []responses.ToolUnionParam {
 	definitions := fixedTools()
 	tools := make([]responses.ToolUnionParam, 0, len(definitions))
 	for _, definition := range definitions {
-		tool := responses.ToolParamOfFunction(definition.Name, definition.Schema, true)
+		tool := responses.ToolParamOfFunction(definition.Name, strictSchemaMap(definition.Schema), true)
 		tool.OfFunction.Description = openai.String(definition.Description)
 		tools = append(tools, tool)
 	}

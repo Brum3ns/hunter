@@ -28,6 +28,12 @@ module Assistant
     validates :retention_posture, inclusion: { in: RETENTION_POSTURES }
     validate :reviewed_when_enabled
 
+    # The synthetic Claude Code profile carries no API secret; dispatch routes it
+    # to Assistant::ClaudeCodeClient instead of the provider gateway.
+    def claude_code?
+      catalog_slug == "claude_code"
+    end
+
     def dispatch_snapshot
       {
         profile_id: id,

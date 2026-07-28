@@ -116,6 +116,7 @@
         "set_robust_list",
         "set_tid_address",
         "setpgid",
+        "setsockopt",
         "shutdown",
         "sigaltstack",
         "statx",

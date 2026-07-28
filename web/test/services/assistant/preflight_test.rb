@@ -1,9 +1,27 @@
 require "minitest/autorun"
+require "socket"
 require_relative "../../../config/environment"
 
 # Standalone: no reachable Postgres here, and none needed -- Preflight touches no
 # ActiveRecord. The prober and sleeper are injected so nothing opens a socket.
 class Assistant::PreflightTest < Minitest::Test
+  # Serves exactly one HTTP request on a loopback port with the given status
+  # line and no body, then closes. Used to exercise the REAL `probe` method
+  # against the status codes the Go /healthz handlers actually return, which the
+  # injected-prober tests above never touch.
+  def with_status_server(status_line)
+    server = TCPServer.new("127.0.0.1", 0)
+    thread = Thread.new do
+      client = server.accept
+      while (line = client.gets) && line != "\r\n"; end # drain request head to the blank line
+      client.write("HTTP/1.1 #{status_line}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+      client.close
+    end
+    yield "http://127.0.0.1:#{server.addr[1]}/healthz"
+  ensure
+    thread&.join(2)
+    server&.close
+  end
   def with_env(values)
     originals = values.keys.to_h { |key| [ key, ENV[key] ] }
     values.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
@@ -69,6 +87,28 @@ class Assistant::PreflightTest < Minitest::Test
 
     # Two services, ATTEMPTS each -- bounded, so a dead service cannot hang boot.
     assert_equal Assistant::Preflight::ATTEMPTS * 2, attempts
+  end
+
+  # The Go /healthz handlers (gateway main.go, validator main.go) answer a ready
+  # service with 204 No Content, NOT 200 -- their Docker healthchecks assert
+  # exactly StatusNoContent. `probe` must therefore treat 204 as healthy, or the
+  # reachability report db:seed prints declares a perfectly healthy gateway and
+  # validator UNREACHABLE on every `docker compose up`.
+  def test_probe_treats_a_204_from_the_go_health_endpoints_as_healthy
+    with_status_server("204 No Content") do |url|
+      ok, detail = Assistant::Preflight.send(:probe, url)
+      assert ok, "204 (the real ready signal) reported not-ok: #{detail.inspect}"
+    end
+  end
+
+  # A not-ready gateway (no usable provider credential) answers 503; that must
+  # read as not-ok with the documented detail, not as an unexpected code.
+  def test_probe_treats_a_503_as_not_ready
+    with_status_server("503 Service Unavailable") do |url|
+      ok, detail = Assistant::Preflight.send(:probe, url)
+      refute ok
+      assert_includes detail, "not ready"
+    end
   end
 
   # Compose runs `db:seed && foreman start`. A raise here would stop the web server

@@ -30,16 +30,22 @@ module Assistant
         conversation.lock!
         verify_dispatch!(conversation, user, setting, profile)
         Assistant::RateLimiter.consume!(user: user, action: "turn_start", now: Time.current)
-        contexts = resolve_contexts!(context_refs, user)
-        turn = conversation.append_user_turn!(
-          body: body,
-          context_refs: contexts.map { |context| context.fetch(:reference) }
-        )
-        raw_grant = Assistant::Grants::Issuer.call(
-          turn: turn,
-          resources: contexts.map { |context| context.fetch(:resource) },
-          tools: Assistant::Grants::Issuer::TOOLS
-        )
+        if profile.claude_code?
+          # Phase 1 Claude Code path: no context resolution, no grant, no gateway
+          # envelope — the Claude Code service runs the turn with no tools.
+          turn = conversation.append_user_turn!(body: body, context_refs: [])
+        else
+          contexts = resolve_contexts!(context_refs, user)
+          turn = conversation.append_user_turn!(
+            body: body,
+            context_refs: contexts.map { |context| context.fetch(:reference) }
+          )
+          raw_grant = Assistant::Grants::Issuer.call(
+            turn: turn,
+            resources: contexts.map { |context| context.fetch(:resource) },
+            tools: Assistant::Grants::Issuer::TOOLS
+          )
+        end
         Assistant::Audit.record!(
           event: "turn.created",
           attributes: audit_attributes(turn, status: "created", operation: "turn_create")
@@ -53,8 +59,13 @@ module Assistant
 
     def verify_dispatch!(conversation, user, setting, profile)
       raise Rejected, "conversation_not_found" unless user && conversation.user_id == user.id
-      raise Rejected, "assistant_disabled" unless
-        Assistant::Config.enabled? && setting.assistant_enabled?
+      # The Claude Code chat has no activation/on-off state: it is always
+      # available and fails loudly with a specific claude_* code on the turn if
+      # the backend is not ready. Only the legacy gateway path checks activation.
+      unless profile.claude_code?
+        raise Rejected, "assistant_disabled" unless
+          Assistant::Config.enabled? && setting.assistant_enabled?
+      end
       raise Rejected, "conversation_unavailable" unless
         conversation.status == "active" && conversation.expires_at.future?
       raise Rejected, "provider_profile_unavailable" unless profile.enabled? && profile.reviewed_at.present?
@@ -125,6 +136,17 @@ module Assistant
     private_class_method :disclosure_label
 
     def dispatch(turn, raw_grant)
+      if turn.provider_profile.claude_code?
+        prompt = turn.user_message&.body
+        Assistant::Turn.transaction do
+          turn.lock!
+          raise ArgumentError, "turn requires one user message" if prompt.blank?
+          turn.update!(status: "queued", queued_at: Time.current)
+        end
+        Assistant::TurnJob.perform_later(turn_id: turn.id, claude: true, prompt: prompt)
+        return turn.reload
+      end
+
       envelope = Assistant::Turn.transaction do
         setting = Assistant::Setting.lock.find(Assistant::Setting.instance.id)
         profile = Assistant::ProviderProfile.lock.find(turn.provider_profile_id)

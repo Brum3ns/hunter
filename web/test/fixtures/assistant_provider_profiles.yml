@@ -28,3 +28,17 @@ anthropic:
   retention_posture: standard
   reviewed_at: 2026-07-25 00:00:00
   created_by: one
+
+claude_code:
+  name: Claude Code
+  catalog_slug: claude_code
+  provider: claude_code
+  model: claude-code
+  secret_ref: claude_code
+  enabled: true
+  input_limit: 32768
+  output_limit: 8192
+  tool_call_limit: 8
+  retention_posture: standard
+  reviewed_at: 2026-07-25 00:00:00
+  created_by: one

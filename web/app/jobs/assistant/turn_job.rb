@@ -21,22 +21,28 @@ module Assistant
   class TurnJob < ApplicationJob
     queue_as :default
 
-    def perform(turn_id:, envelope:)
+    def perform(turn_id:, envelope: nil, claude: false, prompt: nil)
       turn = Assistant::Turn.find_by(id: turn_id)
       return unless turn&.status == "queued"
 
       turn.update!(status: "running", started_at: Time.current)
 
       events =
-        begin
-          Assistant::GatewayClient.run_turn(envelope)
-        rescue Assistant::GatewayClient::Error => error
-          [ error_event(turn, error.code) ]
+        if claude
+          # ClaudeCodeClient never raises: every failure is already an error event.
+          Assistant::ClaudeCodeClient.run_turn(turn: turn, prompt: prompt)
+        else
+          begin
+            Assistant::GatewayClient.run_turn(envelope)
+          rescue Assistant::GatewayClient::Error => error
+            [ error_event(turn, error.code) ]
+          end
         end
 
       # A response carrying no events would leave the turn `running` with nothing
       # to observe, so an empty array is itself a failure.
-      events = [ error_event(turn, "gateway_returned_no_events") ] if events.empty?
+      no_events_code = claude ? "claude_returned_no_events" : "gateway_returned_no_events"
+      events = [ error_event(turn, no_events_code) ] if events.empty?
 
       begin
         ingest_all!(events)

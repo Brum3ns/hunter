@@ -121,6 +121,9 @@ services:
       # Where Rails reaches the gateway/validator over plain HTTP.
       ASSISTANT_GATEWAY_URL: ${ASSISTANT_GATEWAY_URL:-http://assistant-gateway:8081}
       ASSISTANT_VALIDATOR_URL: ${ASSISTANT_VALIDATOR_URL:-http://assistant-validator:8082}
+      # Where Rails reaches the Claude Code wrapper, and the bearer it uses.
+      ASSISTANT_CLAUDE_URL: ${ASSISTANT_CLAUDE_URL:-http://assistant-claude:8083}
+      ASSISTANT_CLAUDE_INGRESS_TOKEN: ${ASSISTANT_CLAUDE_INGRESS_TOKEN:-}
       ASSISTANT_TRANSCRIPT_DAYS: "7"
       ASSISTANT_AUDIT_DAYS: "90"
       ASSISTANT_GRANT_TTL_SECONDS: "300"
@@ -137,6 +140,7 @@ services:
       - assistant-rails-gateway
       - assistant-rails-validator
       - assistant-mcp-rails
+      - assistant-rails-claude
     ports:
       - "5000:5000"
     depends_on:
@@ -269,6 +273,7 @@ services:
   # Validates a drafted change before it can be applied. Reachable from `web`
   # only, over its own internal network — no other service can reach it.
   assistant-validator:
+    profiles: ["legacy-gateway"]
     image: ${REGISTRY_HOST:-10.0.1.2:3002}/${REGISTRY_OWNER:-gadmin}/${REGISTRY_REPO:-hunter}-assistant-validator:${ASSISTANT_IMAGE_TAG:-latest}
     pull_policy: always
     environment:
@@ -305,6 +310,7 @@ services:
   # carries. Depends on nothing — a keyless gateway just answers
   # gateway_not_ready until a provider key is installed.
   assistant-gateway:
+    profiles: ["legacy-gateway"]
     image: ${REGISTRY_HOST:-10.0.1.2:3002}/${REGISTRY_OWNER:-gadmin}/${REGISTRY_REPO:-hunter}-assistant-gateway:${ASSISTANT_IMAGE_TAG:-latest}
     pull_policy: always
     environment:
@@ -339,10 +345,47 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # Runs the official Claude Code CLI on the operator's subscription behind a
+  # thin Go HTTP wrapper. Reachable from `web` only (assistant-rails-claude);
+  # reaches api.anthropic.com over the one non-internal network it carries.
+  # The subscription login/session lives on the assistant_claude_home named
+  # volume — the one writable path besides /tmp, since root is read-only.
+  assistant-claude:
+    image: ${REGISTRY_HOST:-10.0.1.2:3002}/${REGISTRY_OWNER:-gadmin}/${REGISTRY_REPO:-hunter}-assistant-claude:${ASSISTANT_IMAGE_TAG:-latest}
+    pull_policy: always
+    environment:
+      ASSISTANT_CLAUDE_INGRESS_TOKEN: ${ASSISTANT_CLAUDE_INGRESS_TOKEN}
+      ASSISTANT_CLAUDE_ALLOWED_HOSTS: assistant-claude:8083
+    networks:
+      - assistant-rails-claude
+      - assistant-claude-egress
+    volumes:
+      - assistant_claude_home:/home/claude
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/claude.json
+    init: true
+    mem_limit: 512m
+    cpus: "1.00"
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "/hunter-assistant-claude", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
 volumes:
   rabbitmq_data: {}
   hunter_db:
   mongodb_data:
+  assistant_claude_home: {}
 
 networks:
   assistant-rails-gateway:
@@ -353,6 +396,11 @@ networks:
     internal: true
   assistant-mcp-rails:
     internal: true
+  assistant-rails-claude:
+    internal: true
   # The gateway's one non-internal network — outbound only, for
   # api.anthropic.com / api.openai.com. No other service joins it.
   assistant-gateway-egress: {}
+  # assistant-claude's one non-internal network — outbound only, for
+  # api.anthropic.com. No other service joins it.
+  assistant-claude-egress: {}

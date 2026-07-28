@@ -49,7 +49,7 @@ func (adapter *AnthropicAdapter) Generate(ctx context.Context, request Request, 
 		},
 		Tools: anthropicTools(),
 		OutputConfig: anthropic.OutputConfigParam{
-			Format: anthropic.JSONOutputFormatParam{Schema: OutputSchema()},
+			Format: anthropic.JSONOutputFormatParam{Schema: strictSchemaMap(OutputSchema())},
 		},
 	}
 	evidence := make(map[string]ValidationEvidence)
@@ -66,37 +66,59 @@ func (adapter *AnthropicAdapter) Generate(ctx context.Context, request Request, 
 
 		switch message.StopReason {
 		case anthropic.StopReasonToolUse:
-			assistantBlocks := make([]anthropic.ContentBlockParamUnion, 0, len(message.Content))
 			toolResults := make([]anthropic.ContentBlockParamUnion, 0, 1)
 			for _, block := range message.Content {
-				if block.Type != "tool_use" {
+				switch block.Type {
+				case "tool_use":
+					call := block.AsToolUse()
+					if executor == nil || call.ID == "" || len(call.ID) > 255 || !slices.Contains(FixedToolNames(), call.Name) || len(call.Input) > 64<<10 || !json.Valid(call.Input) || toolCalls >= request.ToolCallLimit {
+						return Result{}, errors.New("provider tool call rejected")
+					}
+					output, err := executor.Call(ctx, call.Name, call.Input)
+					if err != nil || len(output) == 0 || len(output) > 64<<10 || !json.Valid(output) {
+						// A tool call can legitimately fail — e.g. the model
+						// speculatively reads an example, context, or validation the
+						// turn was never granted. Return that failure TO THE MODEL as
+						// an error result so it recovers and still answers, instead of
+						// aborting the whole turn. Aborting turned every such turn into
+						// provider_unavailable. No evidence is recorded for a failed
+						// call, so a draft can never cite one.
+						toolResults = append(toolResults, anthropic.NewToolResultBlock(call.ID,
+							`{"error":"This resource was not granted for this turn. Do not retry this tool. Answer the user directly from your own knowledge with an assistant_message."}`, true))
+						toolCalls++
+						continue
+					}
+					toolResults = append(toolResults, anthropic.NewToolResultBlock(call.ID, string(output), false))
+					evidence[call.ID] = ValidationEvidence{Tool: call.Name, Result: append([]byte(nil), output...)}
+					toolCalls++
+				case "thinking", "redacted_thinking", "text":
+					// Adaptive thinking is on by default for Sonnet 5, so a tool-use
+					// turn arrives as [thinking, (text?), tool_use] — the thinking and
+					// any text preamble are NOT an error. They are echoed back verbatim
+					// via message.ToParam() below, which the API requires: a follow-up
+					// turn that drops the thinking block preceding a tool_use is rejected.
+				default:
 					return Result{}, errors.New("unexpected provider content during tool call")
 				}
-				call := block.AsToolUse()
-				if executor == nil || call.ID == "" || len(call.ID) > 255 || !slices.Contains(FixedToolNames(), call.Name) || len(call.Input) > 64<<10 || !json.Valid(call.Input) || toolCalls >= request.ToolCallLimit {
-					return Result{}, errors.New("provider tool call rejected")
-				}
-				output, err := executor.Call(ctx, call.Name, call.Input)
-				if err != nil || len(output) == 0 || len(output) > 64<<10 || !json.Valid(output) {
-					return Result{}, errors.New("MCP tool call failed")
-				}
-				callParam := call.ToParam()
-				assistantBlocks = append(assistantBlocks, anthropic.ContentBlockParamUnion{OfToolUse: &callParam})
-				toolResults = append(toolResults, anthropic.NewToolResultBlock(call.ID, string(output), false))
-				evidence[call.ID] = ValidationEvidence{Tool: call.Name, Result: append([]byte(nil), output...)}
-				toolCalls++
 			}
 			if len(toolResults) == 0 {
 				return Result{}, errors.New("empty provider tool turn")
 			}
-			messages = append(messages, anthropic.NewAssistantMessage(assistantBlocks...), anthropic.NewUserMessage(toolResults...))
+			// Echo the whole assistant message (thinking + tool_use) unchanged, then
+			// the tool results. NewAssistantMessage with only the tool_use blocks
+			// would strip the thinking block and the next request would 400.
+			messages = append(messages, message.ToParam(), anthropic.NewUserMessage(toolResults...))
 		case anthropic.StopReasonEndTurn:
 			var output strings.Builder
 			for _, block := range message.Content {
-				if block.Type != "text" {
+				switch block.Type {
+				case "text":
+					output.WriteString(block.Text)
+				case "thinking", "redacted_thinking":
+					// Thinking blocks carry no envelope content; skip them.
+				default:
 					return Result{}, errors.New("unexpected provider content")
 				}
-				output.WriteString(block.Text)
 			}
 			envelope, err := ParseEnvelope([]byte(output.String()), evidence)
 			if err != nil {
@@ -114,7 +136,8 @@ func anthropicTools() []anthropic.ToolUnionParam {
 	definitions := fixedTools()
 	tools := make([]anthropic.ToolUnionParam, 0, len(definitions))
 	for _, definition := range definitions {
-		properties, _ := definition.Schema["properties"].(map[string]any)
+		schema := strictSchemaMap(definition.Schema)
+		properties, _ := schema["properties"].(map[string]any)
 		required, _ := definition.Schema["required"].([]string)
 		tools = append(tools, anthropic.ToolUnionParam{OfTool: &anthropic.ToolParam{
 			InputSchema: anthropic.ToolInputSchemaParam{

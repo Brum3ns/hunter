@@ -44,13 +44,19 @@ func NewRestrictedHTTPClient() (*http.Client, error) {
 			}
 			return dialer.DialContext(ctx, network, address)
 		},
-		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS13},
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          4,
-		MaxIdleConnsPerHost:   2,
-		IdleConnTimeout:       30 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 30 * time.Second,
+		TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS13},
+		ForceAttemptHTTP2:   true,
+		MaxIdleConns:        4,
+		MaxIdleConnsPerHost: 2,
+		IdleConnTimeout:     30 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		// The Messages call is non-streaming, so the provider sends NO response
+		// headers until the whole answer is generated. With adaptive thinking on
+		// (Sonnet 5 default) a hard round routinely generates for well over 30s,
+		// so a 30s header timeout aborted valid turns mid-think as
+		// "http2: timeout awaiting response headers" -> provider_unavailable. It
+		// must cover a full round; the turn context deadline is the real bound.
+		ResponseHeaderTimeout: 300 * time.Second,
 		ExpectContinueTimeout: time.Second,
 	}
 	return &http.Client{
@@ -58,7 +64,16 @@ func NewRestrictedHTTPClient() (*http.Client, error) {
 			next: transport, maxRequestBytes: maxProviderRequestBytes,
 			maxResponseBytes: maxProviderResponseBytes,
 		},
-		Timeout:       90 * time.Second,
+		// Caps a SINGLE provider round. Sonnet 5 runs adaptive thinking by default
+		// and a hard drafting round can legitimately generate for well over 90s;
+		// the old 90s ceiling aborted such a round mid-generation, which surfaced
+		// as provider_unavailable AFTER the tokens were already billed. The turn's
+		// own context deadline (maxTurnDuration, 5m) is the real bound and cancels
+		// earlier when the whole turn is out of time; this just stops a slow-but-
+		// valid round from being killed prematurely. DialContext (5s) and
+		// TLSHandshakeTimeout (10s) still guard against a connection that never
+		// establishes.
+		Timeout:       300 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}, nil
 }

@@ -69,7 +69,12 @@ module Assistant
       response = Net::HTTP.start(uri.host, uri.port, open_timeout: TIMEOUT_SECONDS,
         read_timeout: TIMEOUT_SECONDS) { |http| http.request(Net::HTTP::Get.new(uri)) }
       code = response.code.to_i
-      return [ true, "healthy" ] if code == 200
+      # The gateway and validator /healthz handlers answer a ready service with
+      # 204 No Content, never 200 — their own Docker healthchecks assert exactly
+      # StatusNoContent. Matching that here is load-bearing: treating only 200 as
+      # healthy reported both services "unexpected HTTP 204" — i.e. UNREACHABLE —
+      # on every `docker compose up`, even when they were fully healthy.
+      return [ true, "healthy" ] if code == 204
       return [ false, "not ready (503) — no usable provider credential in that container" ] if code == 503
 
       [ false, "unexpected HTTP #{code}" ]
