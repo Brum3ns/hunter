@@ -12,12 +12,12 @@ import { TemplateEditorSession } from "lib/template_editor_session"
 // and cells are built with createElement/textContent so template-supplied
 // strings can never inject HTML.
 export default class extends Controller {
-  static values = { indexUrl: String, validateUrl: String, jobsUrl: String, validateYamlUrl: String }
+  static values = { indexUrl: String, validateUrl: String, jobsUrl: String, validateYamlUrl: String, resolveUrl: String }
   static targets = [
     "rows", "empty", "editor", "commands", "commandRow", "errors", "save", "saveClose", "savedFlash",
     "fName", "fKind", "fOutput", "fTags", "fDescription",
     "fTargetType", "fTargetSep", "fTargetSepCustom", "fTargetOutput", "targetFields", "targetSepCustomWrap",
-    "sendDialog", "sendName", "sendTargets", "sendQueue", "sendChunk", "sendDelay", "sendResult",
+    "sendDialog", "sendName", "sendTargets", "sendQueue", "sendChunk", "sendDelay", "sendResult", "selectionSummary",
     "modeStructured", "modeYaml", "modeSplit", "splitWrap", "structuredPanel", "yamlPanel", "yamlEditor", "yamlErrors", "yamlValid", "fileInput",
     "batchFileInput", "dropOverlay", "importDialog", "importRows", "importSummary", "importClose",
     "conflictPanel", "conflictFile", "conflictName",
@@ -29,6 +29,7 @@ export default class extends Controller {
     this.listLoaded = false
     this.editorSession = new TemplateEditorSession()
     this.sendTemplate = null
+    this.pendingSelection = null
     this.mode = "structured"
     this.lastEdited = "structured"
     this._syncing = false
@@ -38,7 +39,23 @@ export default class extends Controller {
     this._importRowViews = new Map()
     this._pendingConflict = null
     this._resetEditor({ guard: false, focus: false })
-    this.refresh()
+    this.refresh().then(() => this._checkPendingSelection())
+  }
+
+  // A Target/Sitemap page handed off a selection via sessionStorage before
+  // navigating here (see hunter.jobSelection). Consume it once: open the send
+  // dialog straight away and preview the resolved target count. Waits for
+  // `refresh()` so a default template is available to pre-select.
+  _checkPendingSelection() {
+    const stored = sessionStorage.getItem("hunter.jobSelection")
+    if (!stored) return
+    sessionStorage.removeItem("hunter.jobSelection")
+    try {
+      this.pendingSelection = JSON.parse(stored)
+    } catch {
+      this.pendingSelection = null
+    }
+    if (this.pendingSelection) this.openSendWithSelection()
   }
 
   disconnect() {
@@ -784,24 +801,57 @@ export default class extends Controller {
 
   // --- send job ------------------------------------------------------------
 
+  // `t` is the template row that was clicked. It is undefined when the dialog
+  // is opened from a handed-off selection with no template chosen yet (see
+  // openSendWithSelection) — guard against that instead of assuming a template.
   openSend(t) {
-    this.sendTemplate = t
-    this.sendNameTarget.textContent = t.name
+    this.sendTemplate = t || null
+    this.sendNameTarget.textContent = this.sendTemplate ? this.sendTemplate.name : "(choose a template below)"
     this.sendTargetsTarget.value = ""
     this.sendQueueTarget.value = "test"
     this.sendChunkTarget.value = "0"
     this.sendDelayTarget.value = "0"
     this.sendResultTarget.classList.add("hidden")
     this.sendResultTarget.textContent = ""
+    if (this.hasSelectionSummaryTarget && !this.pendingSelection) this.selectionSummaryTarget.textContent = ""
     if (!this.sendDialogTarget.open) this.sendDialogTarget.showModal()
+  }
+
+  // Entry point for a handed-off selection (Target/Sitemap "Send to job").
+  // There is no template context yet, so default to the first loaded template
+  // (falling back to whatever sendTemplate already held, typically null) and
+  // let the user change it from the list as usual before submitting.
+  openSendWithSelection() {
+    this.openSend(this.templates?.[0] || this.sendTemplate)
+    this.previewTargets()
+  }
+
+  // Resolve and display the count for the pending selection plus whatever
+  // manual targets are currently typed into the dialog's textarea.
+  async previewTargets() {
+    if (!this.pendingSelection || !this.hasSelectionSummaryTarget) return
+    const body = {
+      ...this.pendingSelection,
+      targets: this.sendTargetsTarget.value.split("\n").map((s) => s.trim()).filter(Boolean),
+    }
+    const { ok, data } = await apiFetch(this.resolveUrlValue, { method: "POST", body })
+    this.selectionSummaryTarget.textContent = ok && data
+      ? `${data.count} targets selected`
+      : "Could not resolve the selected targets."
   }
 
   closeSend() { this.sendDialogTarget.close() }
 
   async submitJob() {
+    if (!this.sendTemplate) {
+      this.sendResultTarget.classList.remove("hidden")
+      this.sendResultTarget.textContent = "error: choose a template before sending."
+      return
+    }
     const body = {
       template: this.sendTemplate.name,
       targets: this.sendTargetsTarget.value.split("\n").map((s) => s.trim()).filter(Boolean),
+      selections: this.pendingSelection ? this.pendingSelection.selections : [],
       queue_name: this.sendQueueTarget.value.trim() || "test",
       target_chunk: Number(this.sendChunkTarget.value) || 0,
       delay: Number(this.sendDelayTarget.value) || 0,
@@ -809,8 +859,9 @@ export default class extends Controller {
     const { ok, data } = await apiFetch(this.jobsUrlValue, { method: "POST", body })
     this.sendResultTarget.classList.remove("hidden")
     if (ok && data) {
+      this.pendingSelection = null
       this.sendResultTarget.textContent =
-        `status: ${data.status}\nexit: ${data.exit_status}\n\n${data.stdout || ""}${data.stderr || ""}`
+        `status: ${data.status}\nJob #${data.id} queued — see the Jobs tab for progress.`
     } else {
       this.sendResultTarget.textContent = `error: ${JSON.stringify((data && data.detail) || "submit failed")}`
     }

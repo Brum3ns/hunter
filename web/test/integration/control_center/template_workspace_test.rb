@@ -46,4 +46,12 @@ class ControlCenter::TemplateWorkspaceTest < ActionDispatch::IntegrationTest
     assert_select "button[data-action='control-center-templates#saveAndClose']", text: /Save & close/
     assert_select "button[data-action='control-center-templates#closeEditor']", text: /Cancel/
   end
+
+  test "wires the send dialog to preview a handed-off target selection" do
+    assert_select "[data-controller='control-center-templates'][data-control-center-templates-resolve-url-value=?]",
+                  resolve_targets_api_v1_control_center_jobs_path
+    assert_select "[data-control-center-templates-target=sendDialog]" do
+      assert_select "[data-control-center-templates-target=selectionSummary]", count: 1
+    end
+  end
 end
