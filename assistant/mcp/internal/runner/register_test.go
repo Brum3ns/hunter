@@ -1,0 +1,41 @@
+package runner
+
+import (
+	"context"
+	"testing"
+)
+
+func TestPublicErrorMapping(t *testing.T) {
+	cases := map[error]string{
+		ErrUnknownTool:           "unknown_tool",
+		ErrInvalidInput:          "invalid_tool_input",
+		ErrResourceDenied:        "resource_not_granted",
+		ErrScopeDenied:           "scope_not_granted",
+		ErrToolDenied:            "turn_grant_rejected",
+		ErrGrantExpired:          "turn_grant_rejected",
+		ErrResponseRejected:      "tool_response_rejected",
+		context.Canceled:         "tool_call_cancelled",
+		context.DeadlineExceeded: "tool_call_cancelled",
+	}
+	for err, want := range cases {
+		if got := PublicError(err); got != want {
+			t.Errorf("PublicError(%v)=%q want %q", err, got, want)
+		}
+	}
+}
+
+func TestWrapResult(t *testing.T) {
+	if _, _, ok := wrapResult([]byte(`not json`)); ok {
+		t.Fatal("expected rejection of non-object payload")
+	}
+	wrapped, encoded, ok := wrapResult([]byte(`{"a":1}`))
+	if !ok {
+		t.Fatal("expected object payload to wrap")
+	}
+	if _, hasResult := wrapped["result"]; !hasResult {
+		t.Fatal("wrapped payload missing result envelope")
+	}
+	if string(encoded) != `{"result":{"a":1}}` {
+		t.Fatalf("encoded=%s", encoded)
+	}
+}
