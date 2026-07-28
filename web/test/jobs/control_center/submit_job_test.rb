@@ -59,4 +59,17 @@ class ControlCenter::SubmitJobTest < ActiveSupport::TestCase
     ControlCenter::SubmitJob.perform_now(job.id)
     assert_equal "failed", job.reload.status
   end
+
+  test "a generic unexpected exception marks the job failed and re-raises" do
+    job = queued_job
+    stub_methods(ControlCenter::TargetSelection, stream: ->(_s, _m, &blk) { blk.call("a.com"); 1 }) do
+      stub_methods(ControlCenter::Standalone, submit: ->(**) { raise "boom" }) do
+        error = assert_raises(RuntimeError) { ControlCenter::SubmitJob.perform_now(job.id) }
+        assert_equal "boom", error.message
+      end
+    end
+    job.reload
+    assert_equal "failed", job.status
+    assert_equal "boom", job.stderr
+  end
 end
