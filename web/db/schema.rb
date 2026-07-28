@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_28_002651) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_28_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -201,6 +201,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_28_002651) do
     t.integer "max_result_bytes", null: false
     t.integer "max_total_bytes", null: false
     t.bigint "provider_profile_id", null: false
+    t.jsonb "read_scopes", default: [], null: false
     t.integer "reserved_bytes", default: 0, null: false
     t.jsonb "resources", default: [], null: false
     t.integer "returned_bytes", default: 0, null: false

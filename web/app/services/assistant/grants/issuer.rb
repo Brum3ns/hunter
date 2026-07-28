@@ -8,6 +8,8 @@ module Assistant
         validate_whiterabbit_draft
         validate_ansible_draft
         get_validation_result
+        list_targets
+        get_target
       ].freeze
 
       class << self
@@ -25,6 +27,7 @@ module Assistant
             token_digest: Assistant::TurnGrant.digest(raw),
             resources: normalized_resources,
             tools: normalized_tools,
+            read_scopes: Assistant::TurnGrant::READ_SCOPES,
             expires_at: Assistant::Config.grant_ttl.from_now,
             max_calls: [ profile_limit, Assistant::Config.max_tool_calls ].min,
             max_result_bytes: Assistant::Config.max_result_bytes,

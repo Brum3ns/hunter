@@ -82,12 +82,12 @@ module Assistant
       end
 
       class << self
-        def reserve!(raw_grant:, tool:, resource_type: nil, resource_id: nil)
+        def reserve!(raw_grant:, tool:, scope: nil, resource_type: nil, resource_id: nil)
           grant = authenticate!(raw_grant)
           reserved_bytes = nil
 
           grant.with_lock do
-            authorize!(grant, tool.to_s, resource_type, resource_id)
+            authorize!(grant, tool.to_s, scope, resource_type, resource_id)
             reserve_budget!(grant)
             reserved_bytes = grant.max_result_bytes
           end
@@ -107,11 +107,14 @@ module Assistant
           grant
         end
 
-        def authorize!(grant, tool, resource_type, resource_id)
+        def authorize!(grant, tool, scope, resource_type, resource_id)
           raise AuthorizationError, "grant_revoked" if grant.revoked_at?
           raise AuthorizationError, "grant_expired" unless grant.expires_at.future?
           raise AuthorizationError, "grant_binding_invalid" unless valid_bindings?(grant)
           raise AuthorizationError, "tool_not_allowed" unless grant.tools.include?(tool)
+          if scope.present? && !grant.read_scopes.include?(scope.to_s)
+            raise AuthorizationError, "scope_not_allowed"
+          end
 
           authorize_resource!(grant, tool, resource_type, resource_id)
           raise AuthorizationError, "grant_calls_exhausted" if grant.call_count >= grant.max_calls

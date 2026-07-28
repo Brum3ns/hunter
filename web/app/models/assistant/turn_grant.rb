@@ -10,11 +10,16 @@ module Assistant
       token_digest
       resources
       tools
+      read_scopes
       expires_at
       max_calls
       max_result_bytes
       max_total_bytes
     ].freeze
+
+    # The closed set of module slugs a grant may authorize for read-only
+    # browsing. No wildcard is ever accepted. Grows as read modules ship.
+    READ_SCOPES = %w[targets].freeze
 
     self.table_name = "assistant_turn_grants"
 
@@ -36,6 +41,7 @@ module Assistant
       numericality: { only_integer: true, greater_than_or_equal_to: 0 }
     validate :bindings_match_turn
     validate :usage_is_within_limits
+    validate :read_scopes_are_known
     validate :scope_is_immutable, on: :update
 
     def self.digest(raw)
@@ -64,6 +70,11 @@ module Assistant
       return if returned_bytes.to_i + reserved_bytes.to_i <= max_total_bytes.to_i
 
       errors.add(:returned_bytes, "and reserved bytes exceed the total budget")
+    end
+
+    def read_scopes_are_known
+      extra = Array(read_scopes) - READ_SCOPES
+      errors.add(:read_scopes, "contains unknown slugs: #{extra.join(', ')}") if extra.any?
     end
 
     def scope_is_immutable
