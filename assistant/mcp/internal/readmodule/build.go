@@ -82,7 +82,7 @@ func decodeList(spec Spec) func([]byte) (tool.Request, error) {
 	}
 	return func(args []byte) (tool.Request, error) {
 		var raw map[string]json.RawMessage
-		if err := codec.DecodeRawClosed(args, &raw); err != nil {
+		if err := codec.DecodeClosed(args, &raw); err != nil {
 			return tool.Request{}, codec.ErrInvalid
 		}
 		for key, val := range raw {
@@ -108,10 +108,6 @@ func typeMatches(kind string, val json.RawMessage) bool {
 }
 
 func buildList(spec Spec) func(tool.Request) (tool.Call, error) {
-	order := append([]string{}, "limit", "page")
-	for _, f := range spec.ListFields {
-		order = append(order, f.Name)
-	}
 	return func(req tool.Request) (tool.Call, error) {
 		raw := req.Payload.(map[string]json.RawMessage)
 		values := url.Values{}

@@ -2,6 +2,7 @@ package readmodule
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -61,6 +62,17 @@ func TestListRejectsWrongType(t *testing.T) {
 	tl := find(t, Build(spec()), "list_things")
 	if _, err := tl.Decode([]byte(`{"limit":"big"}`)); err == nil {
 		t.Fatal("string limit accepted")
+	}
+}
+
+func TestListRejectsOversizedInput(t *testing.T) {
+	tl := find(t, Build(spec()), "list_things")
+	args := []byte(`{"q":"` + strings.Repeat("a", 65537) + `"}`)
+	if len(args) <= 64<<10 {
+		t.Fatalf("args not over 64 KiB: %d", len(args))
+	}
+	if _, err := tl.Decode(args); err == nil {
+		t.Fatal("oversized input accepted")
 	}
 }
 
