@@ -27,6 +27,24 @@ class Assistant::TurnGrantTest < ActiveSupport::TestCase
     assert(clone.errors[:read_scopes].any? { |message| message.include?("unknown") })
   end
 
+  test "READ_SCOPES covers every phase 2c read module slug" do
+    assert_equal(
+      %w[targets cves vulnerabilities sitemap programs control_center_templates control_center_jobs control_center_ansible],
+      Assistant::TurnGrant::READ_SCOPES
+    )
+  end
+
+  test "read_scopes_are_known accepts every phase 2c scope slug" do
+    issue!
+    template = Assistant::TurnGrant.order(:id).last
+    clone = Assistant::TurnGrant.new(
+      template.attributes.except("id", "created_at", "updated_at", "token_digest")
+    )
+    clone.token_digest = Assistant::TurnGrant.digest("phase-2c-secret")
+    clone.read_scopes = Assistant::TurnGrant::READ_SCOPES
+    assert clone.valid?, clone.errors.full_messages.join(", ")
+  end
+
   private
 
   def issue!

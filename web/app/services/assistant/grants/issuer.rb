@@ -10,6 +10,24 @@ module Assistant
         get_validation_result
         list_targets
         get_target
+        list_cves
+        get_cve
+        list_vulnerabilities
+        get_vulnerability
+        list_endpoints
+        get_endpoint
+        list_programs
+        get_program
+        list_templates
+        get_template
+        list_jobs
+        get_job
+        list_playbooks
+        get_playbook
+        list_run_groups
+        get_run_group
+        get_run
+        list_run_events
       ].freeze
 
       class << self

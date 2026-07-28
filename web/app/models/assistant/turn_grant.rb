@@ -19,7 +19,16 @@ module Assistant
 
     # The closed set of module slugs a grant may authorize for read-only
     # browsing. No wildcard is ever accepted. Grows as read modules ship.
-    READ_SCOPES = %w[targets].freeze
+    READ_SCOPES = %w[
+      targets
+      cves
+      vulnerabilities
+      sitemap
+      programs
+      control_center_templates
+      control_center_jobs
+      control_center_ansible
+    ].freeze
 
     self.table_name = "assistant_turn_grants"
 
