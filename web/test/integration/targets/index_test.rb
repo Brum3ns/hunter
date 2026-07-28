@@ -58,6 +58,11 @@ class Targets::IndexTest < ActionDispatch::IntegrationTest
       assert_select "[data-controller~=targets-selection][data-targets-selection-source-value=targets][data-targets-selection-query-value=nginx]"
       assert_select "input[data-targets-selection-target=checkbox][data-id=?]", "1"
       assert_select "input[data-targets-selection-target=checkbox][data-action=?]", "targets-selection#toggleRow"
+      # The select column is a fixed leading grid track: both the header spacer and
+      # the body checkbox cell carry data-col="__select" so the columns controller
+      # counts them and the last real column never wraps.
+      assert_select "[data-targets-columns-target=header] > [data-col=__select]"
+      assert_select "label[data-col=__select] input[data-targets-selection-target=checkbox]"
       assert_select "button[data-action=?]", "targets-selection#selectAllMatching"
       assert_select "button[data-action=?]", "targets-selection#sendToJob"
       assert_select "[data-targets-selection-target=count]", text: "0"
