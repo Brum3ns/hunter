@@ -101,6 +101,9 @@ Rails.application.routes.draw do
           get "policies/:artifact_type", to: "policies#show"
           post "validations/:artifact_type", to: "validations#create"
           get "validation_results/:id", to: "validations#show"
+          # Read-only module tools (Phase 2). Scope-gated in the controller.
+          get "targets", to: "targets#index"
+          get "targets/:id", to: "targets#show"
         end
       end
 
