@@ -6,7 +6,7 @@ require "digest"
 class ApiToken < ApplicationRecord
   belongs_to :user
 
-  MODULE_SCOPES = %w[cves vulnerabilities programs targets control_center].freeze
+  MODULE_SCOPES = %w[cves vulnerabilities programs targets control_center sitemap].freeze
   WILDCARD = "*".freeze
 
   # Looks up a token by raw value, touching last_used_at. Returns the ApiToken

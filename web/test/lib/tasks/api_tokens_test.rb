@@ -22,6 +22,16 @@ class ApiTokensTaskTest < ActiveSupport::TestCase
     ENV.delete("USERNAME"); ENV.delete("NAME"); ENV.delete("SCOPES")
   end
 
+  test "create accepts the sitemap scope through the allowlist" do
+    ENV["USERNAME"] = @user.username
+    ENV["NAME"] = "sitemap-llm"
+    ENV["SCOPES"] = "sitemap"
+    run_task("api_tokens:create")
+    assert_equal ["sitemap"], @user.api_tokens.find_by(name: "sitemap-llm").scopes
+  ensure
+    ENV.delete("USERNAME"); ENV.delete("NAME"); ENV.delete("SCOPES")
+  end
+
   test "set_cve_filter stores parsed JSON on the token" do
     token = ApiToken.generate(user: @user, name: "llm", scopes: ["cves"]).first
     ENV["USERNAME"] = @user.username
