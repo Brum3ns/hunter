@@ -1,21 +1,33 @@
 <%# web/app/views/sitemap/origins/_node.html.erb %>
 <li data-node>
-  <button type="button" data-action="click->sitemap-tree#activate"
-          <%= "data-url=#{targets_sitemap_endpoint_path(node.endpoint.id)}".html_safe if node.endpoint? %>
-          <%= 'aria-expanded="false"'.html_safe if node.folder? %>
-          class="flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 data-[selected]:bg-zinc-200 dark:data-[selected]:bg-zinc-800">
-    <% if node.folder? %>
-      <span data-chevron class="inline-flex w-4 shrink-0 text-zinc-400 transition-transform"><%= heroicon "chevron-right", classes: "h-4 w-4" %></span>
-      <span class="shrink-0 text-zinc-400"><%= heroicon "folder", classes: "h-4 w-4" %></span>
-    <% else %>
-      <span class="inline-block w-4 shrink-0"></span>
-      <span class="shrink-0 text-zinc-400"><%= heroicon "document", classes: "h-4 w-4" %></span>
+  <div class="flex items-center">
+    <%# Only leaf endpoint rows are selectable — folders are groupings, not
+        targets. The checkbox is a sibling of (not nested in) the activate
+        button so a checkbox click never bubbles into sitemap-tree#activate. %>
+    <% if node.endpoint? %>
+      <label class="flex shrink-0 cursor-pointer items-center pl-2">
+        <input type="checkbox" data-targets-selection-target="checkbox"
+               data-action="targets-selection#toggleRow" data-id="<%= node.endpoint.id %>"
+               class="h-3.5 w-3.5 rounded border-zinc-300 bg-white accent-zinc-900 dark:border-white/20 dark:bg-white/5 dark:accent-white" />
+      </label>
     <% end %>
-    <span class="truncate <%= node.has_query? ? "text-red-600 dark:text-red-400" : "text-zinc-700 dark:text-zinc-200" %>"><%= node.label %></span>
-    <% node.methods.reject { |m| m == "GET" }.each do |m| %>
-      <span class="ml-1 shrink-0 rounded px-1 text-[10px] font-semibold <%= sitemap_method_class(m) %>"><%= m %></span>
-    <% end %>
-  </button>
+    <button type="button" data-action="click->sitemap-tree#activate"
+            <%= "data-url=#{targets_sitemap_endpoint_path(node.endpoint.id)}".html_safe if node.endpoint? %>
+            <%= 'aria-expanded="false"'.html_safe if node.folder? %>
+            class="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 data-[selected]:bg-zinc-200 dark:data-[selected]:bg-zinc-800">
+      <% if node.folder? %>
+        <span data-chevron class="inline-flex w-4 shrink-0 text-zinc-400 transition-transform"><%= heroicon "chevron-right", classes: "h-4 w-4" %></span>
+        <span class="shrink-0 text-zinc-400"><%= heroicon "folder", classes: "h-4 w-4" %></span>
+      <% else %>
+        <span class="inline-block w-4 shrink-0"></span>
+        <span class="shrink-0 text-zinc-400"><%= heroicon "document", classes: "h-4 w-4" %></span>
+      <% end %>
+      <span class="truncate <%= node.has_query? ? "text-red-600 dark:text-red-400" : "text-zinc-700 dark:text-zinc-200" %>"><%= node.label %></span>
+      <% node.methods.reject { |m| m == "GET" }.each do |m| %>
+        <span class="ml-1 shrink-0 rounded px-1 text-[10px] font-semibold <%= sitemap_method_class(m) %>"><%= m %></span>
+      <% end %>
+    </button>
+  </div>
   <% if node.folder? %>
     <div data-children hidden>
       <ul class="sitemap-subtree"><%= render partial: "sitemap/origins/node", collection: node.children, as: :node %></ul>

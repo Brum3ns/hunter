@@ -33,6 +33,17 @@ class Sitemap::OriginsTest < ActionDispatch::IntegrationTest
     assert_select "[data-node] turbo-frame#origin_tree_#{a.id}[data-src=?]", targets_sitemap_origin_tree_path(a)
   end
 
+  test "wires the shared targets-selection controller with source=sitemap and the job toolbar" do
+    target!(host: "wired.atg.se")
+
+    get targets_sitemap_path(q: "status:200")
+
+    assert_select "[data-controller~=targets-selection][data-targets-selection-source-value=sitemap][data-targets-selection-query-value='status:200']"
+    assert_select "button[data-action='targets-selection#selectAllMatching']", text: "Select all matching filter"
+    assert_select "button[data-action='targets-selection#sendToJob']", text: "Send to job"
+    assert_select "[data-targets-selection-target=count]", text: "0"
+  end
+
   test "renders as the Sitemap tab in the Target department" do
     target = target!(host: "tab.example.com"); endpoint!(target, "/x")
 

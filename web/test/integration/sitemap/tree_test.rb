@@ -28,6 +28,7 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
     assert_match "app.js", @response.body                 # leaf row
     assert_select "button[data-url=?]", targets_sitemap_endpoint_path(leaf.id)   # leaf loads detail
     assert_select "button[data-action*='sitemap-tree#activate']"
+    assert_select "label input[type=checkbox][data-targets-selection-target=checkbox][data-action='targets-selection#toggleRow'][data-id=?]", leaf.id.to_s
 
     leaf_url = targets_sitemap_endpoint_path(leaf.id)
     leaf_button = css_select(%(button[data-url="#{leaf_url}"])).first
@@ -35,6 +36,16 @@ class Sitemap::TreeFragmentTest < ActionDispatch::IntegrationTest
 
     assert_select "button[aria-expanded='false']" # folder toggle exposes expanded state
     refute_includes leaf_button.attributes.keys, "aria-expanded", "leaf/endpoint buttons must not carry aria-expanded"
+  end
+
+  test "folder rows do not render a selection checkbox" do
+    t = target!
+    endpoint!(t, "/_nuxt/app.js")
+
+    get targets_sitemap_origin_tree_path(t)
+    assert_response :success
+    assert_select "li[data-node]", count: 2 # the "_nuxt/" folder + the "app.js" leaf
+    assert_select "input[type=checkbox][data-targets-selection-target=checkbox]", count: 1 # only the leaf
   end
 
   test "empty state when the origin has no active endpoints" do
