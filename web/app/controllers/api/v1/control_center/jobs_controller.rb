@@ -60,6 +60,14 @@ module Api
           render json: serialize(job), status: :created
         rescue ::ControlCenter::TargetSelection::InvalidSelection => e
           render json: { error: "bad_request", detail: e.message }, status: :bad_request
+        rescue ActiveRecord::RecordNotUnique
+          # Lost a race with a concurrent request carrying the same idempotency
+          # key: both missed the pre-check, only one insert wins. Return the
+          # winner's job instead of a 500 and do not enqueue a second run.
+          raise unless key
+          existing = ::ControlCenter::Job.find_by(idempotency_key: key, created_by: Current.user&.username)
+          raise unless existing
+          render json: serialize(existing), status: :created
         end
 
         private

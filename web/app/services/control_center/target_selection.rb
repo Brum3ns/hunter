@@ -11,6 +11,11 @@ module ControlCenter
 
     class InvalidSelection < StandardError; end
 
+    # Raised when a source's read stream was cut short (e.g. a Mongo outage
+    # swallowed mid-stream). SubmitJob's rescue turns this into a failed job
+    # instead of silently shipping a partial/empty target list as "succeeded".
+    class ResolutionIncomplete < StandardError; end
+
     def validate!(selections)
       normalize(selections).each { |sel| source_of(sel) }
       true
@@ -41,13 +46,17 @@ module ControlCenter
       normalize(selections).each do |sel|
         args = resolve_args(sel)
         case source_of(sel)
-        when "targets" then Targets::MongoSource.each_host(**args) { |h| emit.call(h) }
+        when "targets"
+          complete = Targets::MongoSource.each_host(**args) { |h| emit.call(h) }
+          raise ResolutionIncomplete, "targets source read was incomplete (Mongo error)" if complete == false
         when "sitemap" then Sitemap::EndpointResolver.each_url(**args) { |u| emit.call(u) }
         end
       end
       seen.size
     end
 
+    # Best-effort preview: an incomplete source read still renders whatever was
+    # gathered rather than 500ing — only the effectful `stream` raises.
     def sample(selections, manual_targets = [], limit: 50)
       out = []
       catch(:done) do
@@ -56,6 +65,8 @@ module ControlCenter
           throw :done if out.size >= limit
         end
       end
+      out
+    rescue ResolutionIncomplete
       out
     end
 

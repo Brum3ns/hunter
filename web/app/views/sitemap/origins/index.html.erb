@@ -94,10 +94,17 @@
       <%= render "sitemap/origins/filters" %>
 
       <div class="flex flex-wrap items-center gap-2 border-b border-zinc-200 px-2 py-2 text-xs dark:border-zinc-800">
-        <button type="button" data-action="targets-selection#selectAllMatching"
-                class="rounded-md bg-zinc-100 px-2.5 py-1 text-zinc-700 hover:bg-zinc-200 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10">
-          Select all matching filter
-        </button>
+        <% if @facets_active %>
+          <button type="button" disabled title="Clear facet filters to select all, or tick rows"
+                  class="cursor-not-allowed rounded-md bg-zinc-100 px-2.5 py-1 text-zinc-400 dark:bg-white/5 dark:text-zinc-600">
+            Select all matching filter
+          </button>
+        <% else %>
+          <button type="button" data-action="targets-selection#selectAllMatching"
+                  class="rounded-md bg-zinc-100 px-2.5 py-1 text-zinc-700 hover:bg-zinc-200 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10">
+            Select all matching filter
+          </button>
+        <% end %>
         <span class="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2.5 py-1 text-zinc-600 dark:bg-white/5 dark:text-zinc-300">
           Selected: <span data-targets-selection-target="count" class="rounded bg-zinc-200 px-1.5 py-0.5 font-semibold text-zinc-900 dark:bg-white/10 dark:text-white">0</span>
         </span>

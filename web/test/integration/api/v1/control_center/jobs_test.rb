@@ -54,6 +54,41 @@ class Api::V1::ControlCenter::JobsTest < ActionDispatch::IntegrationTest
     assert_equal first_id, JSON.parse(response.body)["id"]
   end
 
+  test "a create! race on the same idempotency key returns the existing job instead of a 500" do
+    ControlCenter::Template.create!(name: "httpx", commands: [{ "command" => "httpx", "args" => [] }])
+    sign_in_as(@user)
+    key = "race-key"
+
+    # Simulate another request winning the insert race: its job is already
+    # committed by the time this request's own create! would run.
+    winner = ControlCenter::Job.create!(
+      template_name: "httpx", template_snapshot: {}, queue_name: "test",
+      selections: [], manual_targets: [], target_chunk: 0, job_delay_ms: 0,
+      target_count: 0, status: "queued", idempotency_key: key, created_by: @user.username
+    )
+
+    original_find_by = ControlCenter::Job.method(:find_by)
+    find_by_calls = 0
+    stub_methods(ControlCenter::Job, find_by: ->(**kw) {
+      find_by_calls += 1
+      # First call is this request's pre-check: pretend it still missed the
+      # not-yet-committed winner. The rescue's re-fetch call goes through.
+      find_by_calls == 1 ? nil : original_find_by.call(**kw)
+    }) do
+      stub_methods(ControlCenter::Job, create!: ->(**kw) { raise ActiveRecord::RecordNotUnique, "duplicate key value violates unique constraint" }) do
+        assert_no_enqueued_jobs(only: ControlCenter::SubmitJob) do
+          post "/api/v1/control_center/jobs", params: {
+            template: "httpx", idempotency_key: key, selections: [{ source: "targets", q: "x" }]
+          }, as: :json
+        end
+      end
+    end
+
+    assert_response :created
+    assert_equal winner.id, JSON.parse(response.body)["id"]
+    assert_equal 1, ControlCenter::Job.where(idempotency_key: key).count
+  end
+
   test "submit 404s for an unknown template" do
     sign_in_as(@user)
     post "/api/v1/control_center/jobs", params: { template: "nope", targets: ["a.com"] }, as: :json

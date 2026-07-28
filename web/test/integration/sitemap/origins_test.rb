@@ -44,6 +44,33 @@ class Sitemap::OriginsTest < ActionDispatch::IntegrationTest
     assert_select "[data-targets-selection-target=count]", text: "0"
   end
 
+  test "select-all-matching stays enabled with no facet filters active" do
+    target!(host: "plain.atg.se")
+
+    get targets_sitemap_path
+
+    assert_select "button[data-action='targets-selection#selectAllMatching']", text: "Select all matching filter"
+    assert_select "button[disabled]", text: "Select all matching filter", count: 0
+  end
+
+  test "select-all-matching is disabled when a non-q facet filter is active" do
+    target!(host: "faceted.atg.se")
+
+    get targets_sitemap_path(methods: [ "POST" ])
+
+    assert_select "button[data-action='targets-selection#selectAllMatching']", count: 0
+    assert_select "button[disabled]", text: "Select all matching filter"
+  end
+
+  test "select-all-matching is disabled when the path facet is active" do
+    target!(host: "faceted2.atg.se")
+
+    get targets_sitemap_path(path: "admin")
+
+    assert_select "button[data-action='targets-selection#selectAllMatching']", count: 0
+    assert_select "button[disabled]", text: "Select all matching filter"
+  end
+
   test "renders as the Sitemap tab in the Target department" do
     target = target!(host: "tab.example.com"); endpoint!(target, "/x")
 

@@ -60,6 +60,18 @@ class ControlCenter::SubmitJobTest < ActiveSupport::TestCase
     assert_equal "failed", job.reload.status
   end
 
+  test "an incomplete target resolution marks the job failed and re-raises" do
+    job = queued_job
+    stub_methods(ControlCenter::TargetSelection,
+      stream: ->(_s, _m, &blk) { raise ControlCenter::TargetSelection::ResolutionIncomplete, "targets source read was incomplete (Mongo error)" }) do
+      error = assert_raises(ControlCenter::TargetSelection::ResolutionIncomplete) { ControlCenter::SubmitJob.perform_now(job.id) }
+      assert_match(/incomplete/i, error.message)
+    end
+    job.reload
+    assert_equal "failed", job.status
+    assert_match(/incomplete/i, job.stderr)
+  end
+
   test "a generic unexpected exception marks the job failed and re-raises" do
     job = queued_job
     stub_methods(ControlCenter::TargetSelection, stream: ->(_s, _m, &blk) { blk.call("a.com"); 1 }) do

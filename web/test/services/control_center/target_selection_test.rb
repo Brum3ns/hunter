@@ -44,6 +44,23 @@ class ControlCenter::TargetSelectionTest < ActiveSupport::TestCase
     end
   end
 
+  test "stream raises ResolutionIncomplete when the targets source read is cut short" do
+    stub_methods(Targets::MongoSource,
+      each_host: ->(**kw, &blk) { blk.call("a.com"); false }) do
+      error = assert_raises(ControlCenter::TargetSelection::ResolutionIncomplete) do
+        Sel.stream([{ "source" => "targets", "q" => "x" }], []) { |v| }
+      end
+      assert_match(/incomplete/i, error.message)
+    end
+  end
+
+  test "sample does not raise on an incomplete targets source read, returns partial results" do
+    stub_methods(Targets::MongoSource,
+      each_host: ->(**kw, &blk) { blk.call("a.com"); false }) do
+      assert_equal ["a.com"], Sel.sample([{ "source" => "targets", "q" => "x" }], [], limit: 50)
+    end
+  end
+
   test "sample returns at most `limit` unique targets" do
     stub_methods(Targets::MongoSource,
       each_host: ->(**kw, &blk) { %w[a b c d].each { |h| blk.call(h) }; true },
