@@ -158,4 +158,18 @@ class Api::V1::OpenapiTest < ActionDispatch::IntegrationTest
     schema = doc.dig("components", "schemas", "CcTargetSelection")
     assert_equal %w[targets sitemap], schema.dig("properties", "source", "enum")
   end
+
+  test "the CcJob status enum covers the async queued and running states" do
+    doc = ApiDocs::Spec.document(scopes: %w[control_center])
+    statuses = doc.dig("components", "schemas", "CcJob", "properties", "status", "enum")
+    assert_includes statuses, "queued"
+    assert_includes statuses, "running"
+  end
+
+  test "the control_center jobs operations declare the control_center scope" do
+    doc = ApiDocs::Spec.document(scopes: %w[control_center])
+    assert_equal "control_center", doc.dig("paths", "/api/v1/control_center/jobs", "get", "x-api-scope")
+    assert_equal "control_center", doc.dig("paths", "/api/v1/control_center/jobs", "post", "x-api-scope")
+    assert_equal "control_center", doc.dig("paths", "/api/v1/control_center/jobs/{id}", "get", "x-api-scope")
+  end
 end

@@ -699,6 +699,7 @@ paths:
   /api/v1/control_center/jobs:
     get:
       tags: ["Control Center"]
+      x-api-scope: control_center
       summary: "List jobs"
       description: "Recent Whiterabbit jobs, newest first."
       parameters:
@@ -710,6 +711,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
     post:
       tags: ["Control Center"]
+      x-api-scope: control_center
       summary: "Submit a job"
       description: "Run a template (by name) against a target list (manual targets and/or selection descriptors) via Whiterabbit. Persists a queued Job synchronously, then hands off asynchronously to the submit worker. Returns 422 if the template's commands fail validation, 400 if a selection descriptor is invalid. Passing the same idempotency_key again returns the original job instead of creating a duplicate."
       requestBody:
@@ -736,6 +738,7 @@ paths:
   /api/v1/control_center/jobs/{id}:
     get:
       tags: ["Control Center"]
+      x-api-scope: control_center
       summary: "Get one job"
       description: "Fetch a job by id."
       parameters:
@@ -1168,7 +1171,7 @@ components:
         template_name: { type: string }
         queue_name: { type: string }
         target_count: { type: integer }
-        status: { type: string, enum: [pending, succeeded, failed] }
+        status: { type: string, enum: [queued, running, succeeded, failed, pending] }
         exit_status: { type: [integer, "null"] }
         stdout: { type: [string, "null"] }
         stderr: { type: [string, "null"] }
