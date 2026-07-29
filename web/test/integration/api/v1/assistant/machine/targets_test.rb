@@ -15,12 +15,12 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
   end
 
   test "list_targets returns a bounded projection and count" do
-    doc = Target.new(
+    doc = {
       "id" => "t1",
       "target" => { "host" => "a.example.com" },
       "http" => { "status_code" => 200, "title" => "Home" },
       "metadata" => { "program" => "acme" }
-    )
+    }
 
     stub_methods(Targets::MongoSource, all: [ doc ], count: 1) do
       get "/api/v1/assistant/machine/targets", params: { q: "example.com" }, headers: headers(read_grant)
@@ -47,13 +47,13 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
   end
 
   test "get_target returns the full projection" do
-    doc = Target.new(
+    doc = {
       "id" => "t1",
       "target" => { "host" => "a.example.com", "url" => "https://a.example.com", "scheme" => "https", "port" => 443 },
       "http" => { "status_code" => 200, "title" => "Home", "webserver" => "nginx", "content_type" => "text/html" },
       "metadata" => { "program" => "acme" },
       "fingerprint" => { "page_type" => "login" }
-    )
+    }
 
     stub_methods(Targets::MongoSource, find: doc) do
       get "/api/v1/assistant/machine/targets/t1", headers: headers(read_grant)

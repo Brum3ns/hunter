@@ -15,14 +15,14 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
   end
 
   test "list_vulnerabilities returns a bounded projection and count" do
-    vuln = Vulnerability.new(
+    vuln = {
       "id" => "60f7c2d2b1a2c3d4e5f6a7b8",
       "metadata" => { "program" => "acme", "tool" => "burp", "date" => "2026-01-01T00:00:00Z" },
       "finding" => { "name" => "Reflected XSS", "severity" => "high", "type" => "xss", "cwe" => "CWE-79", "tags" => [ "xss" ] },
       "report" => { "status" => "triaged" },
       "target" => { "host" => "app.acme.test", "url" => "https://app.acme.test/x" },
       "poc" => { "confidence" => "confirmed" }
-    )
+    }
 
     stub_methods(Vulnerabilities::MongoSource, all: [ vuln ], count: 1) do
       get "/api/v1/assistant/machine/vulnerabilities", params: { q: "xss" }, headers: headers(read_grant)
@@ -51,14 +51,14 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
   end
 
   test "get_vulnerability returns the full projection" do
-    vuln = Vulnerability.new(
+    vuln = {
       "id" => "60f7c2d2b1a2c3d4e5f6a7b8",
       "metadata" => { "program" => "acme", "tool" => "burp", "asset" => "web", "date" => "2026-01-01T00:00:00Z", "description" => "A reflected XSS.", "impact" => "Session hijack" },
       "finding" => { "name" => "Reflected XSS", "severity" => "high", "type" => "xss", "cwe" => "CWE-79", "tags" => [ "xss" ] },
       "report" => { "status" => "triaged", "submitted" => "2026-01-01T00:00:00Z", "status_updated_at" => "2026-01-02T00:00:00Z" },
       "target" => { "host" => "app.acme.test", "url" => "https://app.acme.test/x", "ip" => "10.0.0.1", "port" => 443 },
       "poc" => { "confidence" => "confirmed" }
-    )
+    }
 
     stub_methods(Vulnerabilities::MongoSource, find: vuln) do
       get "/api/v1/assistant/machine/vulnerabilities/60f7c2d2b1a2c3d4e5f6a7b8", headers: headers(read_grant)
@@ -79,7 +79,7 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
   end
 
   test "get_vulnerability never projects secret or PII fields even when present on the source doc" do
-    vuln = Vulnerability.new(
+    vuln = {
       "id" => "60f7c2d2b1a2c3d4e5f6a7b8",
       "metadata" => {
         "program" => "acme", "tool" => "burp", "asset" => "web", "date" => "2026-01-01T00:00:00Z",
@@ -99,7 +99,7 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
       },
       "request" => "GET / HTTP/1.1\r\nCookie: session=SECRET-COOKIE-VALUE\r\nAuthorization: Bearer SECRET-REQUEST-TOKEN\r\n\r\n",
       "response" => "HTTP/1.1 200 OK\r\nSet-Cookie: session=SECRET-RESPONSE-COOKIE\r\n\r\n"
-    )
+    }
 
     stub_methods(Vulnerabilities::MongoSource, find: vuln) do
       get "/api/v1/assistant/machine/vulnerabilities/60f7c2d2b1a2c3d4e5f6a7b8", headers: headers(read_grant)

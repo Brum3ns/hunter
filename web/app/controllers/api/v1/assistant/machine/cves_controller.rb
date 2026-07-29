@@ -17,16 +17,16 @@ module Api
             limit = machine_limit(MAX_LIMIT)
             count = ::Cves::MongoSource.count(filters: filters, search: search)
             items = ::Cves::MongoSource.all(filters: filters, search: search, page: page, limit: limit)
-                                       .map { |cve| ::Assistant::Machine::CveProjection.summary(cve) }
+                                       .map { |doc| ::Assistant::Machine::CveProjection.summary(::Cve.new(doc)) }
             list_response(reservation, count: count, page: page, limit: limit, items: items)
           end
 
           def show
             reservation = authorize_tool!("get_cve", scope: "cves")
-            cve = ::Cves::MongoSource.find(params[:id])
-            return machine_not_found(reservation) unless cve
+            doc = ::Cves::MongoSource.find(params[:id])
+            return machine_not_found(reservation) unless doc
 
-            detail_response(reservation, key: :cve, value: ::Assistant::Machine::CveProjection.full(cve))
+            detail_response(reservation, key: :cve, value: ::Assistant::Machine::CveProjection.full(::Cve.new(doc)))
           end
         end
       end

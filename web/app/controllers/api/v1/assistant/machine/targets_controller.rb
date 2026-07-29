@@ -28,7 +28,7 @@ module Api
               count: count,
               page: page,
               limit: limit,
-              items: docs.map { |doc| ::Assistant::Machine::TargetProjection.summary(doc) }
+              items: docs.map { |doc| ::Assistant::Machine::TargetProjection.summary(::Target.new(doc)) }
             })
           end
 
@@ -42,7 +42,7 @@ module Api
 
             complete_machine_response!(reservation, {
               correlation_id: machine_grant.turn.correlation_id,
-              target: ::Assistant::Machine::TargetProjection.full(doc)
+              target: ::Assistant::Machine::TargetProjection.full(::Target.new(doc))
             })
           end
         end

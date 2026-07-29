@@ -15,7 +15,7 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
   end
 
   test "list_cves returns a bounded projection and count" do
-    cve = Cve.new(
+    cve = {
       "id" => "CVE-2024-1234",
       "summary" => "Something bad",
       "severity_level" => "high",
@@ -23,7 +23,7 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
       "has_fix" => true,
       "modified" => "2026-01-01T00:00:00Z",
       "details" => "a very long body that must not appear in the summary"
-    )
+    }
 
     stub_methods(Cves::MongoSource, all: [ cve ], count: 1) do
       get "/api/v1/assistant/machine/cves", params: { q: "bad" }, headers: headers(read_grant)
@@ -50,7 +50,7 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
   end
 
   test "get_cve returns the full projection" do
-    cve = Cve.new(
+    cve = {
       "id" => "CVE-2024-1234",
       "summary" => "Something bad",
       "severity_level" => "high",
@@ -72,7 +72,7 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
       "osv_id" => "GHSA-xxxx-yyyy-zzzz",
       "first_seen_at" => "2024-01-01T00:00:00Z",
       "last_synced_at" => "2026-01-01T00:00:00Z"
-    )
+    }
 
     stub_methods(Cves::MongoSource, find: cve) do
       get "/api/v1/assistant/machine/cves/CVE-2024-1234", headers: headers(read_grant)

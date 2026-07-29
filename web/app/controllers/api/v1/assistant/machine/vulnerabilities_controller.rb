@@ -19,16 +19,16 @@ module Api
             limit = machine_limit(MAX_LIMIT)
             count = ::Vulnerabilities::MongoSource.count(filters: filters, search: search)
             items = ::Vulnerabilities::MongoSource.all(filters: filters, search: search, page: page, limit: limit)
-                                                   .map { |vuln| ::Assistant::Machine::VulnerabilityProjection.summary(vuln) }
+                                                   .map { |doc| ::Assistant::Machine::VulnerabilityProjection.summary(::Vulnerability.new(doc)) }
             list_response(reservation, count: count, page: page, limit: limit, items: items)
           end
 
           def show
             reservation = authorize_tool!("get_vulnerability", scope: "vulnerabilities")
-            vuln = ::Vulnerabilities::MongoSource.find(params[:id])
-            return machine_not_found(reservation) unless vuln
+            doc = ::Vulnerabilities::MongoSource.find(params[:id])
+            return machine_not_found(reservation) unless doc
 
-            detail_response(reservation, key: :vulnerability, value: ::Assistant::Machine::VulnerabilityProjection.full(vuln))
+            detail_response(reservation, key: :vulnerability, value: ::Assistant::Machine::VulnerabilityProjection.full(::Vulnerability.new(doc)))
           end
         end
       end
