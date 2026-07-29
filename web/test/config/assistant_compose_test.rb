@@ -31,9 +31,9 @@ class AssistantComposeTest < Minitest::Test
   NETWORKS = {
     "web" => %w[default assistant-rails-gateway assistant-rails-validator assistant-mcp-rails assistant-rails-claude],
     "assistant-gateway" => %w[assistant-rails-gateway assistant-gateway-mcp assistant-gateway-egress],
-    "hunter-mcp" => %w[assistant-gateway-mcp assistant-mcp-rails],
+    "hunter-mcp" => %w[assistant-gateway-mcp assistant-mcp-rails assistant-claude-mcp],
     "assistant-validator" => %w[assistant-rails-validator],
-    "assistant-claude" => %w[assistant-rails-claude assistant-claude-egress]
+    "assistant-claude" => %w[assistant-rails-claude assistant-claude-egress assistant-claude-mcp]
   }.freeze
   # Per-service runtime hardening, compared key-by-key between the two files.
   HARDENING_KEYS = %w[
@@ -86,6 +86,7 @@ class AssistantComposeTest < Minitest::Test
         assistant-gateway-mcp
         assistant-mcp-rails
         assistant-rails-claude
+        assistant-claude-mcp
       ].each do |network|
         assert_equal true, networks.fetch(network)["internal"], "#{filename}: #{network} is externally routed"
       end
