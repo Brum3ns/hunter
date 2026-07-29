@@ -300,12 +300,13 @@ services:
       ASSISTANT_HUNTER_URL: http://web:5000
       ASSISTANT_HUNTER_ALLOWED_HOSTS: web:5000
       ASSISTANT_MCP_ALLOWED_HOSTS: hunter-mcp:8080
-      ASSISTANT_MCP_ALLOWED_ORIGINS: http://assistant-gateway:8081
+      ASSISTANT_MCP_ALLOWED_ORIGINS: http://assistant-gateway:8081,http://hunter-mcp:8080
       ASSISTANT_GATEWAY_MCP_TOKEN: ${ASSISTANT_GATEWAY_MCP_TOKEN}
       ASSISTANT_MCP_HUNTER_TOKEN: ${ASSISTANT_MCP_HUNTER_TOKEN}
     networks:
       - assistant-gateway-mcp
       - assistant-mcp-rails
+      - assistant-claude-mcp
     depends_on:
       web:
         condition: service_started
@@ -430,9 +431,14 @@ services:
     environment:
       ASSISTANT_CLAUDE_INGRESS_TOKEN: ${ASSISTANT_CLAUDE_INGRESS_TOKEN}
       ASSISTANT_CLAUDE_ALLOWED_HOSTS: assistant-claude:8083
+      # Where assistant-claude reaches hunter-mcp, and the shared bearer the MCP
+      # validates (the same secret hunter-mcp itself is configured with above).
+      ASSISTANT_CLAUDE_MCP_URL: http://hunter-mcp:8080/mcp
+      ASSISTANT_CLAUDE_MCP_TOKEN: ${ASSISTANT_GATEWAY_MCP_TOKEN}
     networks:
       - assistant-rails-claude
       - assistant-claude-egress
+      - assistant-claude-mcp
     volumes:
       - assistant_claude_home:/home/claude
     user: "1000:1000"
@@ -471,6 +477,9 @@ networks:
   assistant-mcp-rails:
     internal: true
   assistant-rails-claude:
+    internal: true
+  # assistant-claude's route to hunter-mcp (the read-only MCP tool broker).
+  assistant-claude-mcp:
     internal: true
   # The gateway's one non-internal network — outbound only, for
   # api.anthropic.com / api.openai.com. No other service joins it.
