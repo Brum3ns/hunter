@@ -60,3 +60,12 @@ func TestHealthRejectsNonGETMethods(t *testing.T) {
 		t.Fatalf("status=%d", response.Code)
 	}
 }
+
+func TestInstructionsStateReadOnlyAndDork(t *testing.T) {
+	lower := strings.ToLower(hunterInstructions)
+	for _, want := range []string{"read", "only", "count", "page", "limit", "dork", "id"} {
+		if !strings.Contains(lower, want) {
+			t.Fatalf("instructions missing %q", want)
+		}
+	}
+}

@@ -35,6 +35,12 @@ import (
 
 const healthURL = "http://127.0.0.1:8080/healthz"
 
+const hunterInstructions = "Hunter Assistant read-only tools. These tools ONLY read data; they never create, update, delete, run, or send anything.\n\n" +
+	"Listing & counting: every list_* tool returns {correlation_id, count, page, limit, items[]}. `count` is the TOTAL number of matches — use it to answer \"how many\" without paging. Page with `page` (1-based) and `limit` (default and max 50; list_run_events max 100).\n\n" +
+	"Detail: every get_* tool takes an `id`. Formats differ: get_endpoint/get_template/get_job/get_playbook/get_run_group/get_run use a positive integer; get_cve uses a CVE id like \"CVE-2024-1234\" (GHSA ids also accepted); get_vulnerability uses a Mongo ObjectId hex string; get_program uses a program sid; get_target uses an alive-target id.\n\n" +
+	"Search (the `q` field): where a tool accepts `q` it supports a dork grammar — bare words match free text; `key:value` filters a field; multiple terms AND together; quote values with spaces (\"...\"); `-key:value` negates; `*` wildcards where supported. Each tool's description and its `q` field description list that tool's dork keys. Examples: list_endpoints q=`path:/admin status:200`; list_programs q=`platform:hackerone bounty:yes`; list_vulnerabilities q=`severity:high status:open`. Note: list_cves `q` is a plain substring search over id/summary/details, not a dork.\n\n" +
+	"Prefer one well-filtered call. Consult each tool's description and input-field descriptions before calling."
+
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "-healthcheck" {
 		if err := checkHealth(); err != nil {
@@ -79,7 +85,7 @@ func main() {
 
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: "hunter-mcp", Title: "Hunter Assistant MCP Broker", Version: "1.0.0"},
-		&mcp.ServerOptions{Capabilities: &mcp.ServerCapabilities{}},
+		&mcp.ServerOptions{Capabilities: &mcp.ServerCapabilities{}, Instructions: hunterInstructions},
 	)
 	runner.Register(server, run)
 	streamable := mcp.NewStreamableHTTPHandler(
