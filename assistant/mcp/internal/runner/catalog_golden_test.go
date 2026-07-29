@@ -6,10 +6,20 @@ import (
 	"testing"
 
 	artifacts "hunter.local/assistant/mcp/internal/modules/artifacts"
+	ccJobs "hunter.local/assistant/mcp/internal/modules/cc_jobs"
+	ccPlaybooks "hunter.local/assistant/mcp/internal/modules/cc_playbooks"
+	ccRunEvents "hunter.local/assistant/mcp/internal/modules/cc_run_events"
+	ccRunGroups "hunter.local/assistant/mcp/internal/modules/cc_run_groups"
+	ccRuns "hunter.local/assistant/mcp/internal/modules/cc_runs"
+	ccTemplates "hunter.local/assistant/mcp/internal/modules/cc_templates"
 	contextmod "hunter.local/assistant/mcp/internal/modules/context"
+	cves "hunter.local/assistant/mcp/internal/modules/cves"
 	policies "hunter.local/assistant/mcp/internal/modules/policies"
+	programs "hunter.local/assistant/mcp/internal/modules/programs"
+	sitemap "hunter.local/assistant/mcp/internal/modules/sitemap"
 	targets "hunter.local/assistant/mcp/internal/modules/targets"
 	validation "hunter.local/assistant/mcp/internal/modules/validation"
+	vulnerabilities "hunter.local/assistant/mcp/internal/modules/vulnerabilities"
 )
 
 type goldenTool struct {
@@ -33,7 +43,11 @@ func normalizeSchema(t *testing.T, raw json.RawMessage) string {
 // (semantically normalized) tool definitions to the pre-refactor catalog.
 func TestCatalogMatchesGolden(t *testing.T) {
 	reg := NewRegistry()
-	reg.Add(contextmod.Module{}, artifacts.Module{}, policies.Module{}, validation.Module{}, targets.Module{})
+	reg.Add(
+		contextmod.Module{}, artifacts.Module{}, policies.Module{}, validation.Module{}, targets.Module{},
+		cves.Module{}, vulnerabilities.Module{}, sitemap.Module{}, programs.Module{},
+		ccTemplates.Module{}, ccJobs.Module{}, ccPlaybooks.Module{}, ccRunGroups.Module{}, ccRuns.Module{}, ccRunEvents.Module{},
+	)
 
 	raw, err := os.ReadFile("testdata/catalog_golden.json")
 	if err != nil {

@@ -14,10 +14,20 @@ import (
 	"hunter.local/assistant/mcp/internal/auth"
 	"hunter.local/assistant/mcp/internal/config"
 	artifacts "hunter.local/assistant/mcp/internal/modules/artifacts"
+	ccJobs "hunter.local/assistant/mcp/internal/modules/cc_jobs"
+	ccPlaybooks "hunter.local/assistant/mcp/internal/modules/cc_playbooks"
+	ccRunEvents "hunter.local/assistant/mcp/internal/modules/cc_run_events"
+	ccRunGroups "hunter.local/assistant/mcp/internal/modules/cc_run_groups"
+	ccRuns "hunter.local/assistant/mcp/internal/modules/cc_runs"
+	ccTemplates "hunter.local/assistant/mcp/internal/modules/cc_templates"
 	contextmod "hunter.local/assistant/mcp/internal/modules/context"
+	cves "hunter.local/assistant/mcp/internal/modules/cves"
 	policies "hunter.local/assistant/mcp/internal/modules/policies"
+	programs "hunter.local/assistant/mcp/internal/modules/programs"
+	sitemap "hunter.local/assistant/mcp/internal/modules/sitemap"
 	targets "hunter.local/assistant/mcp/internal/modules/targets"
 	validation "hunter.local/assistant/mcp/internal/modules/validation"
+	vulnerabilities "hunter.local/assistant/mcp/internal/modules/vulnerabilities"
 	"hunter.local/assistant/mcp/internal/redact"
 	"hunter.local/assistant/mcp/internal/runner"
 	"hunter.local/assistant/mcp/internal/transport"
@@ -54,6 +64,16 @@ func main() {
 		policies.Module{},
 		validation.Module{},
 		targets.Module{},
+		cves.Module{},
+		vulnerabilities.Module{},
+		sitemap.Module{},
+		programs.Module{},
+		ccTemplates.Module{},
+		ccJobs.Module{},
+		ccPlaybooks.Module{},
+		ccRunGroups.Module{},
+		ccRuns.Module{},
+		ccRunEvents.Module{},
 	)
 	run := runner.New(transportClient, registry, redact.NewChecker(int(settings.MaxResponseBytes)))
 

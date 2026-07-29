@@ -346,5 +346,722 @@
       ],
       "type": "object"
     }
+  },
+  {
+    "name": "get_cve",
+    "description": "Return the full record for one CVE by id.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_endpoint",
+    "description": "Return the full record for one sitemap endpoint by id.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_job",
+    "description": "Return the full record for one Control Center job by id, excluding internal targeting fields.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_playbook",
+    "description": "Return the full record for one Control Center Ansible playbook by id.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_program",
+    "description": "Return the full record for one program by sid.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_run",
+    "description": "Return the full record for one Control Center Ansible run by id, excluding secret snapshot fields (playbook_yaml, inventory_yaml, known_hosts, lease_digest, runner_id).",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_run_group",
+    "description": "Return the full record for one Control Center Ansible run group by id, including child run summaries. Never includes execution_payload.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_template",
+    "description": "Return the full record for one Control Center template by id.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_vulnerability",
+    "description": "Return the full record for one vulnerability by id.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_cves",
+    "description": "List and count tracked CVEs, optionally filtered by ecosystem, package, severity, or fix status.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "cwe": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "ecosystem": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "has_fix": {
+          "maxLength": 5,
+          "type": "string"
+        },
+        "language": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "min_severity": {
+          "maxLength": 10,
+          "type": "string"
+        },
+        "modified_after": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "package": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "published_after": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "tag": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "vendor": {
+          "maxLength": 100,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_endpoints",
+    "description": "List and count crawled sitemap endpoints, optionally filtered by path, content type, HTTP methods, or status family.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "content_type": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "has_query": {
+          "maxLength": 5,
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "methods": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "path": {
+          "maxLength": 500,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 40,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_jobs",
+    "description": "List and count Control Center Whiterabbit job runs, optionally filtered by status.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "status": {
+          "maxLength": 40,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_playbooks",
+    "description": "List and count Control Center Ansible playbooks, ordered by name.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_programs",
+    "description": "List and count bug-bounty programs, optionally filtered by status, bounty, collaboration, scope size, report volume, platform, or scope type.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "bounty": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "collaboration": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "dir": {
+          "maxLength": 10,
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "platforms": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "reports_gte": {
+          "maxLength": 10,
+          "type": "string"
+        },
+        "scope_count_gte": {
+          "maxLength": 10,
+          "type": "string"
+        },
+        "scope_count_lte": {
+          "maxLength": 10,
+          "type": "string"
+        },
+        "scope_types": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "sort": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 20,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_run_events",
+    "description": "List and count Control Center Ansible run events for a run, cursor-paginated by after_counter.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "after_counter": {
+          "maximum": 999999999999999999,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limit": {
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "run_id": {
+          "maximum": 999999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_run_groups",
+    "description": "List and count Control Center Ansible run groups, newest first.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_templates",
+    "description": "List and count Control Center Whiterabbit templates, optionally filtered by kind.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_vulnerabilities",
+    "description": "List and count tracked vulnerabilities, optionally filtered by program, severity, status, or tool.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "program": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "severity": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "tool": {
+          "maxLength": 100,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
   }
 ]
