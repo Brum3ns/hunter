@@ -142,8 +142,8 @@ git commit -m "Let readmodule list fields carry a description emitted into the t
 ```go
 const hunterInstructions = "Hunter Assistant read-only tools. These tools ONLY read data; they never create, update, delete, run, or send anything.\n\n" +
 	"Listing & counting: every list_* tool returns {correlation_id, count, page, limit, items[]}. `count` is the TOTAL number of matches — use it to answer \"how many\" without paging. Page with `page` (1-based) and `limit` (default and max 50; list_run_events max 100).\n\n" +
-	"Detail: every get_* tool takes an `id`. Formats differ: get_endpoint/get_template/get_job/get_playbook/get_run_group/get_run use a positive integer; get_cve uses a CVE id like \"CVE-2024-1234\" (GHSA ids also accepted); get_vulnerability uses a Mongo ObjectId hex string; get_program uses a program sid; get_target uses an alive-target id.\n\n" +
-	"Search (the `q` field): where a tool accepts `q` it supports a dork grammar — bare words match free text; `key:value` filters a field; multiple terms AND together; quote values with spaces (\"...\"); `-key:value` negates; `*` wildcards where supported. Each tool's description and its `q` field description list that tool's dork keys. Examples: list_endpoints q=`path:/admin status:200`; list_programs q=`platform:hackerone bounty:yes`; list_vulnerabilities q=`severity:high status:open`. Note: list_cves `q` is a plain substring search over id/summary/details, not a dork.\n\n" +
+	"Detail: the read get_* tools each take an `id`. Formats differ: get_endpoint/get_template/get_job/get_playbook/get_run_group/get_run use a positive integer; get_cve uses a CVE id like \"CVE-2024-1234\" (GHSA ids also accepted); get_vulnerability uses a Mongo ObjectId hex string; get_program uses a program sid; get_target uses an alive-target id.\n\n" +
+	"Search (the `q` field): where a tool accepts `q` it supports a dork grammar — bare words match free text; `key:value` filters a field; multiple terms AND together; quote values with spaces (\"...\"). There is no negation or wildcard operator; to exclude, use a boolean field's no/false value where one exists. Each tool's description and its `q` field description list that tool's dork keys. Examples: list_endpoints q=`path:/admin status:200`; list_programs q=`platform:hackerone bounty:yes`; list_vulnerabilities q=`severity:high status:open`. Note: list_cves `q` is a plain substring search over id/summary/details, not a dork.\n\n" +
 	"Prefer one well-filtered call. Consult each tool's description and input-field descriptions before calling."
 ```
 
@@ -188,7 +188,7 @@ git commit -m "Advertise a read-only usage brief via the hunter-mcp server instr
 
 **Interfaces:** Consumes `readmodule.ListField.Description` (Task 1). Produces enriched `ListDesc`/`GetDesc` + a `Description` on every `ListField` for these four modules.
 
-For EACH module set the `q` field `Description` to `"Dork/free-text search. Keys: <comma-joined dork keys>. Syntax: bare words = free text; key:value filters; -key:value negates; quote values with spaces. Example: <example>."` using that module's keys from the reference table, and add a one-line `Description` to every other list field. Set `GetDesc` to name the id format. Add a comment `// Dork keys mirror Rails <M>::SearchParser::KEYS (source of truth).` above each `q` field.
+For EACH module set the `q` field `Description` to `"Dork/free-text search. Keys: <comma-joined dork keys>. Syntax: bare words = free text; key:value filters; multiple terms AND; quote values with spaces (no negation/wildcard operators). Example: <example>."` using that module's keys from the reference table, and add a one-line `Description` to every other list field. Set `GetDesc` to name the id format. Add a comment `// Dork keys mirror Rails <M>::SearchParser::KEYS (source of truth).` above each `q` field.
 
 Concrete values:
 
