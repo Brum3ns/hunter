@@ -23,10 +23,10 @@ func (Module) Tools() []tool.Tool {
 			{Name: "vendor", Kind: "string", MaxLen: 100, Description: "Affected vendor."},
 			{Name: "cwe", Kind: "string", MaxLen: 40, Description: "CWE id, e.g. CWE-79."},
 			{Name: "tag", Kind: "string", MaxLen: 100, Description: "Filter by tag."},
-			{Name: "has_fix", Kind: "string", MaxLen: 5, Description: "true/false — whether a fix is available."},
+			{Name: "has_fix", Kind: "string", MaxLen: 5, Description: "Whether a fix is available: pass true or false."},
 			{Name: "min_severity", Kind: "string", MaxLen: 10, Description: "Minimum severity: critical, high, medium, or low."},
-			{Name: "published_after", Kind: "string", MaxLen: 40, Description: "ISO-8601 date; only CVEs published on/after it."},
-			{Name: "modified_after", Kind: "string", MaxLen: 40, Description: "ISO-8601 date; only CVEs modified on/after it."},
+			{Name: "published_after", Kind: "string", MaxLen: 40, Description: "ISO-8601 datetime, e.g. 2024-01-01T00:00:00Z (a bare date is rejected); only CVEs published on/after it."},
+			{Name: "modified_after", Kind: "string", MaxLen: 40, Description: "ISO-8601 datetime, e.g. 2024-01-01T00:00:00Z (a bare date is rejected); only CVEs modified on/after it."},
 		},
 		SummaryKeys: []string{"id", "summary", "severity_level", "severity_score", "has_fix", "modified"},
 		FullKeys: []string{

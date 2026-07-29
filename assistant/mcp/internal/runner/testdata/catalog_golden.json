@@ -648,7 +648,7 @@
           "type": "string"
         },
         "has_fix": {
-          "description": "true/false — whether a fix is available.",
+          "description": "Whether a fix is available: pass true or false.",
           "maxLength": 5,
           "type": "string"
         },
@@ -669,7 +669,7 @@
           "type": "string"
         },
         "modified_after": {
-          "description": "ISO-8601 date; only CVEs modified on/after it.",
+          "description": "ISO-8601 datetime, e.g. 2024-01-01T00:00:00Z (a bare date is rejected); only CVEs modified on/after it.",
           "maxLength": 40,
           "type": "string"
         },
@@ -685,7 +685,7 @@
           "type": "integer"
         },
         "published_after": {
-          "description": "ISO-8601 date; only CVEs published on/after it.",
+          "description": "ISO-8601 datetime, e.g. 2024-01-01T00:00:00Z (a bare date is rejected); only CVEs published on/after it.",
           "maxLength": 40,
           "type": "string"
         },
