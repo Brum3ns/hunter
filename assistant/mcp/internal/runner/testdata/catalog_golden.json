@@ -119,7 +119,7 @@
   },
   {
     "name": "get_target",
-    "description": "Return the full record for one target by id.",
+    "description": "Return the full record for one alive target by its id.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -136,16 +136,16 @@
       "type": "object"
     },
     "output_schema": {
+      "type": "object",
       "additionalProperties": false,
+      "required": [
+        "result"
+      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      },
-      "required": [
-        "result"
-      ],
-      "type": "object"
+      }
     }
   },
   {
@@ -181,29 +181,34 @@
   },
   {
     "name": "list_targets",
-    "description": "List and count alive targets, optionally filtered by query, program, or status.",
+    "description": "List and count alive targets, optionally filtered by query, program, or status. Use q for dork search (see the q field for keys).",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
         },
         "program": {
+          "description": "Filter by bug-bounty program name.",
           "maxLength": 200,
           "type": "string"
         },
         "q": {
+          "description": "Dork/free-text search. Keys: host,url,ip,port,method,scheme,path,title,webserver,content_type,tech,status,program,tool,page_type. Syntax: bare words = free text; key:value filters; multiple terms AND; quote values with spaces (no negation/wildcard operators). Example: status:200 tech:nginx.",
           "maxLength": 200,
           "type": "string"
         },
         "status": {
+          "description": "Filter by HTTP status code, e.g. 200.",
           "maxLength": 40,
           "type": "string"
         }
@@ -211,16 +216,16 @@
       "type": "object"
     },
     "output_schema": {
+      "type": "object",
       "additionalProperties": false,
+      "required": [
+        "result"
+      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      },
-      "required": [
-        "result"
-      ],
-      "type": "object"
+      }
     }
   },
   {
@@ -380,7 +385,7 @@
   },
   {
     "name": "get_endpoint",
-    "description": "Return the full record for one sitemap endpoint by id.",
+    "description": "Return the full record for one sitemap endpoint by its integer id.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -473,7 +478,7 @@
   },
   {
     "name": "get_program",
-    "description": "Return the full record for one program by sid.",
+    "description": "Return the full record for one program by its sid.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -597,7 +602,7 @@
   },
   {
     "name": "get_vulnerability",
-    "description": "Return the full record for one vulnerability by id.",
+    "description": "Return the full record for one vulnerability by its Mongo ObjectId hex id.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -704,41 +709,49 @@
   },
   {
     "name": "list_endpoints",
-    "description": "List and count crawled sitemap endpoints, optionally filtered by path, content type, HTTP methods, or status family.",
+    "description": "List and count crawled sitemap endpoints, optionally filtered by path, content type, HTTP methods, or status family. Use q for dork search (see the q field for keys).",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
         "content_type": {
+          "description": "Filter by response content type (substring).",
           "maxLength": 100,
           "type": "string"
         },
         "has_query": {
+          "description": "Filter to endpoints whose URL has a query string (true/false).",
           "maxLength": 5,
           "type": "string"
         },
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "methods": {
+          "description": "Comma-separated HTTP methods to include, e.g. GET,POST.",
           "maxLength": 200,
           "type": "string"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
         },
         "path": {
+          "description": "Filter by URL path (substring).",
           "maxLength": 500,
           "type": "string"
         },
         "q": {
+          "description": "Dork/free-text search. Keys: host,origin,program,path,url,content_type,method,scheme,port,status,length,has_query,root,seen. Syntax: bare words = free text; key:value filters; multiple terms AND; quote values with spaces (no negation/wildcard operators). Example: path:/admin status:200.",
           "maxLength": 200,
           "type": "string"
         },
         "status": {
+          "description": "Filter by HTTP status family: 2,3,4,5.",
           "maxLength": 40,
           "type": "string"
         }
@@ -828,61 +841,74 @@
   },
   {
     "name": "list_programs",
-    "description": "List and count bug-bounty programs, optionally filtered by status, bounty, collaboration, scope size, report volume, platform, or scope type.",
+    "description": "List and count bug-bounty programs, optionally filtered by status, bounty, collaboration, scope size, report volume, platform, or scope type. Use q for dork search (see the q field for keys).",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
         "bounty": {
+          "description": "Filter by bounty presence: with or without.",
           "maxLength": 20,
           "type": "string"
         },
         "collaboration": {
+          "description": "Filter by collaboration: yes or no.",
           "maxLength": 20,
           "type": "string"
         },
         "dir": {
+          "description": "Sort direction: asc or desc.",
           "maxLength": 10,
           "type": "string"
         },
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
         },
         "platforms": {
+          "description": "Comma-separated platform slugs, e.g. hackerone,bugcrowd.",
           "maxLength": 200,
           "type": "string"
         },
         "q": {
+          "description": "Dork/free-text search. Keys: asset,program,name,slug,org,organization,tag,lang,language,platform,mode,bounty,vdp,active,hof,hall_of_fame,reports,reports_24h,reports_7d,reports_30d,reports_month,scope,avg,avg_reward,max,max_reward,min,min_reward,response. Syntax: bare words = free text; key:value filters; multiple terms AND; quote values with spaces (no negation/wildcard operators). Example: platform:hackerone bounty:yes.",
           "maxLength": 200,
           "type": "string"
         },
         "reports_gte": {
+          "description": "Minimum resolved report count.",
           "maxLength": 10,
           "type": "string"
         },
         "scope_count_gte": {
+          "description": "Minimum in-scope asset count.",
           "maxLength": 10,
           "type": "string"
         },
         "scope_count_lte": {
+          "description": "Maximum in-scope asset count.",
           "maxLength": 10,
           "type": "string"
         },
         "scope_types": {
+          "description": "Comma-separated scope types, e.g. web,mobile.",
           "maxLength": 200,
           "type": "string"
         },
         "sort": {
+          "description": "Sort key (e.g. date, bounty_max, reports).",
           "maxLength": 40,
           "type": "string"
         },
         "status": {
+          "description": "Filter by program status: public or private.",
           "maxLength": 20,
           "type": "string"
         }
@@ -1014,37 +1040,44 @@
   },
   {
     "name": "list_vulnerabilities",
-    "description": "List and count tracked vulnerabilities, optionally filtered by program, severity, status, or tool.",
+    "description": "List and count tracked vulnerabilities, optionally filtered by program, severity, status, or tool. Use q for dork search (see the q field for keys).",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
         },
         "program": {
+          "description": "Filter by program name.",
           "maxLength": 200,
           "type": "string"
         },
         "q": {
+          "description": "Dork/free-text search. Keys: severity,status,tool,type,program,asset,name,cwe,tag,host,url,ip,port,method,submitted,confidence,date. Syntax: bare words = free text; key:value filters; multiple terms AND; quote values with spaces (no negation/wildcard operators). Example: severity:high status:open.",
           "maxLength": 200,
           "type": "string"
         },
         "severity": {
+          "description": "Filter by finding severity (e.g. critical, high, medium, low).",
           "maxLength": 40,
           "type": "string"
         },
         "status": {
+          "description": "Filter by report status (e.g. open, triaged, resolved).",
           "maxLength": 40,
           "type": "string"
         },
         "tool": {
+          "description": "Filter by the tool that produced the finding.",
           "maxLength": 100,
           "type": "string"
         }

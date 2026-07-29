@@ -1,6 +1,8 @@
 package sitemap
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -104,5 +106,30 @@ func TestGetEndpointOutputValidation(t *testing.T) {
 	}
 	if tl.Validate([]byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","endpoint":{"id":123}}`)) == nil {
 		t.Fatal("partial endpoint accepted")
+	}
+}
+
+func TestListEndpointsQDescribesDorkKeys(t *testing.T) {
+	tl := find(t, "list_endpoints")
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tl.InputSchema, &schema); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	desc := schema.Properties["q"].Description
+	for _, key := range []string{"has_query", "root"} {
+		if !strings.Contains(desc, key) {
+			t.Fatalf("q description missing key %q: %s", key, desc)
+		}
+	}
+}
+
+func TestGetEndpointDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "get_endpoint")
+	if tl.Description == "" {
+		t.Fatal("get_endpoint description empty")
 	}
 }

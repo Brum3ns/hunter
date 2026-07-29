@@ -1,6 +1,8 @@
 package programs
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -104,5 +106,30 @@ func TestGetProgramOutputValidation(t *testing.T) {
 	}
 	if tl.Validate([]byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","program":{"sid":"acme-corp"}}`)) == nil {
 		t.Fatal("partial program accepted")
+	}
+}
+
+func TestListProgramsQDescribesDorkKeys(t *testing.T) {
+	tl := find(t, "list_programs")
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tl.InputSchema, &schema); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	desc := schema.Properties["q"].Description
+	for _, key := range []string{"hall_of_fame", "avg_reward"} {
+		if !strings.Contains(desc, key) {
+			t.Fatalf("q description missing key %q: %s", key, desc)
+		}
+	}
+}
+
+func TestGetProgramDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "get_program")
+	if tl.Description == "" {
+		t.Fatal("get_program description empty")
 	}
 }

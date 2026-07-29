@@ -18,15 +18,16 @@ func (Module) Tools() []tool.Tool {
 	return readmodule.Build(readmodule.Spec{
 		ListTool: "list_endpoints", GetTool: "get_endpoint", Scope: "sitemap",
 		BasePath: "/api/v1/assistant/machine/sitemap/endpoints", DetailKey: "endpoint",
-		ListDesc: "List and count crawled sitemap endpoints, optionally filtered by path, content type, HTTP methods, or status family.",
-		GetDesc:  "Return the full record for one sitemap endpoint by id.",
+		ListDesc: "List and count crawled sitemap endpoints, optionally filtered by path, content type, HTTP methods, or status family. Use q for dork search (see the q field for keys).",
+		GetDesc:  "Return the full record for one sitemap endpoint by its integer id.",
 		ListFields: []readmodule.ListField{
-			{Name: "q", Kind: "string", MaxLen: 200},
-			{Name: "path", Kind: "string", MaxLen: 500},
-			{Name: "has_query", Kind: "string", MaxLen: 5},
-			{Name: "content_type", Kind: "string", MaxLen: 100},
-			{Name: "methods", Kind: "string", MaxLen: 200},
-			{Name: "status", Kind: "string", MaxLen: 40},
+			// Dork keys mirror Rails Sitemap::SearchParser::KEYS (source of truth).
+			{Name: "q", Kind: "string", MaxLen: 200, Description: "Dork/free-text search. Keys: host,origin,program,path,url,content_type,method,scheme,port,status,length,has_query,root,seen. Syntax: bare words = free text; key:value filters; multiple terms AND; quote values with spaces (no negation/wildcard operators). Example: path:/admin status:200."},
+			{Name: "path", Kind: "string", MaxLen: 500, Description: "Filter by URL path (substring)."},
+			{Name: "has_query", Kind: "string", MaxLen: 5, Description: "Filter to endpoints whose URL has a query string (true/false)."},
+			{Name: "content_type", Kind: "string", MaxLen: 100, Description: "Filter by response content type (substring)."},
+			{Name: "methods", Kind: "string", MaxLen: 200, Description: "Comma-separated HTTP methods to include, e.g. GET,POST."},
+			{Name: "status", Kind: "string", MaxLen: 40, Description: "Filter by HTTP status family: 2,3,4,5."},
 		},
 		SummaryKeys: []string{"id", "url", "path", "method", "status_code"},
 		FullKeys: []string{

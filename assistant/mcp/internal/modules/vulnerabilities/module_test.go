@@ -1,6 +1,8 @@
 package vulnerabilities
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -96,5 +98,28 @@ func TestGetVulnerabilityOutputValidation(t *testing.T) {
 		`"submitted":"2026-01-01","status_updated_at":"2026-01-02","confidence":"confirmed","status_updated_by":"leak"}}`
 	if tl.Validate([]byte(leaked)) == nil {
 		t.Fatal("accepted output with a secret/PII field")
+	}
+}
+
+func TestListVulnerabilitiesQDescribesDorkKeys(t *testing.T) {
+	tl := find(t, "list_vulnerabilities")
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tl.InputSchema, &schema); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	desc := schema.Properties["q"].Description
+	if !strings.Contains(desc, "confidence") {
+		t.Fatalf("q description missing key %q: %s", "confidence", desc)
+	}
+}
+
+func TestGetVulnerabilityDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "get_vulnerability")
+	if tl.Description == "" {
+		t.Fatal("get_vulnerability description empty")
 	}
 }
