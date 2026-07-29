@@ -117,6 +117,26 @@ func TestListOutputValidation(t *testing.T) {
 	}
 }
 
+func TestBuildListReturnsOnlyListTool(t *testing.T) {
+	tools := BuildList(spec())
+	if len(tools) != 1 {
+		t.Fatalf("expected exactly 1 tool, got %d", len(tools))
+	}
+	if tools[0].Name != spec().ListTool {
+		t.Fatalf("expected tool %q, got %q", spec().ListTool, tools[0].Name)
+	}
+}
+
+func TestBuildGetReturnsOnlyGetTool(t *testing.T) {
+	tools := BuildGet(spec())
+	if len(tools) != 1 {
+		t.Fatalf("expected exactly 1 tool, got %d", len(tools))
+	}
+	if tools[0].Name != spec().GetTool {
+		t.Fatalf("expected tool %q, got %q", spec().GetTool, tools[0].Name)
+	}
+}
+
 func TestGetOutputValidation(t *testing.T) {
 	tl := find(t, Build(spec()), "get_thing")
 	good := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","thing":{"id":"t1","name":"n","detail":"d"}}`

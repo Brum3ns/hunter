@@ -11,12 +11,14 @@ import (
 	"hunter.local/assistant/mcp/internal/tool"
 )
 
-// Build returns the module's two tools.
+// Build returns the module's two tools (list and get).
 func Build(spec Spec) []tool.Tool {
-	idPattern := spec.IDPattern
-	if idPattern == nil {
-		idPattern = codec.SafeID
-	}
+	return append(BuildList(spec), BuildGet(spec)...)
+}
+
+// BuildList returns only the module's list_* tool. Used by modules that have
+// no matching get (e.g. list_run_events).
+func BuildList(spec Spec) []tool.Tool {
 	return []tool.Tool{
 		{
 			Name: spec.ListTool, Description: spec.ListDesc,
@@ -26,6 +28,17 @@ func Build(spec Spec) []tool.Tool {
 			BuildRequest: buildList(spec),
 			Validate:     validateList(spec),
 		},
+	}
+}
+
+// BuildGet returns only the module's get_* tool. Used by modules that have
+// no matching list (e.g. get_run).
+func BuildGet(spec Spec) []tool.Tool {
+	idPattern := spec.IDPattern
+	if idPattern == nil {
+		idPattern = codec.SafeID
+	}
+	return []tool.Tool{
 		{
 			Name: spec.GetTool, Description: spec.GetDesc,
 			InputSchema: getSchema(idPattern), OutputSchema: tool.ResultSchema,
