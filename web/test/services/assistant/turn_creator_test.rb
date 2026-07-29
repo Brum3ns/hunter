@@ -47,6 +47,43 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     refute_equal enqueued.dig(:envelope, "turn_grant"), grant.token_digest
   end
 
+  test "a Claude Code turn issues a per-turn grant and enqueues TurnJob with the raw token" do
+    profile = assistant_provider_profiles(:claude_code)
+    conversation = Assistant::Conversation.start!(user: @user, provider_profile: profile)
+    enqueued = nil
+
+    with_enabled_assistant do
+      stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
+        # `raw_grant` is cleared in TurnCreator's `ensure` right after this stub
+        # runs, before control returns to this test — dup the token now (as a
+        # real ActiveJob adapter would serialize it into the persisted job row
+        # before that clear happens) so we can still inspect its real value.
+        enqueued = attributes.merge(turn_grant: attributes[:turn_grant]&.dup)
+      }) do
+        @turn = Assistant::TurnCreator.call(
+          conversation: conversation,
+          user: @user,
+          body: "hi claude",
+          context_refs: []
+        )
+      end
+    end
+
+    assert_equal "queued", @turn.reload.status
+    grant = @turn.turn_grant
+    refute_nil grant, "the Claude Code path must now issue a TurnGrant bound to the turn"
+    assert_equal [], grant.resources
+    assert_equal Assistant::Grants::Issuer::TOOLS, grant.tools
+    assert_equal Assistant::TurnGrant::READ_SCOPES, grant.read_scopes
+
+    assert_equal @turn.id, enqueued.fetch(:turn_id)
+    assert_equal true, enqueued.fetch(:claude)
+    assert_equal "hi claude", enqueued.fetch(:prompt)
+    refute_nil enqueued.fetch(:turn_grant)
+    refute_equal enqueued.fetch(:turn_grant), grant.token_digest
+    assert_equal Assistant::TurnGrant.digest(enqueued.fetch(:turn_grant)), grant.token_digest
+  end
+
   test "invalid context rolls back the complete turn record set" do
     counts = record_counts
 

@@ -62,4 +62,24 @@ class Assistant::ClaudeCodeClientTest < ActiveSupport::TestCase
       assert_equal "claude_malformed_response", events.first["data"]["code"]
     end
   end
+
+  test "turn_grant is included in the request body when present" do
+    with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
+      seen = nil
+      poster = ->(body) { seen = body; { "session_id" => "sess_9", "reply" => "Hi!" } }
+      Assistant::ClaudeCodeClient.run_turn(
+        turn: @turn, prompt: "hello", turn_grant: "raw-grant-token", poster: poster
+      )
+      assert_equal "raw-grant-token", seen["turn_grant"]
+    end
+  end
+
+  test "turn_grant is omitted from the request body when absent" do
+    with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
+      seen = nil
+      poster = ->(body) { seen = body; { "session_id" => "sess_9", "reply" => "Hi!" } }
+      Assistant::ClaudeCodeClient.run_turn(turn: @turn, prompt: "hello", poster: poster)
+      refute seen.key?("turn_grant")
+    end
+  end
 end

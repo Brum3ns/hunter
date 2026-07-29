@@ -21,7 +21,7 @@ module Assistant
   class TurnJob < ApplicationJob
     queue_as :default
 
-    def perform(turn_id:, envelope: nil, claude: false, prompt: nil)
+    def perform(turn_id:, envelope: nil, claude: false, prompt: nil, turn_grant: nil)
       turn = Assistant::Turn.find_by(id: turn_id)
       return unless turn&.status == "queued"
 
@@ -30,7 +30,7 @@ module Assistant
       events =
         if claude
           # ClaudeCodeClient never raises: every failure is already an error event.
-          Assistant::ClaudeCodeClient.run_turn(turn: turn, prompt: prompt)
+          Assistant::ClaudeCodeClient.run_turn(turn: turn, prompt: prompt, turn_grant: turn_grant)
         else
           begin
             Assistant::GatewayClient.run_turn(envelope)

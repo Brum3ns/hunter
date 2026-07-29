@@ -31,9 +31,15 @@ module Assistant
         verify_dispatch!(conversation, user, setting, profile)
         Assistant::RateLimiter.consume!(user: user, action: "turn_start", now: Time.current)
         if profile.claude_code?
-          # Phase 1 Claude Code path: no context resolution, no grant, no gateway
-          # envelope — the Claude Code service runs the turn with no tools.
+          # Claude Code path: no context resolution and no gateway envelope, but
+          # (Path B) a per-turn grant IS issued so the backend can present it to
+          # the read-only MCP — mirrors the legacy branch's Issuer.call below.
           turn = conversation.append_user_turn!(body: body, context_refs: [])
+          raw_grant = Assistant::Grants::Issuer.call(
+            turn: turn,
+            resources: [],
+            tools: Assistant::Grants::Issuer::TOOLS
+          )
         else
           contexts = resolve_contexts!(context_refs, user)
           turn = conversation.append_user_turn!(
@@ -143,7 +149,9 @@ module Assistant
           raise ArgumentError, "turn requires one user message" if prompt.blank?
           turn.update!(status: "queued", queued_at: Time.current)
         end
-        Assistant::TurnJob.perform_later(turn_id: turn.id, claude: true, prompt: prompt)
+        Assistant::TurnJob.perform_later(
+          turn_id: turn.id, claude: true, prompt: prompt, turn_grant: raw_grant
+        )
         return turn.reload
       end
 

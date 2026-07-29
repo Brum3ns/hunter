@@ -1,7 +1,10 @@
 require "test_helper"
 
 # Task 10: a turn on the Claude Code profile is dispatched to ClaudeCodeClient
-# (no grant, no gateway envelope, no activation gate) and completes.
+# (no context resolution, no gateway envelope, no activation gate) and
+# completes. Path B (task PB2): the dispatch now also issues a per-turn grant
+# and threads its raw token through to ClaudeCodeClient, so these stubs must
+# accept the `turn_grant:` keyword too.
 class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
   setup do
     @user = users(:one)
@@ -13,9 +16,13 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
     conv = Assistant::Conversation.start!(user: @user, provider_profile: @profile)
 
     captured = {}
-    fake = lambda do |turn:, prompt:|
+    fake = lambda do |turn:, prompt:, turn_grant: nil|
       captured[:prompt] = prompt
       captured[:turn] = turn
+      # Same object as `raw_grant` in TurnCreator, which is `.clear`-ed in its
+      # `ensure` right after this synchronous inline job finishes — dup now so
+      # the assertion below inspects the real value, not the cleared buffer.
+      captured[:turn_grant] = turn_grant&.dup
       [
         { "schema_version" => 1, "event_id" => SecureRandom.uuid, "correlation_id" => turn.correlation_id,
           "turn_id" => turn.id, "provider_profile_id" => turn.provider_profile_id,
@@ -35,8 +42,12 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
     assert_equal "hi there", captured[:prompt]
     reply = conv.messages.where(role: "assistant").order(:id).last
     assert_equal "Hello!", reply.body
-    # No grant is issued for the Claude Code path.
-    assert_equal 0, Assistant::TurnGrant.where(turn_id: conv.turns.pluck(:id)).count
+    # Path B: a grant IS now issued for the Claude Code path, and its raw token
+    # (not the digest) is what reaches ClaudeCodeClient.
+    grants = Assistant::TurnGrant.where(turn_id: conv.turns.pluck(:id))
+    assert_equal 1, grants.count
+    refute_nil captured[:turn_grant]
+    assert_equal Assistant::TurnGrant.digest(captured[:turn_grant]), grants.sole.token_digest
   ensure
     ActiveJob::Base.queue_adapter = :test
   end
@@ -48,7 +59,7 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
     conv = Assistant::Conversation.start!(user: @user, provider_profile: @profile)
     stub_methods(Assistant::Config, enabled?: false) do
       stub_methods(Assistant::ClaudeCodeClient,
-        run_turn: ->(turn:, prompt:) { [ { "schema_version" => 1, "event_id" => SecureRandom.uuid,
+        run_turn: ->(turn:, prompt:, turn_grant: nil) { [ { "schema_version" => 1, "event_id" => SecureRandom.uuid,
           "correlation_id" => turn.correlation_id, "turn_id" => turn.id,
           "provider_profile_id" => turn.provider_profile_id, "kind" => "error",
           "data" => { "code" => "claude_not_configured" } } ] }) do
