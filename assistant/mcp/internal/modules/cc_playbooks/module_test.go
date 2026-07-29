@@ -87,3 +87,17 @@ func TestGetPlaybookOutputValidation(t *testing.T) {
 		t.Fatal("partial playbook accepted")
 	}
 }
+
+func TestListPlaybooksDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "list_playbooks")
+	if tl.Description == "" {
+		t.Fatal("list_playbooks description empty")
+	}
+}
+
+func TestGetPlaybookDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "get_playbook")
+	if tl.Description == "" {
+		t.Fatal("get_playbook description empty")
+	}
+}

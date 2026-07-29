@@ -1,6 +1,7 @@
 package cc_run_groups
 
 import (
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -89,5 +90,22 @@ func TestGetRunGroupOutputValidation(t *testing.T) {
 		`"execution_payload":"secret"}}`
 	if tl.Validate([]byte(leaked)) == nil {
 		t.Fatal("accepted output leaking execution_payload")
+	}
+}
+
+func TestListRunGroupsDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "list_run_groups")
+	if tl.Description == "" {
+		t.Fatal("list_run_groups description empty")
+	}
+}
+
+func TestGetRunGroupDescriptionMentionsExecutionPayload(t *testing.T) {
+	tl := find(t, "get_run_group")
+	if tl.Description == "" {
+		t.Fatal("get_run_group description empty")
+	}
+	if !strings.Contains(tl.Description, "execution_payload") {
+		t.Fatalf("get_run_group description missing %q: %s", "execution_payload", tl.Description)
 	}
 }

@@ -18,8 +18,8 @@ func (Module) Tools() []tool.Tool {
 	return readmodule.Build(readmodule.Spec{
 		ListTool: "list_run_groups", GetTool: "get_run_group", Scope: "control_center_ansible",
 		BasePath: "/api/v1/assistant/machine/control_center/ansible/run_groups", DetailKey: "run_group",
-		ListDesc: "List and count Control Center Ansible run groups, newest first.",
-		GetDesc:  "Return the full record for one Control Center Ansible run group by id, including child run summaries. Never includes execution_payload.",
+		ListDesc: "List and count Control Center Ansible run groups, newest first. Page with page/limit.",
+		GetDesc:  "Return the full record for one run group by its integer id, including child run summaries. Never includes execution_payload.",
 		SummaryKeys: []string{
 			"id", "status", "execution_mode", "failure_policy", "inventory_id", "credential_id",
 			"started_at", "completed_at", "created_at",

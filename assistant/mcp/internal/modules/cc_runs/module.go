@@ -19,7 +19,7 @@ func (Module) Tools() []tool.Tool {
 	return readmodule.BuildGet(readmodule.Spec{
 		GetTool: "get_run", Scope: "control_center_ansible",
 		BasePath: "/api/v1/assistant/machine/control_center/ansible/runs", DetailKey: "run",
-		GetDesc: "Return the full record for one Control Center Ansible run by id, excluding secret snapshot fields (playbook_yaml, inventory_yaml, known_hosts, lease_digest, runner_id).",
+		GetDesc: "Return the full record for one Ansible run by its integer id (excludes secret snapshot fields: playbook_yaml, inventory_yaml, known_hosts, lease_digest, runner_id).",
 		FullKeys: []string{
 			"id", "run_group_id", "playbook_id", "position", "status", "playbook_name", "inventory_name",
 			"credential_name", "credential_fingerprint", "variable_audit", "secret_variable_names",

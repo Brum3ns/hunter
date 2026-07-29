@@ -1,6 +1,8 @@
 package cc_jobs
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -93,5 +95,30 @@ func TestGetJobOutputValidation(t *testing.T) {
 		if tl.Validate([]byte(leaked)) == nil {
 			t.Fatalf("accepted output leaking %s", forbidden)
 		}
+	}
+}
+
+func TestListJobsStatusDescribesValues(t *testing.T) {
+	tl := find(t, "list_jobs")
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tl.InputSchema, &schema); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	desc := schema.Properties["status"].Description
+	for _, want := range []string{"queued", "running", "succeeded", "failed", "pending"} {
+		if !strings.Contains(desc, want) {
+			t.Fatalf("status description missing %q: %s", want, desc)
+		}
+	}
+}
+
+func TestGetJobDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "get_job")
+	if tl.Description == "" {
+		t.Fatal("get_job description empty")
 	}
 }

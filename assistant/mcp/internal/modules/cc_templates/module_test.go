@@ -1,6 +1,8 @@
 package cc_templates
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -94,5 +96,30 @@ func TestGetTemplateOutputValidation(t *testing.T) {
 		`"output":"json","commands":[],"target":null,"created_at":"2026-01-01","created_by":"x"}}`
 	if tl.Validate([]byte(leaked)) == nil {
 		t.Fatal("accepted output leaking created_by")
+	}
+}
+
+func TestListTemplatesKindDescribesValues(t *testing.T) {
+	tl := find(t, "list_templates")
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tl.InputSchema, &schema); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	desc := schema.Properties["kind"].Description
+	for _, want := range []string{"cmdscript", "workflow"} {
+		if !strings.Contains(desc, want) {
+			t.Fatalf("kind description missing %q: %s", want, desc)
+		}
+	}
+}
+
+func TestGetTemplateDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "get_template")
+	if tl.Description == "" {
+		t.Fatal("get_template description empty")
 	}
 }

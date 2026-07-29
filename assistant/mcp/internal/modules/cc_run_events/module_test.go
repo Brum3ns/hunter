@@ -1,6 +1,8 @@
 package cc_run_events
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -83,6 +85,22 @@ func TestListRunEventsOutputValidation(t *testing.T) {
 		`"items":` + itemsN(101) + `}`
 	if tl.Validate([]byte(tooMany)) == nil {
 		t.Fatal("accepted more than 100 items")
+	}
+}
+
+func TestListRunEventsRunIDDescriptionSaysRequired(t *testing.T) {
+	tl := find(t, "list_run_events")
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tl.InputSchema, &schema); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	desc := schema.Properties["run_id"].Description
+	if !strings.Contains(desc, "Required") {
+		t.Fatalf("run_id description missing %q: %s", "Required", desc)
 	}
 }
 

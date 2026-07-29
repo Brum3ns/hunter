@@ -19,9 +19,9 @@ func (Module) Tools() []tool.Tool {
 		ListTool: "list_jobs", GetTool: "get_job", Scope: "control_center_jobs",
 		BasePath: "/api/v1/assistant/machine/control_center/jobs", DetailKey: "job",
 		ListDesc: "List and count Control Center Whiterabbit job runs, optionally filtered by status.",
-		GetDesc:  "Return the full record for one Control Center job by id, excluding internal targeting fields.",
+		GetDesc:  "Return the full record for one Control Center job by its integer id (excludes internal targeting fields).",
 		ListFields: []readmodule.ListField{
-			{Name: "status", Kind: "string", MaxLen: 40},
+			{Name: "status", Kind: "string", MaxLen: 40, Description: "Filter by job status: queued, running, succeeded, failed, or pending."},
 		},
 		SummaryKeys: []string{"id", "template_name", "status", "queue_name", "target_count", "exit_status", "created_at"},
 		FullKeys: []string{

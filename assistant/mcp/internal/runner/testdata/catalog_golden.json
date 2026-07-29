@@ -354,7 +354,7 @@
   },
   {
     "name": "get_cve",
-    "description": "Return the full record for one CVE by id.",
+    "description": "Return the full record for one CVE by id (e.g. CVE-2024-1234; GHSA ids also accepted).",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -416,7 +416,7 @@
   },
   {
     "name": "get_job",
-    "description": "Return the full record for one Control Center job by id, excluding internal targeting fields.",
+    "description": "Return the full record for one Control Center job by its integer id (excludes internal targeting fields).",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -447,7 +447,7 @@
   },
   {
     "name": "get_playbook",
-    "description": "Return the full record for one Control Center Ansible playbook by id.",
+    "description": "Return the full record for one Ansible playbook by its integer id.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -509,7 +509,7 @@
   },
   {
     "name": "get_run",
-    "description": "Return the full record for one Control Center Ansible run by id, excluding secret snapshot fields (playbook_yaml, inventory_yaml, known_hosts, lease_digest, runner_id).",
+    "description": "Return the full record for one Ansible run by its integer id (excludes secret snapshot fields: playbook_yaml, inventory_yaml, known_hosts, lease_digest, runner_id).",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -540,7 +540,7 @@
   },
   {
     "name": "get_run_group",
-    "description": "Return the full record for one Control Center Ansible run group by id, including child run summaries. Never includes execution_payload.",
+    "description": "Return the full record for one run group by its integer id, including child run summaries. Never includes execution_payload.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -571,7 +571,7 @@
   },
   {
     "name": "get_template",
-    "description": "Return the full record for one Control Center template by id.",
+    "description": "Return the full record for one Control Center template by its integer id.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
@@ -638,56 +638,69 @@
       "additionalProperties": false,
       "properties": {
         "cwe": {
+          "description": "CWE id, e.g. CWE-79.",
           "maxLength": 40,
           "type": "string"
         },
         "ecosystem": {
+          "description": "Package ecosystem, e.g. npm, PyPI, Go.",
           "maxLength": 100,
           "type": "string"
         },
         "has_fix": {
+          "description": "true/false — whether a fix is available.",
           "maxLength": 5,
           "type": "string"
         },
         "language": {
+          "description": "Affected language.",
           "maxLength": 100,
           "type": "string"
         },
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "min_severity": {
+          "description": "Minimum severity: critical, high, medium, or low.",
           "maxLength": 10,
           "type": "string"
         },
         "modified_after": {
+          "description": "ISO-8601 date; only CVEs modified on/after it.",
           "maxLength": 40,
           "type": "string"
         },
         "package": {
+          "description": "Affected package name.",
           "maxLength": 200,
           "type": "string"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
         },
         "published_after": {
+          "description": "ISO-8601 date; only CVEs published on/after it.",
           "maxLength": 40,
           "type": "string"
         },
         "q": {
+          "description": "Plain case-insensitive substring search over CVE id, summary, and details. Not a dork — use the typed filters for precise matches.",
           "maxLength": 200,
           "type": "string"
         },
         "tag": {
+          "description": "Filter by tag.",
           "maxLength": 100,
           "type": "string"
         },
         "vendor": {
+          "description": "Affected vendor.",
           "maxLength": 100,
           "type": "string"
         }
@@ -778,16 +791,19 @@
       "additionalProperties": false,
       "properties": {
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
         },
         "status": {
+          "description": "Filter by job status: queued, running, succeeded, failed, or pending.",
           "maxLength": 40,
           "type": "string"
         }
@@ -809,16 +825,18 @@
   },
   {
     "name": "list_playbooks",
-    "description": "List and count Control Center Ansible playbooks, ordered by name.",
+    "description": "List and count Control Center Ansible playbooks, ordered by name. Page with page/limit.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
@@ -930,26 +948,30 @@
   },
   {
     "name": "list_run_events",
-    "description": "List and count Control Center Ansible run events for a run, cursor-paginated by after_counter.",
+    "description": "List a run's Ansible events in counter order (max 100 per page). Requires run_id; use after_counter to page.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
         "after_counter": {
+          "description": "Cursor: return only events with counter greater than this (for paging through a run's event stream).",
           "maximum": 999999999999999999,
           "minimum": 0,
           "type": "integer"
         },
         "limit": {
+          "description": "Max items per page (default and max 100).",
           "maximum": 100,
           "minimum": 1,
           "type": "integer"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
         },
         "run_id": {
+          "description": "Required. The integer run id whose events to list.",
           "maximum": 999999999999999999,
           "minimum": 1,
           "type": "integer"
@@ -972,16 +994,18 @@
   },
   {
     "name": "list_run_groups",
-    "description": "List and count Control Center Ansible run groups, newest first.",
+    "description": "List and count Control Center Ansible run groups, newest first. Page with page/limit.",
     "input_schema": {
       "additionalProperties": false,
       "properties": {
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
@@ -1009,15 +1033,18 @@
       "additionalProperties": false,
       "properties": {
         "kind": {
+          "description": "Filter by template kind: cmdscript or workflow.",
           "maxLength": 40,
           "type": "string"
         },
         "limit": {
+          "description": "Max items per page (default and max 50).",
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
         },
         "page": {
+          "description": "1-based page number (default 1).",
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"

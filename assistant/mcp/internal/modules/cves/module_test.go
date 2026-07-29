@@ -1,6 +1,8 @@
 package cves
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -88,5 +90,31 @@ func TestGetCveOutputValidation(t *testing.T) {
 	}
 	if tl.Validate([]byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","cve":{"id":"CVE-2024-1234"}}`)) == nil {
 		t.Fatal("partial cve accepted")
+	}
+}
+
+func TestListCvesQDescribesSubstringSearch(t *testing.T) {
+	tl := find(t, "list_cves")
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tl.InputSchema, &schema); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	desc := schema.Properties["q"].Description
+	if !strings.Contains(desc, "substring") {
+		t.Fatalf("q description missing %q: %s", "substring", desc)
+	}
+	if !strings.Contains(desc, "Not a dork") {
+		t.Fatalf("q description missing %q: %s", "Not a dork", desc)
+	}
+}
+
+func TestGetCveDescriptionNonEmpty(t *testing.T) {
+	tl := find(t, "get_cve")
+	if tl.Description == "" {
+		t.Fatal("get_cve description empty")
 	}
 }

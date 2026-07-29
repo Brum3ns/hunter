@@ -18,8 +18,8 @@ func (Module) Tools() []tool.Tool {
 	return readmodule.Build(readmodule.Spec{
 		ListTool: "list_playbooks", GetTool: "get_playbook", Scope: "control_center_ansible",
 		BasePath: "/api/v1/assistant/machine/control_center/ansible/playbooks", DetailKey: "playbook",
-		ListDesc:    "List and count Control Center Ansible playbooks, ordered by name.",
-		GetDesc:     "Return the full record for one Control Center Ansible playbook by id.",
+		ListDesc:    "List and count Control Center Ansible playbooks, ordered by name. Page with page/limit.",
+		GetDesc:     "Return the full record for one Ansible playbook by its integer id.",
 		SummaryKeys: []string{"id", "name", "description", "checksum", "updated_at"},
 		FullKeys: []string{
 			"id", "name", "description", "checksum", "updated_at",

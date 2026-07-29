@@ -19,9 +19,9 @@ func (Module) Tools() []tool.Tool {
 		ListTool: "list_templates", GetTool: "get_template", Scope: "control_center_templates",
 		BasePath: "/api/v1/assistant/machine/control_center/templates", DetailKey: "template",
 		ListDesc: "List and count Control Center Whiterabbit templates, optionally filtered by kind.",
-		GetDesc:  "Return the full record for one Control Center template by id.",
+		GetDesc:  "Return the full record for one Control Center template by its integer id.",
 		ListFields: []readmodule.ListField{
-			{Name: "kind", Kind: "string", MaxLen: 40},
+			{Name: "kind", Kind: "string", MaxLen: 40, Description: "Filter by template kind: cmdscript or workflow."},
 		},
 		SummaryKeys: []string{"id", "name", "kind", "description", "tags", "updated_at"},
 		FullKeys: []string{

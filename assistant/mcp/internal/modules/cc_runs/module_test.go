@@ -1,6 +1,7 @@
 package cc_runs
 
 import (
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -83,6 +84,18 @@ func TestGetRunOutputValidation(t *testing.T) {
 			`"created_at":"2026-01-01","updated_at":"2026-01-01","` + forbidden + `":"x"}}`
 		if tl.Validate([]byte(leaked)) == nil {
 			t.Fatalf("accepted output leaking %s", forbidden)
+		}
+	}
+}
+
+func TestGetRunDescriptionMentionsExcludedFields(t *testing.T) {
+	tl := find(t, "get_run")
+	if tl.Description == "" {
+		t.Fatal("get_run description empty")
+	}
+	for _, want := range []string{"playbook_yaml", "inventory_yaml", "known_hosts", "lease_digest", "runner_id"} {
+		if !strings.Contains(tl.Description, want) {
+			t.Fatalf("get_run description missing %q: %s", want, tl.Description)
 		}
 	}
 }
