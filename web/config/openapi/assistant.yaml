@@ -134,6 +134,301 @@ paths:
         "200": { description: "Normalized validation state and redacted codes." }
         "403": { description: "The result is not bound to the current grant." }
         "501": { description: "Validator is not installed yet." }
+  /api/v1/assistant/machine/targets:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count alive targets"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: program, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (targets) page of target summaries plus count." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/targets/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one target by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (targets) full target." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/cves:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count CVEs"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: ecosystem, in: query, schema: { type: string } }
+        - { name: package, in: query, schema: { type: string } }
+        - { name: language, in: query, schema: { type: string } }
+        - { name: vendor, in: query, schema: { type: string } }
+        - { name: cwe, in: query, schema: { type: string } }
+        - { name: tag, in: query, schema: { type: string } }
+        - { name: has_fix, in: query, schema: { type: string } }
+        - { name: min_severity, in: query, schema: { type: string } }
+        - { name: published_after, in: query, schema: { type: string } }
+        - { name: modified_after, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (cves) page of CVE summaries plus count." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/cves/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one CVE by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (cves) full CVE." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/vulnerabilities:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count vulnerabilities"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: program, in: query, schema: { type: string } }
+        - { name: severity, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: tool, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (vulnerabilities) page of vulnerability summaries plus count, excluding raw request/response, poc, and operator PII." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/vulnerabilities/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one vulnerability by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (vulnerabilities) full vulnerability, excluding raw request/response, poc, and operator PII." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/sitemap/endpoints:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count sitemap endpoints"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: path, in: query, schema: { type: string } }
+        - { name: has_query, in: query, schema: { type: string } }
+        - { name: content_type, in: query, schema: { type: string } }
+        - { name: methods, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (sitemap) page of sitemap endpoint summaries plus count." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/sitemap/endpoints/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one sitemap endpoint by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (sitemap) full sitemap endpoint." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/programs:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count bug-bounty programs"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: bounty, in: query, schema: { type: string } }
+        - { name: platforms, in: query, schema: { type: string } }
+        - { name: scope_types, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (programs) page of program summaries plus count." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/programs/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one program by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (programs) full program." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/control_center/templates:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count Control Center Whiterabbit templates"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: kind, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_templates) page of template summaries plus count." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/control_center/templates/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one Control Center template by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_templates) full template." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/control_center/jobs:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count Control Center jobs"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_jobs) page of job summaries plus count, excluding template_snapshot, selections, manual_targets, and idempotency_key." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/control_center/jobs/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one Control Center job by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_jobs) full job, excluding template_snapshot, selections, manual_targets, and idempotency_key." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/control_center/ansible/playbooks:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count Control Center ansible playbooks"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) page of playbook summaries plus count." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/control_center/ansible/playbooks/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one Control Center ansible playbook by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) full playbook." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/control_center/ansible/run_groups:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List and count Control Center ansible run groups"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) page of run-group summaries plus count." }
+        "403": { description: "The tool is not granted." }
+  /api/v1/assistant/machine/control_center/ansible/run_groups/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one Control Center ansible run group by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) full run group, including its runs, excluding execution_payload." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/control_center/ansible/runs/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one Control Center ansible run by id"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) full run, excluding playbook_yaml, inventory_yaml, known_hosts, lease_digest, and runner_id." }
+        "403": { description: "The tool is not granted." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/machine/control_center/ansible/run_events:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List Control Center ansible run events for a run"
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: run_id, in: query, required: true, schema: { type: integer } }
+        - { name: after_counter, in: query, schema: { type: integer } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) cursor page of run-event summaries for one run." }
+        "403": { description: "The tool is not granted." }
+        "404": { description: "The run_id query parameter is missing." }
   /api/v1/assistant/conversations:
     get:
       tags: ["Assistant"]
