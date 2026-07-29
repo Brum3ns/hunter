@@ -249,13 +249,34 @@ func intFromEnv(name string, fallback int) int {
 // mcpToolsFromEnv reads ASSISTANT_CLAUDE_MCP_TOOLS as a whitespace-separated
 // tool list, falling back to defaultMCPTools when it is unset or empty —
 // mirroring intFromEnv's fallback-on-empty convention for this file's other
-// env-derived settings.
+// env-derived settings. The result is always filtered to the mcp__hunter__
+// prefix (see filterHunterMCPTools) so a misconfigured operator override can
+// never widen --allowedTools to a built-in or non-hunter MCP tool.
 func mcpToolsFromEnv() []string {
 	raw := os.Getenv("ASSISTANT_CLAUDE_MCP_TOOLS")
 	if raw == "" {
-		return defaultMCPTools
+		return filterHunterMCPTools(defaultMCPTools)
 	}
-	return strings.Fields(raw)
+	return filterHunterMCPTools(strings.Fields(raw))
+}
+
+// hunterMCPToolPrefix is the only prefix ever allowed into --allowedTools.
+const hunterMCPToolPrefix = "mcp__hunter__"
+
+// filterHunterMCPTools drops any entry that is not exactly prefixed with
+// mcp__hunter__, so the CLI allowlist can never carry a built-in (Bash,
+// Write, ...) or a non-hunter MCP tool regardless of what
+// ASSISTANT_CLAUDE_MCP_TOOLS is set to. If nothing survives, it returns an
+// empty slice rather than substituting any other tool list — the backend
+// already treats an empty/absent config as "no MCP for this turn".
+func filterHunterMCPTools(tools []string) []string {
+	filtered := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		if strings.HasPrefix(tool, hunterMCPToolPrefix) {
+			filtered = append(filtered, tool)
+		}
+	}
+	return filtered
 }
 
 func checkHealth() error {

@@ -324,3 +324,20 @@ func TestMCPToolsFromEnvSplitsOnWhitespace(t *testing.T) {
 		t.Fatalf("got %v want %v", got, want)
 	}
 }
+
+func TestMCPToolsFromEnvFiltersNonHunterEntries(t *testing.T) {
+	t.Setenv("ASSISTANT_CLAUDE_MCP_TOOLS", "mcp__hunter__list_cves Bash mcp__hunter__get_cve mcp__other__x")
+	got := mcpToolsFromEnv()
+	want := []string{"mcp__hunter__list_cves", "mcp__hunter__get_cve"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}
+
+func TestMCPToolsFromEnvAllBuiltinsYieldsEmpty(t *testing.T) {
+	t.Setenv("ASSISTANT_CLAUDE_MCP_TOOLS", "Bash Write")
+	got := mcpToolsFromEnv()
+	if len(got) != 0 {
+		t.Fatalf("want empty slice, got %v", got)
+	}
+}
