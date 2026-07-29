@@ -2,8 +2,10 @@ module Assistant
   module Machine
     # Bounded, redaction-safe field allowlist the Assistant may read from a
     # target. Never returns the raw Mongo document (Target#as_json). The key sets
-    # here are a contract with the MCP targets module's closed output validators
-    # (assistant/mcp/internal/modules/targets/output.go) — change both together.
+    # here are a contract with the closed output validators in
+    # assistant/mcp/internal/readmodule/validate.go (driven by targets module's
+    # SummaryKeys/FullKeys in assistant/mcp/internal/modules/targets/targets.go)
+    # — change both together.
     module TargetProjection
       module_function
 
