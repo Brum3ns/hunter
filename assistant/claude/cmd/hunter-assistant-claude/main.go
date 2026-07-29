@@ -23,6 +23,23 @@ const listenAddress = "0.0.0.0:8083"
 // defence, not as a meaningful product limit.
 const maxRequestBytes = 64 << 10
 
+// defaultMCPTools is the read-only mcp__hunter__* allowlist used when
+// ASSISTANT_CLAUDE_MCP_TOOLS is unset. It MUST contain only read tools —
+// never a built-in (Bash/Write/Edit/Read/WebFetch/...) and never a write/
+// execute/send MCP tool; see AGENTS.md's assistant capability change rule.
+var defaultMCPTools = strings.Fields(
+	"mcp__hunter__list_targets mcp__hunter__get_target " +
+		"mcp__hunter__list_cves mcp__hunter__get_cve " +
+		"mcp__hunter__list_vulnerabilities mcp__hunter__get_vulnerability " +
+		"mcp__hunter__list_endpoints mcp__hunter__get_endpoint " +
+		"mcp__hunter__list_programs mcp__hunter__get_program " +
+		"mcp__hunter__list_templates mcp__hunter__get_template " +
+		"mcp__hunter__list_jobs mcp__hunter__get_job " +
+		"mcp__hunter__list_playbooks mcp__hunter__get_playbook " +
+		"mcp__hunter__list_run_groups mcp__hunter__get_run_group " +
+		"mcp__hunter__get_run mcp__hunter__list_run_events",
+)
+
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "-healthcheck" {
 		if err := checkHealth(); err != nil {
@@ -43,9 +60,15 @@ func main() {
 	// the gateway's config.
 	timeout := time.Duration(intFromEnv("ASSISTANT_CLAUDE_TIMEOUT_SECONDS", 120)) * time.Second
 
+	mcpCfg := chat.Config{
+		MCPURL:       os.Getenv("ASSISTANT_CLAUDE_MCP_URL"),
+		MCPToken:     os.Getenv("ASSISTANT_CLAUDE_MCP_TOKEN"),
+		AllowedTools: mcpToolsFromEnv(),
+	}
+
 	server := &http.Server{
 		Addr:              listenAddress,
-		Handler:           newServeMux(token, allowedHosts, "claude"),
+		Handler:           newServeMux(token, allowedHosts, "claude", mcpCfg),
 		ReadHeaderTimeout: 2 * time.Second,
 		ReadTimeout:       timeout,
 		WriteTimeout:      timeout,
@@ -63,10 +86,10 @@ func main() {
 // MCP/processor/readiness gate here (unlike the gateway) — the official
 // claude CLI is either usable or it errors per-request, so /chat is always
 // mounted and always answers.
-func newServeMux(token string, allowedHosts []string, claudeBin string) *http.ServeMux {
+func newServeMux(token string, allowedHosts []string, claudeBin string, mcpCfg chat.Config) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", newHealthHandler())
-	mux.Handle("/chat", newChatHandler(token, allowedHosts, claudeBin))
+	mux.Handle("/chat", newChatHandler(token, allowedHosts, claudeBin, mcpCfg))
 	return mux
 }
 
@@ -88,6 +111,10 @@ func newHealthHandler() http.Handler {
 type chatRequestBody struct {
 	Prompt    string  `json:"prompt"`
 	SessionID *string `json:"session_id"`
+	// TurnGrant is the per-turn credential Rails issues (Issuer.call). It is
+	// optional: an absent or empty grant simply disables MCP for the turn
+	// (see chat.buildInvocation), it is never treated as a request error.
+	TurnGrant *string `json:"turn_grant"`
 }
 
 type chatResponseBody struct {
@@ -100,7 +127,7 @@ type chatResponseBody struct {
 // unauthenticated or disallowed request is rejected before its body is ever
 // read or a claude process is ever spawned. claudeBin names the executable to
 // run ("claude" in prod; a fake or harmless binary like "true" in tests).
-func newChatHandler(token string, allowedHosts []string, claudeBin string) http.Handler {
+func newChatHandler(token string, allowedHosts []string, claudeBin string, mcpCfg chat.Config) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			writeCode(response, http.StatusMethodNotAllowed, "method_not_allowed")
@@ -145,8 +172,12 @@ func newChatHandler(token string, allowedHosts []string, claudeBin string) http.
 		if body.SessionID != nil {
 			sessionID = *body.SessionID
 		}
+		var turnGrant string
+		if body.TurnGrant != nil {
+			turnGrant = *body.TurnGrant
+		}
 
-		result, err := chat.Run(request.Context(), claudeBin, chat.Request{Prompt: body.Prompt, SessionID: sessionID})
+		result, err := chat.Run(request.Context(), claudeBin, mcpCfg, chat.Request{Prompt: body.Prompt, SessionID: sessionID, TurnGrant: turnGrant})
 		if err != nil {
 			status, code := mapChatError(err)
 			writeCode(response, status, code)
@@ -213,6 +244,18 @@ func intFromEnv(name string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+// mcpToolsFromEnv reads ASSISTANT_CLAUDE_MCP_TOOLS as a whitespace-separated
+// tool list, falling back to defaultMCPTools when it is unset or empty —
+// mirroring intFromEnv's fallback-on-empty convention for this file's other
+// env-derived settings.
+func mcpToolsFromEnv() []string {
+	raw := os.Getenv("ASSISTANT_CLAUDE_MCP_TOOLS")
+	if raw == "" {
+		return defaultMCPTools
+	}
+	return strings.Fields(raw)
 }
 
 func checkHealth() error {

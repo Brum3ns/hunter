@@ -5,12 +5,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"hunter.local/assistant/claude/internal/chat"
 )
 
 func TestChatRequiresBearer(t *testing.T) {
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true") // "true" = a bin that exits 0
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true", chat.Config{}) // "true" = a bin that exits 0
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "assistant-claude:8083"
 	w := httptest.NewRecorder()
@@ -26,7 +29,7 @@ func TestChatRequiresBearer(t *testing.T) {
 func TestChatEmptyTokenDisablesAuth(t *testing.T) {
 	out := `{"type":"result","subtype":"success","session_id":"sess_1","result":"Hello there."}`
 	bin := fakeClaude(t, out, 0)
-	h := newChatHandler("", []string{"assistant-claude:8083"}, bin)
+	h := newChatHandler("", []string{"assistant-claude:8083"}, bin, chat.Config{})
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi","session_id":null}`))
 	r.Host = "assistant-claude:8083"
 	// deliberately no Authorization header
@@ -40,7 +43,7 @@ func TestChatEmptyTokenDisablesAuth(t *testing.T) {
 // A non-empty configured token must still reject a request lacking the bearer,
 // so disabling auth is strictly opt-in via an empty token.
 func TestChatNonEmptyTokenStillEnforces(t *testing.T) {
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true")
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true", chat.Config{})
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "assistant-claude:8083"
 	// no Authorization header, but a token is configured
@@ -52,7 +55,7 @@ func TestChatNonEmptyTokenStillEnforces(t *testing.T) {
 }
 
 func TestChatRejectsDisallowedHost(t *testing.T) {
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true")
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true", chat.Config{})
 	r := httptest.NewRequest("POST", "http://evil:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "evil:8083"
 	r.Header.Set("Authorization", "Bearer tok")
@@ -66,7 +69,7 @@ func TestChatRejectsDisallowedHost(t *testing.T) {
 func TestChatRejectsDisallowedHostBeforeCheckingBearer(t *testing.T) {
 	// Host is checked before the bearer token, so a wrong host is reported
 	// as host_not_allowed even with no Authorization header at all.
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true")
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true", chat.Config{})
 	r := httptest.NewRequest("POST", "http://evil:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "evil:8083"
 	w := httptest.NewRecorder()
@@ -77,7 +80,7 @@ func TestChatRejectsDisallowedHostBeforeCheckingBearer(t *testing.T) {
 }
 
 func TestChatRejectsWrongMethod(t *testing.T) {
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true")
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true", chat.Config{})
 	r := httptest.NewRequest("GET", "http://assistant-claude:8083/chat", nil)
 	r.Host = "assistant-claude:8083"
 	w := httptest.NewRecorder()
@@ -88,7 +91,7 @@ func TestChatRejectsWrongMethod(t *testing.T) {
 }
 
 func TestChatRejectsMissingScheme(t *testing.T) {
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true")
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true", chat.Config{})
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "assistant-claude:8083"
 	r.Header.Set("Authorization", "tok") // no "Bearer " scheme
@@ -100,7 +103,7 @@ func TestChatRejectsMissingScheme(t *testing.T) {
 }
 
 func TestChatRejectsEmptyPrompt(t *testing.T) {
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true")
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true", chat.Config{})
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":""}`))
 	r.Host = "assistant-claude:8083"
 	r.Header.Set("Authorization", "Bearer tok")
@@ -135,7 +138,7 @@ func itoa(n int) string {
 func TestChatSuccess(t *testing.T) {
 	out := `{"type":"result","subtype":"success","session_id":"sess_1","result":"Hello there."}`
 	bin := fakeClaude(t, out, 0)
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin)
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin, chat.Config{})
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi","session_id":null}`))
 	r.Host = "assistant-claude:8083"
 	r.Header.Set("Authorization", "Bearer tok")
@@ -151,7 +154,7 @@ func TestChatSuccess(t *testing.T) {
 
 func TestChatMapsLoginRequired(t *testing.T) {
 	bin := fakeClaude(t, `{"type":"result","is_error":true,"result":"Invalid API key . Please run /login"}`, 1)
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin)
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin, chat.Config{})
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "assistant-claude:8083"
 	r.Header.Set("Authorization", "Bearer tok")
@@ -167,7 +170,7 @@ func TestChatMapsLoginRequired(t *testing.T) {
 
 func TestChatMapsMalformedResponse(t *testing.T) {
 	bin := fakeClaude(t, "not json", 0)
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin)
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin, chat.Config{})
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "assistant-claude:8083"
 	r.Header.Set("Authorization", "Bearer tok")
@@ -183,7 +186,7 @@ func TestChatMapsMalformedResponse(t *testing.T) {
 
 func TestChatMapsCLIFailure(t *testing.T) {
 	bin := fakeClaude(t, `{"type":"result","is_error":true,"result":"boom"}`, 1)
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin)
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin, chat.Config{})
 	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "assistant-claude:8083"
 	r.Header.Set("Authorization", "Bearer tok")
@@ -220,5 +223,104 @@ func TestSplitList(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("got %v want %v", got, want)
 		}
+	}
+}
+
+// fakeClaudeCapturingArgs writes a fake `claude` that records its argv (space
+// joined) into a file alongside it, then replies with a canned success, so
+// tests can assert on exactly what buildInvocation produced without needing
+// the real CLI.
+func fakeClaudeCapturingArgs(t *testing.T) (bin string, argsFile string) {
+	t.Helper()
+	dir := t.TempDir()
+	bin = filepath.Join(dir, "claude")
+	argsFile = filepath.Join(dir, "args.txt")
+	script := "#!/bin/sh\nprintf '%s ' \"$@\" > " + argsFile + "\n" +
+		"printf '%s' '{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"sess_1\",\"result\":\"hi\"}'\nexit 0\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return bin, argsFile
+}
+
+// TestChatUsesMCPConfigWhenGrantProvided proves the handler threads a
+// request's turn_grant field, together with the configured MCP settings,
+// all the way down into the argv the CLI actually runs with.
+func TestChatUsesMCPConfigWhenGrantProvided(t *testing.T) {
+	bin, argsFile := fakeClaudeCapturingArgs(t)
+	cfg := chat.Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok", AllowedTools: []string{"mcp__hunter__list_targets"}}
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin, cfg)
+	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi","turn_grant":"grant-abc"}`))
+	r.Host = "assistant-claude:8083"
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	captured, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read captured args: %v", err)
+	}
+	if !strings.Contains(string(captured), "--mcp-config") || !strings.Contains(string(captured), "--strict-mcp-config") {
+		t.Fatalf("want mcp-config args, got %s", captured)
+	}
+}
+
+// TestChatFallsBackWithoutTurnGrant proves that, even with MCP fully
+// configured, a request that omits turn_grant never reaches the CLI with an
+// MCP config — matching buildInvocation's own fallback rule.
+func TestChatFallsBackWithoutTurnGrant(t *testing.T) {
+	bin, argsFile := fakeClaudeCapturingArgs(t)
+	cfg := chat.Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok", AllowedTools: []string{"mcp__hunter__list_targets"}}
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin, cfg)
+	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`)) // no turn_grant
+	r.Host = "assistant-claude:8083"
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	captured, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read captured args: %v", err)
+	}
+	if strings.Contains(string(captured), "--mcp-config") {
+		t.Fatalf("want no mcp-config without a turn grant, got %s", captured)
+	}
+}
+
+func TestDefaultMCPToolsAreReadOnlyHunterTools(t *testing.T) {
+	if len(defaultMCPTools) != 20 {
+		t.Fatalf("want 20 default tools, got %d: %v", len(defaultMCPTools), defaultMCPTools)
+	}
+	builtins := []string{"Bash", "Write", "Edit", "Read", "WebFetch", "Task", "Glob", "Grep"}
+	for _, tool := range defaultMCPTools {
+		if !strings.HasPrefix(tool, "mcp__hunter__") {
+			t.Fatalf("tool %q missing mcp__hunter__ prefix", tool)
+		}
+		if slices.Contains(builtins, tool) {
+			t.Fatalf("tool %q is a built-in, must never be a default", tool)
+		}
+	}
+}
+
+func TestMCPToolsFromEnvDefaultsWhenUnset(t *testing.T) {
+	t.Setenv("ASSISTANT_CLAUDE_MCP_TOOLS", "")
+	got := mcpToolsFromEnv()
+	if !slices.Equal(got, defaultMCPTools) {
+		t.Fatalf("got %v want %v", got, defaultMCPTools)
+	}
+}
+
+func TestMCPToolsFromEnvSplitsOnWhitespace(t *testing.T) {
+	t.Setenv("ASSISTANT_CLAUDE_MCP_TOOLS", "mcp__hunter__list_targets  mcp__hunter__get_target\tmcp__hunter__list_cves")
+	got := mcpToolsFromEnv()
+	want := []string{"mcp__hunter__list_targets", "mcp__hunter__get_target", "mcp__hunter__list_cves"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v want %v", got, want)
 	}
 }
