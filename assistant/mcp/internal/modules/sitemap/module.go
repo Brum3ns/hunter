@@ -21,6 +21,7 @@ func (Module) Tools() []tool.Tool {
 		ListDesc: "List and count crawled sitemap endpoints, optionally filtered by path, content type, HTTP methods, or status family.",
 		GetDesc:  "Return the full record for one sitemap endpoint by id.",
 		ListFields: []readmodule.ListField{
+			{Name: "q", Kind: "string", MaxLen: 200},
 			{Name: "path", Kind: "string", MaxLen: 500},
 			{Name: "has_query", Kind: "string", MaxLen: 5},
 			{Name: "content_type", Kind: "string", MaxLen: 100},

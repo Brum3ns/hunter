@@ -65,6 +65,19 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
     assert_equal "/post", body["items"].first["path"]
   end
 
+  test "list_endpoints narrows by the q free-text/dork filter via SearchParser" do
+    target = sitemap_target
+    endpoint(target, url: "https://example.com/admin/login", path: "/admin/login", status_code: 200)
+    endpoint(target, url: "https://example.com/public/home", path: "/public/home", status_code: 200)
+
+    get "/api/v1/assistant/machine/sitemap/endpoints", params: { q: "path:admin" }, headers: headers(read_grant)
+
+    assert_response :success
+    body = response.parsed_body
+    assert_equal 1, body["count"]
+    assert_equal "/admin/login", body["items"].first["path"]
+  end
+
   test "get_endpoint returns the full projection including target-derived fields" do
     target = sitemap_target(program: "acme", host: "example.com", scheme: "https", port: 443)
     record = endpoint(

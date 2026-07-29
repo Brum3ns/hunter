@@ -39,6 +39,21 @@ func TestListEndpointsBuildsQueryWithFilter(t *testing.T) {
 	}
 }
 
+func TestListEndpointsAcceptsFreeTextQuery(t *testing.T) {
+	tl := find(t, "list_endpoints")
+	req, err := tl.Decode([]byte(`{"q":"path:/admin status:200"}`))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	call, err := tl.BuildRequest(req)
+	if err != nil || call.Method != "GET" {
+		t.Fatalf("build: %+v err=%v", call, err)
+	}
+	if call.Path != "/api/v1/assistant/machine/sitemap/endpoints?q=path%3A%2Fadmin+status%3A200" {
+		t.Fatalf("path: %s", call.Path)
+	}
+}
+
 func TestListEndpointsRejectsUnknownField(t *testing.T) {
 	tl := find(t, "list_endpoints")
 	if _, err := tl.Decode([]byte(`{"path":"/x","evil":1}`)); err == nil {
