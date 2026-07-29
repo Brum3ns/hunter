@@ -110,6 +110,8 @@ Rails.application.routes.draw do
           get "vulnerabilities/:id", to: "vulnerabilities#show"
           get "sitemap/endpoints", to: "sitemap_endpoints#index"
           get "sitemap/endpoints/:id", to: "sitemap_endpoints#show", constraints: { id: /\d+/ }
+          get "programs", to: "programs#index"
+          get "programs/:id", to: "programs#show"
         end
       end
 
