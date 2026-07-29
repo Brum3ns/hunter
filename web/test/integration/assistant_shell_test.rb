@@ -43,6 +43,15 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     assert_select "[data-controller='toaster'].bottom-24"
   end
 
+  test "shell discloses read-only tool access to Hunter data" do
+    sign_in_as(@admin)
+    get root_path
+
+    assert_response :success
+    assert_select "#hunter-assistant-capability-disclosure", text: /read-only tools/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /cannot create, edit, delete, run, or send/i
+  end
+
   test "server-rendered profile data remains escaped and no secret metadata is present" do
     assistant_provider_profiles(:openai).update!(name: "<script>alert(1)</script>")
     sign_in_as(@admin)

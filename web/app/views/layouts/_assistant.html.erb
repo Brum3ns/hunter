@@ -23,13 +23,18 @@
     <header class="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
       <div>
         <h2 id="hunter-assistant-title" class="font-semibold text-zinc-900 dark:text-zinc-100">Hunter assistant</h2>
-        <p class="text-xs text-zinc-500 dark:text-zinc-400">Isolated drafting · human-confirmed saves</p>
+        <p class="text-xs text-zinc-500 dark:text-zinc-400">Read-only tools · human-confirmed saves</p>
       </div>
       <button type="button" data-action="assistant#close" aria-label="Close Hunter assistant"
               class="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
         <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
       </button>
     </header>
+
+    <p id="hunter-assistant-capability-disclosure"
+       class="border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-[11px] leading-4 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+      The assistant can read your Hunter data (targets, CVEs, vulnerabilities, sitemap, programs, control center) through bounded, read-only tools. It cannot create, edit, delete, run, or send anything without your explicit confirmation.
+    </p>
 
     <div class="grid min-h-0 flex-1 grid-cols-[7.5rem_1fr]">
       <aside aria-label="Assistant conversations" class="min-h-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900/60">
