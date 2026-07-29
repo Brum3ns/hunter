@@ -13,6 +13,10 @@ type ListField struct {
 	MaxLen int    // string only; 0 ⇒ unbounded (schema still closed)
 	Min    int    // int only
 	Max    int    // int only
+
+	// Description is the human/LLM-facing explanation emitted as this field's
+	// JSON-schema "description" (advertised only; never affects decoding).
+	Description string
 }
 
 // Spec fully describes one module's read tool pair.

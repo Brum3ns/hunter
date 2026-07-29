@@ -52,21 +52,24 @@ func BuildGet(spec Spec) []tool.Tool {
 
 func listSchema(spec Spec) json.RawMessage {
 	props := map[string]any{
-		"page":  map[string]any{"type": "integer", "minimum": 1, "maximum": 100000},
-		"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": spec.maxItems()},
+		"page":  map[string]any{"type": "integer", "minimum": 1, "maximum": 100000, "description": "1-based page number (default 1)."},
+		"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": spec.maxItems(), "description": "Max items per page (default and max " + strconv.Itoa(spec.maxItems()) + ")."},
 	}
 	for _, f := range spec.ListFields {
+		var m map[string]any
 		if f.Kind == "int" {
-			m := map[string]any{"type": "integer"}
+			m = map[string]any{"type": "integer"}
 			if f.Min != 0 || f.Max != 0 {
 				m["minimum"], m["maximum"] = f.Min, f.Max
 			}
-			props[f.Name] = m
-			continue
+		} else {
+			m = map[string]any{"type": "string"}
+			if f.MaxLen > 0 {
+				m["maxLength"] = f.MaxLen
+			}
 		}
-		m := map[string]any{"type": "string"}
-		if f.MaxLen > 0 {
-			m["maxLength"] = f.MaxLen
+		if f.Description != "" {
+			m["description"] = f.Description
 		}
 		props[f.Name] = m
 	}

@@ -1,6 +1,7 @@
 package readmodule
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
@@ -134,6 +135,26 @@ func TestBuildGetReturnsOnlyGetTool(t *testing.T) {
 	}
 	if tools[0].Name != spec().GetTool {
 		t.Fatalf("expected tool %q, got %q", spec().GetTool, tools[0].Name)
+	}
+}
+
+func TestListSchemaCarriesFieldDescriptions(t *testing.T) {
+	s := spec()
+	s.ListFields = []ListField{{Name: "q", Kind: "string", MaxLen: 200, Description: "Dork search. Keys: host,path."}}
+	tl := find(t, Build(s), "list_things")
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(tl.InputSchema, &schema); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	if schema.Properties["q"].Description != "Dork search. Keys: host,path." {
+		t.Fatalf("q description missing: %+v", schema.Properties["q"])
+	}
+	if schema.Properties["page"].Description == "" || schema.Properties["limit"].Description == "" {
+		t.Fatalf("page/limit descriptions missing")
 	}
 }
 
