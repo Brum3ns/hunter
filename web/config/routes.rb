@@ -106,6 +106,8 @@ Rails.application.routes.draw do
           get "targets/:id", to: "targets#show"
           get "cves", to: "cves#index"
           get "cves/:id", to: "cves#show"
+          get "vulnerabilities", to: "vulnerabilities#index"
+          get "vulnerabilities/:id", to: "vulnerabilities#show"
         end
       end
 
