@@ -112,6 +112,12 @@ Rails.application.routes.draw do
           get "sitemap/endpoints/:id", to: "sitemap_endpoints#show", constraints: { id: /\d+/ }
           get "programs", to: "programs#index"
           get "programs/:id", to: "programs#show"
+          namespace :control_center do
+            get "templates", to: "templates#index"
+            get "templates/:id", to: "templates#show", constraints: { id: /\d+/ }
+            get "jobs", to: "jobs#index"
+            get "jobs/:id", to: "jobs#show", constraints: { id: /\d+/ }
+          end
         end
       end
 
