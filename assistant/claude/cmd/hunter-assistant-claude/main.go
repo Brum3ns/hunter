@@ -64,6 +64,7 @@ func main() {
 		MCPURL:       os.Getenv("ASSISTANT_CLAUDE_MCP_URL"),
 		MCPToken:     os.Getenv("ASSISTANT_CLAUDE_MCP_TOKEN"),
 		AllowedTools: mcpToolsFromEnv(),
+		SystemPrompt: systemPromptFromEnv(),
 	}
 
 	server := &http.Server{
@@ -277,6 +278,24 @@ func filterHunterMCPTools(tools []string) []string {
 		}
 	}
 	return filtered
+}
+
+// defaultSystemPrompt is the tool-use policy appended to the CLI's default
+// system prompt on MCP-enabled turns. It keeps the model from calling a
+// read tool unless the user's message explicitly asks for a Hunter data
+// lookup — without it, the model calls the tools speculatively and every
+// turn pays the multi-hop MCP round trip.
+const defaultSystemPrompt = "You are the Hunter assistant. You have read-only tools (named mcp__hunter__*) that look up live data in Hunter: targets, CVEs, vulnerabilities, sitemap endpoints, bug-bounty programs, and Control Center templates/jobs/ansible runs. STRICT TOOL POLICY: never call any tool unless the user's most recent message EXPLICITLY asks you to look up, search, list, count, fetch, or show Hunter data. For greetings, small talk, general questions, definitions, or anything that does not explicitly request a Hunter data lookup, answer directly from your own knowledge and DO NOT call any tool. If you are unsure whether the user wants a lookup, do NOT call a tool — answer briefly and offer to look it up if they want. Never call a tool speculatively, proactively, or to double-check. When a lookup IS explicitly requested, make the fewest tool calls needed."
+
+// systemPromptFromEnv returns the tool-use policy appended via
+// --append-system-prompt. ASSISTANT_CLAUDE_SYSTEM_PROMPT overrides it when
+// set; an explicit empty value disables the append (operator opt-out), which
+// is why this distinguishes unset from empty rather than falling back on "".
+func systemPromptFromEnv() string {
+	if raw, ok := os.LookupEnv("ASSISTANT_CLAUDE_SYSTEM_PROMPT"); ok {
+		return raw
+	}
+	return defaultSystemPrompt
 }
 
 func checkHealth() error {

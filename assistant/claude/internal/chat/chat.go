@@ -29,6 +29,11 @@ type Config struct {
 	// is enabled. It MUST contain only "mcp__hunter__*" read tool names —
 	// never a Claude Code built-in (Bash/Write/Edit/Read/WebFetch/...).
 	AllowedTools []string
+	// SystemPrompt, when non-empty, is appended to the CLI's default system
+	// prompt (--append-system-prompt) on MCP-enabled turns. It carries the
+	// tool-use policy that keeps the model from calling a read tool unless the
+	// user explicitly asks for a Hunter data lookup. Empty disables the append.
+	SystemPrompt string
 }
 
 type Request struct {
@@ -130,6 +135,13 @@ func buildInvocation(cfg Config, req Request) (args []string, mcpConfigPath stri
 		return nil, "", noop, closeErr
 	}
 
+	// Append the tool-use policy BEFORE --mcp-config: both --mcp-config and
+	// --allowedTools are variadic, so the single-value --append-system-prompt
+	// pair must not trail them or the policy would be swallowed as a config
+	// path / tool name.
+	if cfg.SystemPrompt != "" {
+		args = append(args, "--append-system-prompt", cfg.SystemPrompt)
+	}
 	args = append(args, "--mcp-config", path, "--strict-mcp-config", "--allowedTools", strings.Join(cfg.AllowedTools, " "))
 	return args, path, cleanup, nil
 }

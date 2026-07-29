@@ -132,6 +132,16 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/up
 Hunter instance (a real target/CVE/program count or list), not a generic
 answer the model could have produced without calling a tool.
 
+5. **Explicit-request policy check (latency guard).** First send a plain
+   message that is *not* a data request, e.g. "hi" or "what can you help with?".
+   **Expect:** a fast, direct reply with **no** tool call (verify no
+   `hunter-mcp`/machine-API log line for that turn). The backend appends a
+   strict system prompt (`--append-system-prompt`) instructing the model to
+   call a read tool *only* when you explicitly ask for a Hunter data lookup —
+   this is what keeps ordinary questions fast. Operators can override or
+   disable that policy with `ASSISTANT_CLAUDE_SYSTEM_PROMPT` (empty = disabled;
+   the model may then call tools speculatively again).
+
 ## Step 5 — Confirm the tool call actually round-tripped
 
 While the turn is running or immediately after, check three places:

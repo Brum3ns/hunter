@@ -341,3 +341,32 @@ func TestMCPToolsFromEnvAllBuiltinsYieldsEmpty(t *testing.T) {
 		t.Fatalf("want empty slice, got %v", got)
 	}
 }
+
+func TestSystemPromptFromEnvDefaultsWhenUnset(t *testing.T) {
+	os.Unsetenv("ASSISTANT_CLAUDE_SYSTEM_PROMPT")
+	if got := systemPromptFromEnv(); got != defaultSystemPrompt {
+		t.Fatalf("want default policy when unset, got %q", got)
+	}
+}
+
+func TestSystemPromptFromEnvHonorsOverride(t *testing.T) {
+	t.Setenv("ASSISTANT_CLAUDE_SYSTEM_PROMPT", "custom policy")
+	if got := systemPromptFromEnv(); got != "custom policy" {
+		t.Fatalf("want custom override, got %q", got)
+	}
+}
+
+func TestSystemPromptFromEnvEmptyOptsOut(t *testing.T) {
+	t.Setenv("ASSISTANT_CLAUDE_SYSTEM_PROMPT", "")
+	if got := systemPromptFromEnv(); got != "" {
+		t.Fatalf("want empty (opt-out) when set to empty, got %q", got)
+	}
+}
+
+func TestDefaultSystemPromptEncodesExplicitOnlyPolicy(t *testing.T) {
+	for _, phrase := range []string{"STRICT TOOL POLICY", "EXPLICITLY", "DO NOT call any tool", "mcp__hunter__"} {
+		if !strings.Contains(defaultSystemPrompt, phrase) {
+			t.Fatalf("default system prompt missing %q", phrase)
+		}
+	}
+}

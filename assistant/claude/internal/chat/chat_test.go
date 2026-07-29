@@ -273,3 +273,47 @@ func TestBuildInvocationNoMCPWhenURLEmptyEvenWithValidGrant(t *testing.T) {
 		t.Fatalf("got %v want %v", args, want)
 	}
 }
+
+func TestBuildInvocationAppendsSystemPromptBeforeMCPConfig(t *testing.T) {
+	cfg := Config{
+		MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok",
+		AllowedTools: []string{"mcp__hunter__list_targets"},
+		SystemPrompt: "POLICY-XYZ",
+	}
+	args, _, cleanup, err := buildInvocation(cfg, Request{Prompt: "hi", TurnGrant: "grant-abc"})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	defer cleanup()
+
+	sp := slices.Index(args, "--append-system-prompt")
+	if sp < 0 {
+		t.Fatalf("no --append-system-prompt in args: %v", args)
+	}
+	if args[sp+1] != "POLICY-XYZ" {
+		t.Fatalf("--append-system-prompt not immediately followed by the policy: %v", args)
+	}
+	// The policy pair must precede --mcp-config; --allowedTools (variadic) stays
+	// last. Otherwise the CLI would swallow the policy as a config path or tool.
+	mc := slices.Index(args, "--mcp-config")
+	at := slices.Index(args, "--allowedTools")
+	if !(sp < mc && mc < at) {
+		t.Fatalf("bad flag order: append=%d mcp-config=%d allowedTools=%d args=%v", sp, mc, at, args)
+	}
+}
+
+func TestBuildInvocationOmitsSystemPromptWhenEmpty(t *testing.T) {
+	cfg := Config{
+		MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok",
+		AllowedTools: []string{"mcp__hunter__list_targets"},
+		SystemPrompt: "",
+	}
+	args, _, cleanup, err := buildInvocation(cfg, Request{Prompt: "hi", TurnGrant: "grant-abc"})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	defer cleanup()
+	if slices.Contains(args, "--append-system-prompt") {
+		t.Fatalf("unexpected --append-system-prompt with empty SystemPrompt: %v", args)
+	}
+}
