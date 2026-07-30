@@ -308,6 +308,36 @@ paths:
       responses:
         "200": { description: "A bounded, projection-only, grant-scoped (control_center_templates) page of template summaries plus count." }
         "403": { description: "The tool is not granted." }
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Create a Whiterabbit template"
+      description: "Approval-free create-only (no edit/delete/run), validated server-side; gated by the control_center_write_enabled toggle and the control_center_templates_write grant scope."
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template:
+                  type: object
+                  properties:
+                    name: { type: string }
+                    kind: { type: string, enum: [cmdscript, workflow] }
+                    description: { type: string }
+                    commands: { type: array, items: { type: string } }
+                  required: [name, kind, commands]
+                  additionalProperties: false
+              required: [template]
+              additionalProperties: false
+      responses:
+        "201": { description: "Created; returns correlation_id and template:{id, name}." }
+        "403": { description: "The write toggle is off or the grant lacks control_center_templates_write." }
+        "422": { description: "Template validation or creation failed." }
+        "429": { description: "The create rate limit was reached." }
   /api/v1/assistant/machine/control_center/templates/{id}:
     get:
       tags: ["Assistant Machine"]
@@ -361,6 +391,34 @@ paths:
       responses:
         "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) page of playbook summaries plus count." }
         "403": { description: "The tool is not granted." }
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Create an Ansible playbook"
+      description: "Approval-free create-only (no edit/delete/run), validated server-side; gated by the control_center_write_enabled toggle and the control_center_ansible_write grant scope."
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                playbook:
+                  type: object
+                  properties:
+                    name: { type: string }
+                    source: { type: string }
+                  required: [name, source]
+                  additionalProperties: false
+              required: [playbook]
+              additionalProperties: false
+      responses:
+        "201": { description: "Created; returns correlation_id and playbook:{id, name}." }
+        "403": { description: "The write toggle is off or the grant lacks control_center_ansible_write." }
+        "422": { description: "Playbook validation or creation failed." }
+        "429": { description: "The create rate limit was reached." }
   /api/v1/assistant/machine/control_center/ansible/playbooks/{id}:
     get:
       tags: ["Assistant Machine"]
