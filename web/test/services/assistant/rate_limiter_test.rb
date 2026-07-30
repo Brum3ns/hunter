@@ -19,6 +19,24 @@ class Assistant::RateLimiterTest < ActiveSupport::TestCase
     assert_equal [ 2, 2 ], buckets.pluck(:count)
   end
 
+  test "persists atomic minute and hour create windows" do
+    now = Time.zone.parse("2026-07-26 12:34:30 UTC")
+
+    with_limits(max_creates_per_minute: 2, max_creates_per_hour: 3) do
+      2.times { Assistant::RateLimiter.consume!(user: users(:one), action: "create", now: now) }
+
+      error = assert_raises(Assistant::RateLimiter::LimitExceeded) do
+        Assistant::RateLimiter.consume!(user: users(:one), action: "create", now: now)
+      end
+      assert_equal "create_rate_limited", error.code
+      assert_operator error.retry_after_seconds, :>, 0
+    end
+
+    buckets = Assistant::RateLimitBucket.where(user: users(:one)).order(:action)
+    assert_equal [ "create.hour", "create.minute" ], buckets.pluck(:action)
+    assert_equal [ 2, 2 ], buckets.pluck(:count)
+  end
+
   test "hour limits roll the rejected minute increment back" do
     now = Time.zone.parse("2026-07-26 12:34:30 UTC")
 
@@ -84,7 +102,9 @@ class Assistant::RateLimiterTest < ActiveSupport::TestCase
       turn_starts_per_minute: 10,
       turn_starts_per_hour: 60,
       max_concurrent_turns: 2,
-      max_validations_per_turn: 1
+      max_validations_per_turn: 1,
+      max_creates_per_minute: 5,
+      max_creates_per_hour: 30
     }
     stub_methods(Assistant::Config, defaults.merge(overrides), &block)
   end

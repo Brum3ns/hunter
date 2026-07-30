@@ -65,6 +65,37 @@ module Api
             Current.assistant_turn_grant
           end
 
+          def machine_user
+            machine_grant.turn.user
+          end
+
+          def require_control_center_write_enabled!(reservation)
+            if !::Assistant::Setting.instance.control_center_write_enabled?
+              reservation.fail!
+              render json: { error: "control_center_write_disabled" }, status: :forbidden
+              return false
+            end
+
+            true
+          end
+
+          def machine_create_response(reservation, key:, record:)
+            complete_machine_response!(reservation, {
+              correlation_id: machine_grant.turn.correlation_id,
+              key => { id: record.id, name: record.name }
+            })
+          end
+
+          def render_machine_validation_error(reservation, codes)
+            reservation.fail!
+            render json: { error: "validation_failed", codes: codes }, status: :unprocessable_content
+          end
+
+          def render_machine_create_error(reservation, errors)
+            reservation.fail!
+            render json: { error: "create_rejected", errors: errors }, status: :unprocessable_content
+          end
+
           def authorize_tool!(tool, scope: nil, resource_type: nil, resource_id: nil)
             ::Assistant::Grants::Authorizer.reserve!(
               raw_grant: raw_turn_grant,

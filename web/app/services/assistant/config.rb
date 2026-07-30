@@ -9,7 +9,9 @@ module Assistant
       turn_starts_per_minute: 10,
       turn_starts_per_hour: 60,
       max_concurrent_turns: 2,
-      max_validations_per_turn: 1
+      max_validations_per_turn: 1,
+      max_creates_per_minute: 5,
+      max_creates_per_hour: 30
     }.freeze
 
     module_function
@@ -60,6 +62,14 @@ module Assistant
 
     def max_validations_per_turn
       bounded_ceiling("ASSISTANT_MAX_VALIDATIONS_PER_TURN", HARD_LIMITS[:max_validations_per_turn])
+    end
+
+    def max_creates_per_minute
+      bounded_ceiling("ASSISTANT_MAX_CREATES_PER_MINUTE", HARD_LIMITS[:max_creates_per_minute])
+    end
+
+    def max_creates_per_hour
+      bounded_ceiling("ASSISTANT_MAX_CREATES_PER_HOUR", HARD_LIMITS[:max_creates_per_hour])
     end
 
     REQUIRED_SETTINGS = {
