@@ -48,7 +48,8 @@ class Assistant::TurnGrantTest < ActiveSupport::TestCase
     assert(clone.errors[:read_scopes].any? { |message| message.include?("unknown") })
   end
 
-  test "an issued grant defaults to no write scopes" do
+  test "an issued grant carries no write scopes when the write toggle is off" do
+    Assistant::Setting.instance.update!(control_center_write_enabled: false)
     issue!
     grant = Assistant::TurnGrant.order(:id).last
     assert_equal [], grant.write_scopes

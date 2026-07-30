@@ -153,6 +153,27 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
     assert_equal 1, Assistant::TurnGrant.order(:id).last.reload.call_count
   end
 
+  test "a scoped write tool is refused unless its scope is granted" do
+    raw = issue_write_grant
+    grant = Assistant::TurnGrant.order(:id).last
+    grant.update_column(:write_scopes, [])
+
+    assert_authorization_error("scope_not_allowed") do
+      Assistant::Grants::Authorizer.reserve!(
+        raw_grant: raw, tool: "create_ansible_playbook", scope: "control_center_ansible_write"
+      )
+    end
+  end
+
+  test "a scoped write tool is allowed when its scope is granted" do
+    raw = issue_write_grant
+
+    assert Assistant::Grants::Authorizer.reserve!(
+      raw_grant: raw, tool: "create_ansible_playbook", scope: "control_center_ansible_write"
+    )
+    assert_equal 1, Assistant::TurnGrant.order(:id).last.reload.call_count
+  end
+
   private
 
   def issue_grant
@@ -168,6 +189,15 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
       turn: assistant_turns(:created),
       resources: [],
       tools: [ "list_targets" ]
+    )
+  end
+
+  def issue_write_grant
+    Assistant::Setting.instance.update!(control_center_write_enabled: true)
+    Assistant::Grants::Issuer.call(
+      turn: assistant_turns(:created),
+      resources: [],
+      tools: [ "create_ansible_playbook" ]
     )
   end
 

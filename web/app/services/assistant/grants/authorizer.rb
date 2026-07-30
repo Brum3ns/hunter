@@ -112,7 +112,7 @@ module Assistant
           raise AuthorizationError, "grant_expired" unless grant.expires_at.future?
           raise AuthorizationError, "grant_binding_invalid" unless valid_bindings?(grant)
           raise AuthorizationError, "tool_not_allowed" unless grant.tools.include?(tool)
-          if scope.present? && !grant.read_scopes.include?(scope.to_s)
+          if scope.present? && !(grant.read_scopes.include?(scope.to_s) || grant.write_scopes.include?(scope.to_s))
             raise AuthorizationError, "scope_not_allowed"
           end
 

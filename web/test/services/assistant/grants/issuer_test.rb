@@ -49,4 +49,39 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
       assert_includes grant.tools, tool
     end
   end
+
+  test "create tools are members of the issuer tool allowlist" do
+    assert_includes Assistant::Grants::Issuer::TOOLS, "create_whiterabbit_template"
+    assert_includes Assistant::Grants::Issuer::TOOLS, "create_ansible_playbook"
+  end
+
+  test "issued grant carries write scopes and create tools when the write toggle is on" do
+    Assistant::Setting.instance.update!(control_center_write_enabled: true)
+
+    raw = Assistant::Grants::Issuer.call(
+      turn: assistant_turns(:created),
+      resources: [],
+      tools: Assistant::Grants::Issuer::TOOLS
+    )
+    grant = Assistant::TurnGrant.find_by!(token_digest: Assistant::TurnGrant.digest(raw))
+
+    assert_equal Assistant::TurnGrant::WRITE_SCOPES, grant.write_scopes
+    assert_includes grant.tools, "create_whiterabbit_template"
+    assert_includes grant.tools, "create_ansible_playbook"
+  end
+
+  test "issued grant has no write scopes or create tools when the write toggle is off" do
+    Assistant::Setting.instance.update!(control_center_write_enabled: false)
+
+    raw = Assistant::Grants::Issuer.call(
+      turn: assistant_turns(:created),
+      resources: [],
+      tools: Assistant::Grants::Issuer::TOOLS
+    )
+    grant = Assistant::TurnGrant.find_by!(token_digest: Assistant::TurnGrant.digest(raw))
+
+    assert_equal [], grant.write_scopes
+    refute_includes grant.tools, "create_whiterabbit_template"
+    refute_includes grant.tools, "create_ansible_playbook"
+  end
 end

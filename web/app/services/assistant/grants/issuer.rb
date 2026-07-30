@@ -28,12 +28,18 @@ module Assistant
         get_run_group
         get_run
         list_run_events
+        create_whiterabbit_template
+        create_ansible_playbook
       ].freeze
+
+      CREATE_TOOLS = %w[create_whiterabbit_template create_ansible_playbook].freeze
 
       class << self
         def call(turn:, resources:, tools:)
           normalized_resources = normalize_resources(resources)
           normalized_tools = normalize_tools(tools)
+          write_enabled = Assistant::Setting.instance.control_center_write_enabled?
+          normalized_tools = normalized_tools.reject { |t| CREATE_TOOLS.include?(t) } unless write_enabled
           raw = SecureRandom.urlsafe_base64(32)
           profile_limit = turn.provider_profile.tool_call_limit
 
@@ -46,6 +52,7 @@ module Assistant
             resources: normalized_resources,
             tools: normalized_tools,
             read_scopes: Assistant::TurnGrant::READ_SCOPES,
+            write_scopes: write_enabled ? Assistant::TurnGrant::WRITE_SCOPES : [],
             expires_at: Assistant::Config.grant_ttl.from_now,
             max_calls: [ profile_limit, Assistant::Config.max_tool_calls ].min,
             max_result_bytes: Assistant::Config.max_result_bytes,
