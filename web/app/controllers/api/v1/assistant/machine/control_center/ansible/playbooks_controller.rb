@@ -32,6 +32,42 @@ module Api
                   value: ::Assistant::Machine::ControlCenter::Ansible::PlaybookProjection.full(playbook)
                 )
               end
+
+              # Approval-free create. AnsibleStatic is the sole, fail-closed
+              # persist gate below — it MUST run and MUST reject (422, no
+              # persist) before ControlCenter::Ansible::Playbooks::Persist is
+              # ever called. Create-only: always
+              # ControlCenter::Ansible::Playbook.new, never an existing record.
+              def create
+                reservation = authorize_tool!("create_ansible_playbook", scope: "control_center_ansible_write")
+                return unless require_control_center_write_enabled!(reservation)
+
+                begin
+                  ::Assistant::RateLimiter.consume!(user: machine_user, action: "create")
+                rescue ::Assistant::RateLimiter::LimitExceeded => e
+                  reservation.fail!
+                  return render json: { error: e.code, retry_after: e.retry_after_seconds }, status: :too_many_requests
+                end
+
+                envelope = ::Assistant::DraftEnvelope.ansible(params[:playbook])
+                return render_machine_validation_error(reservation, envelope.codes) unless envelope.valid?
+
+                result = ::Assistant::DraftValidation::AnsibleStatic.call(envelope.normalized["source"])
+                return render_machine_validation_error(reservation, result.codes) unless result.valid?
+
+                persist = ::ControlCenter::Ansible::Playbooks::Persist.call(
+                  record: ::ControlCenter::Ansible::Playbook.new,
+                  attributes: { name: envelope.normalized["name"], yaml_content: result.normalized }, user: machine_user
+                )
+                return render_machine_create_error(reservation, persist.errors) unless persist.success?
+
+                ::Assistant::Audit.record!(event: "machine.create", attributes: {
+                  correlation_id: machine_grant.turn.correlation_id, user_id: machine_user&.id,
+                  target_type: "control_center_ansible_playbook", target_id: persist.record.id,
+                  metadata: { operation: "create_ansible_playbook", outcome: "created" }
+                })
+                machine_create_response(reservation, key: :playbook, record: persist.record)
+              end
             end
           end
         end

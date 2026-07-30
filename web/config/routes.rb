@@ -121,6 +121,7 @@ Rails.application.routes.draw do
             namespace :ansible do
               get "playbooks", to: "playbooks#index"
               get "playbooks/:id", to: "playbooks#show", constraints: { id: /\d+/ }
+              post "playbooks", to: "playbooks#create"
               get "run_groups", to: "run_groups#index"
               get "run_groups/:id", to: "run_groups#show", constraints: { id: /\d+/ }
               get "runs/:id", to: "runs#show", constraints: { id: /\d+/ }
