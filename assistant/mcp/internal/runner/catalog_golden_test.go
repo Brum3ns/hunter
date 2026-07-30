@@ -12,6 +12,7 @@ import (
 	ccRunGroups "hunter.local/assistant/mcp/internal/modules/cc_run_groups"
 	ccRuns "hunter.local/assistant/mcp/internal/modules/cc_runs"
 	ccTemplates "hunter.local/assistant/mcp/internal/modules/cc_templates"
+	ccwrite "hunter.local/assistant/mcp/internal/modules/ccwrite"
 	contextmod "hunter.local/assistant/mcp/internal/modules/context"
 	cves "hunter.local/assistant/mcp/internal/modules/cves"
 	policies "hunter.local/assistant/mcp/internal/modules/policies"
@@ -47,6 +48,7 @@ func TestCatalogMatchesGolden(t *testing.T) {
 		contextmod.Module{}, artifacts.Module{}, policies.Module{}, validation.Module{}, targets.Module{},
 		cves.Module{}, vulnerabilities.Module{}, sitemap.Module{}, programs.Module{},
 		ccTemplates.Module{}, ccJobs.Module{}, ccPlaybooks.Module{}, ccRunGroups.Module{}, ccRuns.Module{}, ccRunEvents.Module{},
+		ccwrite.Module{},
 	)
 
 	raw, err := os.ReadFile("testdata/catalog_golden.json")

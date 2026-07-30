@@ -1,6 +1,5 @@
 [
   {
-    "name": "get_artifact_example",
     "description": "Return one explicitly granted sanitized artifact example.",
     "input_schema": {
       "additionalProperties": false,
@@ -29,6 +28,7 @@
       ],
       "type": "object"
     },
+    "name": "get_artifact_example",
     "output_schema": {
       "additionalProperties": false,
       "properties": {
@@ -43,7 +43,6 @@
     }
   },
   {
-    "name": "get_authoring_policy",
     "description": "Return the non-secret authoring policy for one artifact type.",
     "input_schema": {
       "additionalProperties": false,
@@ -61,6 +60,7 @@
       ],
       "type": "object"
     },
+    "name": "get_authoring_policy",
     "output_schema": {
       "additionalProperties": false,
       "properties": {
@@ -75,7 +75,6 @@
     }
   },
   {
-    "name": "get_selected_context",
     "description": "Return one explicitly granted sanitized Hunter context record.",
     "input_schema": {
       "additionalProperties": false,
@@ -104,6 +103,7 @@
       ],
       "type": "object"
     },
+    "name": "get_selected_context",
     "output_schema": {
       "additionalProperties": false,
       "properties": {
@@ -118,7 +118,6 @@
     }
   },
   {
-    "name": "get_target",
     "description": "Return the full record for one alive target by its id.",
     "input_schema": {
       "additionalProperties": false,
@@ -135,21 +134,21 @@
       ],
       "type": "object"
     },
+    "name": "get_target",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_validation_result",
     "description": "Return a validation result bound to this turn.",
     "input_schema": {
       "additionalProperties": false,
@@ -166,6 +165,7 @@
       ],
       "type": "object"
     },
+    "name": "get_validation_result",
     "output_schema": {
       "additionalProperties": false,
       "properties": {
@@ -180,7 +180,6 @@
     }
   },
   {
-    "name": "list_targets",
     "description": "List and count alive targets, optionally filtered by query, program, or status. Use q for dork search (see the q field for keys).",
     "input_schema": {
       "additionalProperties": false,
@@ -215,21 +214,21 @@
       },
       "type": "object"
     },
+    "name": "list_targets",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "validate_ansible_draft",
     "description": "Validate an Ansible draft without saving or executing it.",
     "input_schema": {
       "additionalProperties": false,
@@ -260,6 +259,7 @@
       ],
       "type": "object"
     },
+    "name": "validate_ansible_draft",
     "output_schema": {
       "additionalProperties": false,
       "properties": {
@@ -274,7 +274,6 @@
     }
   },
   {
-    "name": "validate_whiterabbit_draft",
     "description": "Validate a Whiterabbit draft without saving or sending it.",
     "input_schema": {
       "additionalProperties": false,
@@ -339,6 +338,7 @@
       ],
       "type": "object"
     },
+    "name": "validate_whiterabbit_draft",
     "output_schema": {
       "additionalProperties": false,
       "properties": {
@@ -353,7 +353,6 @@
     }
   },
   {
-    "name": "get_cve",
     "description": "Return the full record for one CVE by id (e.g. CVE-2024-1234; GHSA ids also accepted).",
     "input_schema": {
       "additionalProperties": false,
@@ -370,21 +369,21 @@
       ],
       "type": "object"
     },
+    "name": "get_cve",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_endpoint",
     "description": "Return the full record for one sitemap endpoint by its integer id.",
     "input_schema": {
       "additionalProperties": false,
@@ -401,21 +400,21 @@
       ],
       "type": "object"
     },
+    "name": "get_endpoint",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_job",
     "description": "Return the full record for one Control Center job by its integer id (excludes internal targeting fields).",
     "input_schema": {
       "additionalProperties": false,
@@ -432,21 +431,21 @@
       ],
       "type": "object"
     },
+    "name": "get_job",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_playbook",
     "description": "Return the full record for one Ansible playbook by its integer id.",
     "input_schema": {
       "additionalProperties": false,
@@ -463,21 +462,21 @@
       ],
       "type": "object"
     },
+    "name": "get_playbook",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_program",
     "description": "Return the full record for one program by its sid.",
     "input_schema": {
       "additionalProperties": false,
@@ -494,21 +493,21 @@
       ],
       "type": "object"
     },
+    "name": "get_program",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_run",
     "description": "Return the full record for one Ansible run by its integer id (excludes secret snapshot fields: playbook_yaml, inventory_yaml, known_hosts, lease_digest, runner_id).",
     "input_schema": {
       "additionalProperties": false,
@@ -525,21 +524,21 @@
       ],
       "type": "object"
     },
+    "name": "get_run",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_run_group",
     "description": "Return the full record for one run group by its integer id, including child run summaries. Never includes execution_payload.",
     "input_schema": {
       "additionalProperties": false,
@@ -556,21 +555,21 @@
       ],
       "type": "object"
     },
+    "name": "get_run_group",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_template",
     "description": "Return the full record for one Control Center template by its integer id.",
     "input_schema": {
       "additionalProperties": false,
@@ -587,21 +586,21 @@
       ],
       "type": "object"
     },
+    "name": "get_template",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "get_vulnerability",
     "description": "Return the full record for one vulnerability by its Mongo ObjectId hex id.",
     "input_schema": {
       "additionalProperties": false,
@@ -618,21 +617,21 @@
       ],
       "type": "object"
     },
+    "name": "get_vulnerability",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_cves",
     "description": "List and count tracked CVEs, optionally filtered by ecosystem, package, severity, or fix status.",
     "input_schema": {
       "additionalProperties": false,
@@ -690,7 +689,7 @@
           "type": "string"
         },
         "q": {
-          "description": "Plain case-insensitive substring search over CVE id, summary, and details. Not a dork — use the typed filters for precise matches.",
+          "description": "Plain case-insensitive substring search over CVE id, summary, and details. Not a dork \u2014 use the typed filters for precise matches.",
           "maxLength": 200,
           "type": "string"
         },
@@ -707,21 +706,21 @@
       },
       "type": "object"
     },
+    "name": "list_cves",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_endpoints",
     "description": "List and count crawled sitemap endpoints, optionally filtered by path, content type, HTTP methods, or status family. Use q for dork search (see the q field for keys).",
     "input_schema": {
       "additionalProperties": false,
@@ -771,21 +770,21 @@
       },
       "type": "object"
     },
+    "name": "list_endpoints",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_jobs",
     "description": "List and count Control Center Whiterabbit job runs, optionally filtered by status.",
     "input_schema": {
       "additionalProperties": false,
@@ -810,21 +809,21 @@
       },
       "type": "object"
     },
+    "name": "list_jobs",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_playbooks",
     "description": "List and count Control Center Ansible playbooks, ordered by name. Page with page/limit.",
     "input_schema": {
       "additionalProperties": false,
@@ -844,21 +843,21 @@
       },
       "type": "object"
     },
+    "name": "list_playbooks",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_programs",
     "description": "List and count bug-bounty programs, optionally filtered by status, bounty, collaboration, scope size, report volume, platform, or scope type. Use q for dork search (see the q field for keys).",
     "input_schema": {
       "additionalProperties": false,
@@ -933,21 +932,21 @@
       },
       "type": "object"
     },
+    "name": "list_programs",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_run_events",
     "description": "List a run's Ansible events in counter order (max 100 per page). Requires run_id; use after_counter to page.",
     "input_schema": {
       "additionalProperties": false,
@@ -979,21 +978,21 @@
       },
       "type": "object"
     },
+    "name": "list_run_events",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_run_groups",
     "description": "List and count Control Center Ansible run groups, newest first. Page with page/limit.",
     "input_schema": {
       "additionalProperties": false,
@@ -1013,21 +1012,21 @@
       },
       "type": "object"
     },
+    "name": "list_run_groups",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_templates",
     "description": "List and count Control Center Whiterabbit templates, optionally filtered by kind.",
     "input_schema": {
       "additionalProperties": false,
@@ -1052,21 +1051,21 @@
       },
       "type": "object"
     },
+    "name": "list_templates",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   },
   {
-    "name": "list_vulnerabilities",
     "description": "List and count tracked vulnerabilities, optionally filtered by program, severity, status, or tool. Use q for dork search (see the q field for keys).",
     "input_schema": {
       "additionalProperties": false,
@@ -1111,17 +1110,145 @@
       },
       "type": "object"
     },
+    "name": "list_vulnerabilities",
     "output_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "result"
-      ],
       "properties": {
         "result": {
           "type": "object"
         }
-      }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "description": "Create a new Whiterabbit template. Create-only: never edits, deletes, or runs anything. The content is validated fail-closed before it is saved.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "additionalProperties": false,
+          "properties": {
+            "commands": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "args": {
+                    "items": {
+                      "maxLength": 4096,
+                      "type": "string"
+                    },
+                    "maxItems": 200,
+                    "type": "array"
+                  },
+                  "command": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "operator": {
+                    "maxLength": 4,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "command"
+                ],
+                "type": "object"
+              },
+              "maxItems": 50,
+              "type": "array"
+            },
+            "description": {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "cmdscript",
+                "workflow"
+              ],
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "kind",
+            "commands"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "type": "object"
+    },
+    "name": "create_whiterabbit_template",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "description": "Create a new Ansible playbook. Create-only: never edits, deletes, or runs anything. The content is validated fail-closed before it is saved.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "playbook": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "source": {
+              "maxLength": 65536,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "source"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "playbook"
+      ],
+      "type": "object"
+    },
+    "name": "create_ansible_playbook",
+    "output_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     }
   }
 ]

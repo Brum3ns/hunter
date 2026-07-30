@@ -20,6 +20,7 @@ import (
 	ccRunGroups "hunter.local/assistant/mcp/internal/modules/cc_run_groups"
 	ccRuns "hunter.local/assistant/mcp/internal/modules/cc_runs"
 	ccTemplates "hunter.local/assistant/mcp/internal/modules/cc_templates"
+	ccwrite "hunter.local/assistant/mcp/internal/modules/ccwrite"
 	contextmod "hunter.local/assistant/mcp/internal/modules/context"
 	cves "hunter.local/assistant/mcp/internal/modules/cves"
 	policies "hunter.local/assistant/mcp/internal/modules/policies"
@@ -80,6 +81,7 @@ func main() {
 		ccRunGroups.Module{},
 		ccRuns.Module{},
 		ccRunEvents.Module{},
+		ccwrite.Module{},
 	)
 	run := runner.New(transportClient, registry, redact.NewChecker(int(settings.MaxResponseBytes)))
 
