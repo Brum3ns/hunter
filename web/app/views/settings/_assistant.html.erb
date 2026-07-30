@@ -2,7 +2,7 @@
   <div class="flex items-start justify-between gap-4">
     <div>
       <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Assistant</h2>
-      <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Session-only administration for the drafting assistant. Enabled profiles may read Hunter data (targets, CVEs, vulnerabilities, sitemap, programs, control center) through bounded, read-only tools, and only when you explicitly ask for a lookup; they cannot write, execute, or send anything on their own.</p>
+      <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Session-only administration for the drafting assistant. Enabled profiles may read Hunter data (targets, CVEs, vulnerabilities, sitemap, programs, control center) through bounded, read-only tools, and only when you explicitly ask for a lookup. When Control Center write is enabled, they may also create (but not edit, delete, or run) new validated Whiterabbit templates and Ansible playbooks, attributed to you and audited; they cannot execute or send anything on their own.</p>
     </div>
     <span class="rounded-full px-2.5 py-1 text-xs font-medium <%= Assistant::Config.enabled? && setting.assistant_enabled? ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' %>">
       <%= Assistant::Config.enabled? && setting.assistant_enabled? ? "Enabled" : "Disabled" %>

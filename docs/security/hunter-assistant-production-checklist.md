@@ -63,6 +63,7 @@ mutable “latest” results.
 | SPDX SBOM | One per candidate image | UNSET | Not run |
 | Credential rotation drill | Old rejection/new health output | UNSET | Not run |
 | Live `docker compose up` acceptance run (no keys, empty keys, one real key, `docker compose config` secret review) | Operator-reported output for all four cases; `docker compose config` now inlines live environment-variable secret values rather than file paths, so its output must be captured only in redacted form for this record | UNSET | Not run |
+| Approval-free create (Whiterabbit templates + Ansible playbooks) — see `docs/superpowers/specs/2026-07-30-assistant-approval-free-create-design.md` and the "Approved exceptions" entry in `AGENTS.md`'s Assistant capability change rule | Evidence that: the fail-closed validators (`AnsibleStatic`, `Whiterabbit`/`TemplateValidator`) reject every disallowed-module/command and secret-embedding fixture with no row persisted; the create endpoints are create-only (no edit/delete/run path exists); `control_center_templates_write`/`control_center_ansible_write` are non-wildcard and independently revocable via `Assistant::Setting#control_center_write_enabled`; created rows are attributed to the human turn user and metadata-only audited | UNSET | Not run |
 
 ## Runtime and operations review
 

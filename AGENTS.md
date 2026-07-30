@@ -131,3 +131,31 @@ tools are prohibited. Wildcard scopes are prohibited for Assistant service and
 turn-grant identities. A capability must remain narrowly named and independently
 revocable, and production stays disabled until its review evidence is recorded
 in the Assistant production checklist.
+
+### Approved exceptions
+
+- **Approval-free create: Whiterabbit templates + Ansible playbooks** (spec:
+  `docs/superpowers/specs/2026-07-30-assistant-approval-free-create-design.md`).
+  Create-only (never edit/delete/run) of these two Control Center artifact
+  types is approved **without** the human-approval step, conditioned on all of
+  the following remaining true:
+  - The strict content validators (`Assistant::DraftValidation::AnsibleStatic`
+    for playbooks, `Assistant::DraftValidation::Whiterabbit`/`TemplateValidator`
+    for templates) remain mandatory, fail-closed gates — no persist path may
+    bypass them.
+  - The capability stays create-only: the machine endpoints only ever build a
+    new record (`Model.new`); there is no edit, delete, or run path.
+  - Authorization is via dedicated, non-wildcard write scopes
+    (`control_center_templates_write`, `control_center_ansible_write`) granted
+    only alongside the matching `create_*` tool, and the whole capability is
+    independently revocable via `Assistant::Setting#control_center_write_enabled`
+    (default on) without touching any read capability.
+  - Every create is attributed to the turn's human user and audited
+    metadata-only (`Assistant::Audit.record!`).
+  - Production activation still stays gated by, and requires review evidence
+    recorded in, the Assistant production checklist
+    (`docs/security/hunter-assistant-production-checklist.md`) before enable.
+
+  Any change to these conditions (new artifact type, edit/delete/run, a
+  broadened or wildcard scope, or removing the validator/toggle/audit gates)
+  is a new capability change requiring its own threat-model delta.

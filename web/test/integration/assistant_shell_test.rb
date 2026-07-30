@@ -49,7 +49,8 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "#hunter-assistant-capability-disclosure", text: /read-only tools/i
-    assert_select "#hunter-assistant-capability-disclosure", text: /cannot create, edit, delete, run, or send/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /create.*validated Whiterabbit templates and Ansible playbooks/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /but not edit, delete, or run/i
   end
 
   test "server-rendered profile data remains escaped and no secret metadata is present" do

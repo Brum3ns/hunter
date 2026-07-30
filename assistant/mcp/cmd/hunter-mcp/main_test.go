@@ -63,7 +63,16 @@ func TestHealthRejectsNonGETMethods(t *testing.T) {
 
 func TestInstructionsStateReadOnlyAndDork(t *testing.T) {
 	lower := strings.ToLower(hunterInstructions)
-	for _, want := range []string{"read", "only", "count", "page", "limit", "dork", "id"} {
+	for _, want := range []string{"read", "only", "count", "page", "limit", "dork", "id", "create"} {
+		if !strings.Contains(lower, want) {
+			t.Fatalf("instructions missing %q", want)
+		}
+	}
+}
+
+func TestInstructionsStateCreateExceptionScope(t *testing.T) {
+	lower := strings.ToLower(hunterInstructions)
+	for _, want := range []string{"create_whiterabbit_template", "create_ansible_playbook", "validated", "never edit, update, delete, or run"} {
 		if !strings.Contains(lower, want) {
 			t.Fatalf("instructions missing %q", want)
 		}
