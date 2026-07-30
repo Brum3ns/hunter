@@ -11,6 +11,7 @@ module Assistant
       resources
       tools
       read_scopes
+      write_scopes
       expires_at
       max_calls
       max_result_bytes
@@ -28,6 +29,13 @@ module Assistant
       control_center_templates
       control_center_jobs
       control_center_ansible
+    ].freeze
+
+    # The closed set of module slugs a grant may authorize for create-only
+    # writes. No wildcard is ever accepted. Grows as write modules ship.
+    WRITE_SCOPES = %w[
+      control_center_templates_write
+      control_center_ansible_write
     ].freeze
 
     self.table_name = "assistant_turn_grants"
@@ -51,6 +59,7 @@ module Assistant
     validate :bindings_match_turn
     validate :usage_is_within_limits
     validate :read_scopes_are_known
+    validate :write_scopes_are_known
     validate :scope_is_immutable, on: :update
 
     def self.digest(raw)
@@ -84,6 +93,11 @@ module Assistant
     def read_scopes_are_known
       extra = Array(read_scopes) - READ_SCOPES
       errors.add(:read_scopes, "contains unknown slugs: #{extra.join(', ')}") if extra.any?
+    end
+
+    def write_scopes_are_known
+      extra = Array(write_scopes) - WRITE_SCOPES
+      errors.add(:write_scopes, "contains unknown slugs: #{extra.join(', ')}") if extra.any?
     end
 
     def scope_is_immutable

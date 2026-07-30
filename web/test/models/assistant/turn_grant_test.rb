@@ -48,6 +48,33 @@ class Assistant::TurnGrantTest < ActiveSupport::TestCase
     assert(clone.errors[:read_scopes].any? { |message| message.include?("unknown") })
   end
 
+  test "an issued grant defaults to no write scopes" do
+    issue!
+    grant = Assistant::TurnGrant.order(:id).last
+    assert_equal [], grant.write_scopes
+  end
+
+  test "write_scopes cannot be changed after issue" do
+    issue!
+    grant = Assistant::TurnGrant.order(:id).last
+    grant.write_scopes = grant.write_scopes + [ "control_center_templates_write" ]
+    refute grant.valid?
+    assert_includes grant.errors[:write_scopes], "cannot be changed"
+  end
+
+  test "unknown write scope slugs are rejected on create" do
+    clone = clone_of_issued_grant("write-scope-bogus-secret")
+    clone.write_scopes = [ "bogus" ]
+    refute clone.valid?
+    assert(clone.errors[:write_scopes].any? { |message| message.include?("unknown") })
+  end
+
+  test "write_scopes_are_known accepts every WRITE_SCOPES slug" do
+    clone = clone_of_issued_grant("write-scope-valid-secret")
+    clone.write_scopes = Assistant::TurnGrant::WRITE_SCOPES
+    assert clone.valid?, clone.errors.full_messages.join(", ")
+  end
+
   private
 
   def clone_of_issued_grant(secret)
