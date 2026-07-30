@@ -83,7 +83,7 @@ module Api
             complete_machine_response!(reservation, {
               correlation_id: machine_grant.turn.correlation_id,
               key => { id: record.id, name: record.name }
-            })
+            }, status: :created)
           end
 
           def render_machine_validation_error(reservation, codes)

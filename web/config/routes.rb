@@ -115,6 +115,7 @@ Rails.application.routes.draw do
           namespace :control_center do
             get "templates", to: "templates#index"
             get "templates/:id", to: "templates#show", constraints: { id: /\d+/ }
+            post "templates", to: "templates#create"
             get "jobs", to: "jobs#index"
             get "jobs/:id", to: "jobs#show", constraints: { id: /\d+/ }
             namespace :ansible do
