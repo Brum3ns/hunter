@@ -29,4 +29,35 @@ class Assistant::SettingTest < ActiveSupport::TestCase
     assert_equal user, setting.disabled_by
     assert_not_nil setting.disabled_at
   end
+
+  test "control_center_write_enabled defaults to true" do
+    assert Assistant::Setting.instance.control_center_write_enabled?
+  end
+
+  test "disable_control_center_write! flips the flag and audits" do
+    user = users(:one)
+
+    assert_difference "Assistant::AuditEvent.count", 1 do
+      Assistant::Setting.disable_control_center_write!(user: user)
+    end
+
+    refute Assistant::Setting.instance.control_center_write_enabled?
+    event = Assistant::AuditEvent.order(:created_at).last
+    assert_equal "control_center_write.disabled", event.event
+    assert_equal user.id, event.user_id
+    assert_equal "disabled", event.metadata["outcome"]
+  end
+
+  test "enable_control_center_write! flips the flag back and audits" do
+    Assistant::Setting.disable_control_center_write!(user: users(:one))
+
+    assert_difference "Assistant::AuditEvent.count", 1 do
+      Assistant::Setting.enable_control_center_write!
+    end
+
+    assert Assistant::Setting.instance.control_center_write_enabled?
+    event = Assistant::AuditEvent.order(:created_at).last
+    assert_equal "control_center_write.enabled", event.event
+    assert_equal "enabled", event.metadata["outcome"]
+  end
 end

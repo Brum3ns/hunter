@@ -22,6 +22,14 @@ module Assistant
       def disable!(user:)
         instance.disable!(user: user)
       end
+
+      def enable_control_center_write!
+        instance.enable_control_center_write!
+      end
+
+      def disable_control_center_write!(user:)
+        instance.disable_control_center_write!(user: user)
+      end
     end
 
     def enable!
@@ -30,6 +38,22 @@ module Assistant
 
     def disable!(user:)
       update!(assistant_enabled: false, disabled_at: Time.current, disabled_by: user)
+    end
+
+    def enable_control_center_write!
+      update!(control_center_write_enabled: true)
+      Assistant::Audit.record!(
+        event: "control_center_write.enabled",
+        attributes: { metadata: { operation: "control_center_write", outcome: "enabled" } }
+      )
+    end
+
+    def disable_control_center_write!(user:)
+      update!(control_center_write_enabled: false)
+      Assistant::Audit.record!(
+        event: "control_center_write.disabled",
+        attributes: { user_id: user&.id, metadata: { operation: "control_center_write", outcome: "disabled" } }
+      )
     end
 
     private
