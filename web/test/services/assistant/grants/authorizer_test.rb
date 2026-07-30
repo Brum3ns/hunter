@@ -79,6 +79,44 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
     assert Assistant::AuditEvent.exists?(event: "grant.result_rejected", status: "rejected")
   end
 
+  test "complete_write! accounts bytes like complete! on the happy path" do
+    raw = issue_grant
+    reservation = Assistant::Grants::Authorizer.reserve!(
+      raw_grant: raw,
+      tool: "get_selected_context",
+      resource_type: "target",
+      resource_id: "abc"
+    )
+    grant = Assistant::TurnGrant.order(:id).last.reload
+
+    assert reservation.complete_write!(bytes: 123)
+    grant.reload
+    assert_equal 0, grant.reserved_bytes
+    assert_equal 123, grant.returned_bytes
+    assert_nil grant.revoked_at
+  end
+
+  test "complete_write! never signals a rejection even when the byte limit is overrun" do
+    raw = issue_grant
+    reservation = Assistant::Grants::Authorizer.reserve!(
+      raw_grant: raw,
+      tool: "get_selected_context",
+      resource_type: "target",
+      resource_id: "abc"
+    )
+    grant = Assistant::TurnGrant.order(:id).last
+
+    # An already-committed write must never be reported as rejected: the
+    # accounting still records the overrun (and revokes further use of the
+    # grant), but the caller always gets a truthy result back.
+    assert reservation.complete_write!(bytes: grant.max_result_bytes + 1)
+    grant.reload
+    assert_not_nil grant.revoked_at
+    assert_equal grant.max_result_bytes + 1, grant.returned_bytes
+    assert_equal 0, grant.reserved_bytes
+    assert Assistant::AuditEvent.exists?(event: "grant.result_rejected", status: "rejected")
+  end
+
   test "issued scope and identity bindings cannot be broadened" do
     issue_grant
     grant = Assistant::TurnGrant.order(:id).last

@@ -79,11 +79,19 @@ module Api
             true
           end
 
+          # The create tools already committed the row before this runs, so
+          # unlike complete_machine_response! (the read path), this must never
+          # turn a committed write into a 403: it accounts the response bytes
+          # via Reservation#complete_write! but always renders 201.
           def machine_create_response(reservation, key:, record:)
-            complete_machine_response!(reservation, {
+            payload = {
               correlation_id: machine_grant.turn.correlation_id,
               key => { id: record.id, name: record.name }
-            }, status: :created)
+            }
+            reservation.complete_write!(bytes: JSON.generate(payload).bytesize)
+
+            set_grant_budget_headers
+            render json: payload, status: :created
           end
 
           def render_machine_validation_error(reservation, codes)

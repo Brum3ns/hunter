@@ -35,6 +35,32 @@ module Assistant
           accepted
         end
 
+        # Accounts the completed write's bytes exactly like #complete!, but
+        # never signals a render-rejection: a create that reaches this point
+        # already committed its row, so a byte-limit (or other) overrun is
+        # recorded for audit/budget bookkeeping without turning the response
+        # into a 403 against already-committed state. Callers of a create
+        # response must use this instead of #complete!.
+        def complete_write!(bytes:)
+          bytes = Integer(bytes)
+          raise ArgumentError, "bytes must be nonnegative" if bytes.negative?
+          ensure_open!
+
+          Assistant::TurnGrant.transaction do
+            grant = Assistant::TurnGrant.lock.find(@grant_id)
+            release_reservation!(grant)
+            rejection_reason = rejection_reason(grant, bytes)
+
+            grant.returned_bytes += bytes
+            grant.revoked_at ||= Time.current if rejection_reason == "byte_limit"
+            grant.save!
+
+            audit_rejection!(grant, bytes, rejection_reason) if rejection_reason
+          end
+          @finished = true
+          true
+        end
+
         def fail!
           ensure_open!
           Assistant::TurnGrant.transaction do

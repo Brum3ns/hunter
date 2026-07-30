@@ -88,6 +88,33 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
     end
   end
 
+  test "a committed create still returns 201 even when the byte budget is exhausted at completion" do
+    stub_methods(ControlCenter::TemplateValidator, allowlist: [ "curl" ]) do
+      grant = write_grant
+      record = Assistant::TurnGrant.order(:id).last
+      # Shrink the per-call byte budget below the (small, fixed) create
+      # response so completion sees a byte_limit overrun even though the
+      # budget pre-check at authorize time passed. This simulates the byte
+      # gate firing at completion time for an already-committed write.
+      record.update_column(:max_result_bytes, 1)
+
+      assert_difference -> { ControlCenter::Template.count }, 1 do
+        post "/api/v1/assistant/machine/control_center/templates",
+          params: { template: VALID_TEMPLATE }, headers: headers(grant), as: :json
+      end
+
+      assert_response :created
+      body = response.parsed_body
+      template = body["template"]
+      assert template["id"].present?
+      assert ControlCenter::Template.exists?(template["id"])
+
+      record.reload
+      assert_not_nil record.revoked_at
+      assert Assistant::AuditEvent.exists?(event: "grant.result_rejected", status: "rejected")
+    end
+  end
+
   test "refuses to create when the control center write toggle is off" do
     # Toggle-off is a runtime re-check on an already-issued grant (the Issuer
     # already excludes the create tool for grants issued *after* the toggle
