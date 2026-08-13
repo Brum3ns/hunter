@@ -25,6 +25,7 @@ module Assistant
     validates :expires_at, presence: true
     validate :provider_profile_is_enabled, on: :create
     validate :bindings_are_immutable, on: :update
+    validate :session_binding_matches_backend
 
     class << self
       def start!(user:, provider_profile:)
@@ -119,6 +120,15 @@ module Assistant
       return unless will_save_change_to_provider_profile_id?
 
       errors.add(:provider_profile, "cannot be changed")
+    end
+
+    def session_binding_matches_backend
+      if provider_profile&.codex? && claude_session_id.present?
+        errors.add(:claude_session_id, "is not allowed for this backend")
+      end
+      if provider_profile&.claude_code? && codex_thread_id.present?
+        errors.add(:codex_thread_id, "is not allowed for this backend")
+      end
     end
 
     def normalize_context_refs(context_refs)

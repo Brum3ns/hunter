@@ -14,3 +14,17 @@ other_user:
   status: active
   title: Other user's conversation
   expires_at: <%= 6.days.from_now %>
+
+codex:
+  user: two
+  provider_profile: codex
+  status: active
+  title: Codex conversation
+  expires_at: <%= 6.days.from_now %>
+
+claude_code:
+  user: two
+  provider_profile: claude_code
+  status: active
+  title: Claude Code conversation
+  expires_at: <%= 6.days.from_now %>

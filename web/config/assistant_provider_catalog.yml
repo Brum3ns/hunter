@@ -16,6 +16,15 @@ anthropic_primary:
   output_limit: 8192
   retention_posture: standard
 
+codex:
+  provider: codex
+  model: codex
+  secret_ref: codex
+  secret_env: ""
+  input_limit: 32768
+  output_limit: 8192
+  retention_posture: standard
+
 # Synthetic profile for the Claude Code backend. It carries no API secret
 # (secret_env is empty and never read): the Claude Code service authenticates
 # with the operator's subscription inside its own container. This row exists so

@@ -110,12 +110,28 @@ class Assistant::ConversationTest < ActiveSupport::TestCase
   end
 
   test "provider binding cannot be reassigned" do
-    conversation = assistant_conversations(:one)
+    conversation = assistant_conversations(:codex)
 
-    conversation.provider_profile = assistant_provider_profiles(:anthropic)
+    conversation.provider_profile = assistant_provider_profiles(:claude_code)
 
     refute conversation.valid?
     assert_includes conversation.errors[:provider_profile], "cannot be changed"
+  end
+
+  test "Codex conversation rejects a Claude session binding" do
+    conversation = assistant_conversations(:codex)
+    conversation.claude_session_id = "sess_wrong_backend"
+
+    refute conversation.valid?
+    assert_includes conversation.errors[:claude_session_id], "is not allowed for this backend"
+  end
+
+  test "Claude conversation rejects a Codex thread binding" do
+    conversation = assistant_conversations(:claude_code)
+    conversation.codex_thread_id = "thr_wrong_backend"
+
+    refute conversation.valid?
+    assert_includes conversation.errors[:codex_thread_id], "is not allowed for this backend"
   end
 
   test "destroy with content hard deletes all body-bearing rows" do

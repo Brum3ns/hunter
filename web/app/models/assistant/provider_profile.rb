@@ -34,6 +34,18 @@ module Assistant
       catalog_slug == "claude_code"
     end
 
+    def codex?
+      catalog_slug == "codex"
+    end
+
+    def direct_chat?
+      chat_backend_slug.present?
+    end
+
+    def chat_backend_slug
+      Assistant::ChatBackend.slug_for(self)
+    end
+
     def dispatch_snapshot
       {
         profile_id: id,

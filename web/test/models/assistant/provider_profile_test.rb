@@ -61,4 +61,22 @@ class Assistant::ProviderProfileTest < ActiveSupport::TestCase
     refute profile.valid?
     assert_includes profile.errors[:tool_call_limit], "must be less than or equal to 8"
   end
+
+  test "direct chat helpers derive only from the immutable catalog binding" do
+    codex = assistant_provider_profiles(:codex)
+    claude_code = assistant_provider_profiles(:claude_code)
+    legacy = assistant_provider_profiles(:openai)
+    legacy.assign_attributes(name: "Codex", provider: "codex")
+
+    assert codex.codex?
+    assert codex.direct_chat?
+    assert_equal "codex", codex.chat_backend_slug
+    assert claude_code.claude_code?
+    assert claude_code.direct_chat?
+    assert_equal "claude_code", claude_code.chat_backend_slug
+    refute legacy.codex?
+    refute legacy.claude_code?
+    refute legacy.direct_chat?
+    assert_nil legacy.chat_backend_slug
+  end
 end
