@@ -352,7 +352,7 @@ git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Add Assis
 - Create: `web/package.json`
 - Create: `web/package-lock.json`
 - Create: `web/vendor/javascript/marked.esm.js`
-- Create: `web/vendor/javascript/dompurify.es.mjs`
+- Create: `web/vendor/javascript/dompurify.es.js`
 - Create: `web/vendor/javascript/licenses/marked-LICENSE.md`
 - Create: `web/vendor/javascript/licenses/dompurify-LICENSE`
 - Create: `web/vendor/javascript/assistant-markdown-vendor.json`
@@ -452,7 +452,7 @@ attributes.
 - [x] **Step 6: Commit the pinned rendering boundary**
 
 ```bash
-git add web/package.json web/package-lock.json web/vendor/javascript/marked.esm.js web/vendor/javascript/dompurify.es.mjs web/vendor/javascript/licenses web/vendor/javascript/assistant-markdown-vendor.json web/config/importmap.rb web/app/javascript/lib/assistant_markdown.js web/test/javascript/assistant_markdown_test.mjs
+git add web/package.json web/package-lock.json web/vendor/javascript/marked.esm.js web/vendor/javascript/dompurify.es.js web/vendor/javascript/licenses web/vendor/javascript/assistant-markdown-vendor.json web/config/importmap.rb web/app/javascript/lib/assistant_markdown.js web/test/javascript/assistant_markdown_test.mjs
 git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Add a pinned sanitized Markdown rendering boundary."
 ```
 
@@ -632,7 +632,7 @@ git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Align the
 ```bash
 cd web
 npm ci
-sha256sum vendor/javascript/marked.esm.js vendor/javascript/dompurify.es.mjs
+sha256sum vendor/javascript/marked.esm.js vendor/javascript/dompurify.es.js
 node --test test/javascript/*.mjs
 ```
 
@@ -716,3 +716,8 @@ Completed and verified on 2026-08-13.
   reorder, persistence, cleanup, and current-controller checks passed without
   invoking an external provider.
 - Two-pass independent review ended with no Critical or Important findings.
+- Post-completion browser regression: Chromium showed that the vendored
+  DOMPurify `.mjs` asset had a blank response media type, preventing Stimulus
+  from registering the Assistant controller. The byte-identical module was
+  renamed to `.js`; a Rails asset MIME regression test and a real Chromium
+  launcher click now verify controller registration and panel opening.

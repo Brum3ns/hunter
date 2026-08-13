@@ -371,6 +371,13 @@ Verification evidence:
   ambiguity, lost rerender focus, and missing controller-level tests. Those
   issues were fixed; follow-up review reported no remaining Critical or
   Important findings and assessed the change ready to merge.
+- A post-completion browser reproduction found that Propshaft served the
+  vendored `.mjs` DOMPurify file with a blank media type. Chromium therefore
+  rejected the sanitizer dependency and Stimulus could not register the chat
+  controller. The byte-identical vendored module now uses a `.js` asset name,
+  is served as `text/javascript`, and an integration regression test verifies
+  that MIME boundary. A real Chromium click then opened the panel and loaded
+  the Assistant bootstrap successfully.
 
 This implementation does not itself satisfy the independent Assistant
 production-activation checklist; that gate remains unchanged.

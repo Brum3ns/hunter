@@ -3,7 +3,7 @@
     "version": "3.4.13",
     "upstream": "https://github.com/cure53/DOMPurify",
     "source": "node_modules/dompurify/dist/purify.es.mjs",
-    "vendored": "vendor/javascript/dompurify.es.mjs",
+    "vendored": "vendor/javascript/dompurify.es.js",
     "sha256": "1939de7b9b248a4ffdf7f8065af45116a1babb96362eaf84d8f9fc3756c26fad",
     "license": "MPL-2.0 OR Apache-2.0"
   },

@@ -58,6 +58,11 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     importmap = JSON.parse(css_select("script[type='importmap']").sole.text)
     assert_match %r{\A/assets/lib/assistant_markdown-[a-f0-9]+\.js\z},
       importmap.fetch("imports").fetch("#assistant-markdown")
+
+    dompurify_path = importmap.fetch("imports").fetch("dompurify")
+    get dompurify_path
+    assert_response :success
+    assert_equal "text/javascript", response.media_type
   end
 
   test "shell discloses non-secret reads and permission-free bounded authoring" do
