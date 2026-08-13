@@ -64,6 +64,13 @@ function fixture() {
       <section data-assistant-target="panel" hidden>
         <button data-assistant-target="resizeHandle"></button>
         <span data-assistant-target="resizeStatus"></span>
+        <div data-assistant-target="historyWorkspace" data-history-collapsed="false">
+          <aside data-assistant-target="historySidebar">
+            <button data-assistant-target="historyToggle" aria-expanded="true">
+              <span data-assistant-target="historyToggleLabel">Collapse</span>
+            </button>
+          </aside>
+        </div>
         <div data-assistant-target="startScreen"></div>
         <div data-assistant-target="conversationScreen" hidden></div>
         <select data-assistant-target="providerSelect"><option value="1">Profile</option></select>
@@ -137,6 +144,22 @@ async function harness(fetchImpl = async () => response({})) {
   }
   return { application, controller, dom }
 }
+
+test("history toggle gives the chat width and persists the preference", async () => {
+  const { application, controller } = await harness()
+  controller.historyCollapsed = false
+  controller.applyHistoryState()
+
+  controller.toggleHistory({ preventDefault() {} })
+
+  assert.equal(controller.historyWorkspaceTarget.dataset.historyCollapsed, "true")
+  assert.equal(controller.historyToggleTarget.getAttribute("aria-expanded"), "false")
+  assert.match(controller.historyToggleTarget.getAttribute("aria-label"), /expand/i)
+  assert.deepEqual(JSON.parse(window.localStorage.getItem("hunter:assistant-history-rail:v1")), {
+    collapsed: true,
+  })
+  application.stop()
+})
 
 test("an in-flight rename cannot be dismissed and restores focus after authoritative render", async () => {
   const patch = deferred()

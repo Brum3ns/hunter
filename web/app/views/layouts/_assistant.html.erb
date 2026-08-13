@@ -72,18 +72,30 @@
       </p>
     </details>
 
-    <div class="grid min-h-0 flex-1 grid-cols-[7.5rem_minmax(0,1fr)] sm:grid-cols-[10.5rem_minmax(0,1fr)] lg:grid-cols-[12rem_minmax(0,1fr)]">
-      <aside aria-label="Assistant conversations" class="slim-scroll min-h-0 overflow-y-auto border-r border-white/10 bg-[#0a0a0a] p-2 text-zinc-100">
-        <p class="px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Conversations</p>
+    <div data-assistant-target="historyWorkspace" data-history-collapsed="false"
+         class="assistant-workspace-grid grid min-h-0 flex-1">
+      <aside data-assistant-target="historySidebar" aria-label="Assistant conversations"
+             class="assistant-history-sidebar slim-scroll min-h-0 overflow-y-auto border-r border-white/10 bg-[#0a0a0a] p-2 text-zinc-100">
+        <div class="flex items-center justify-between gap-1 px-1 pb-2 pt-1">
+          <p data-history-expanded-only class="min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Conversations</p>
+          <button type="button" data-assistant-target="historyToggle" data-action="assistant#toggleHistory"
+                  aria-expanded="true" aria-label="Collapse conversation history"
+                  class="grid h-8 min-w-8 shrink-0 place-items-center rounded-md text-zinc-400 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white">
+            <svg aria-hidden="true" viewBox="0 0 20 20" class="assistant-history-toggle-icon h-4 w-4 transition-transform" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m12 5-5 5 5 5" />
+            </svg>
+            <span data-assistant-target="historyToggleLabel" class="sr-only">Collapse</span>
+          </button>
+        </div>
         <button type="button" data-action="assistant#showNewConversation"
                 class="flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-2 py-2.5 text-xs font-semibold text-zinc-950 shadow-sm ring-1 ring-zinc-300 transition hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#0a0a0a]">
           <svg aria-hidden="true" viewBox="0 0 20 20" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" d="M10 4v12M4 10h12" /></svg>
-          New chat
+          <span data-history-expanded-only>New chat</span>
         </button>
-        <div data-assistant-target="conversationList" class="mt-2 space-y-1.5"></div>
+        <div data-assistant-target="conversationList" data-history-expanded-only class="mt-2 space-y-1.5"></div>
       </aside>
 
-      <div class="flex min-h-0 min-w-0 flex-col bg-zinc-50 dark:bg-[#0d0d0e]">
+      <div class="assistant-chat-column flex min-h-0 min-w-0 flex-col bg-zinc-50 dark:bg-[#0d0d0e]">
         <p data-assistant-target="notice" role="alert" hidden
            class="border-b border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium leading-5 text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"></p>
         <p data-assistant-target="status" role="status" aria-live="polite" hidden

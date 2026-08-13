@@ -116,7 +116,39 @@
 
 /* Assistant panel: anchored bottom-right and resized from its top-left handle.
    Inline dimensions set by Stimulus override the defaults after restoration. */
+.assistant-workspace-grid {
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  position: relative;
+}
+.assistant-workspace-grid[data-history-collapsed="true"] {
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+}
+.assistant-workspace-grid[data-history-collapsed="true"] [data-history-expanded-only] {
+  display: none;
+}
+.assistant-workspace-grid[data-history-collapsed="true"] .assistant-history-toggle-icon {
+  transform: rotate(180deg);
+}
+.assistant-chat-column {
+  grid-column: 2;
+}
+@media (max-width: 639px) {
+  .assistant-workspace-grid[data-history-collapsed="false"] {
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+  }
+  .assistant-workspace-grid[data-history-collapsed="false"] .assistant-history-sidebar {
+    bottom: 0;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 7.5rem;
+    z-index: 1;
+  }
+}
 @media (min-width: 640px) {
+  .assistant-workspace-grid {
+    grid-template-columns: 10.5rem minmax(0, 1fr);
+  }
   .assistant-panel {
     width: 680px;
     height: min(780px, calc(100dvh - 2rem));

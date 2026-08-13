@@ -12,6 +12,10 @@ import {
   reorderConversation,
 } from "lib/assistant_history"
 import {
+  loadHistoryRailCollapsed,
+  saveHistoryRailCollapsed,
+} from "lib/assistant_history_rail"
+import {
   clampPanelSize,
   desktopPanel,
   loadPanelSize,
@@ -43,6 +47,7 @@ export default class extends Controller {
     "contextResults", "disclosurePreview", "drafts", "status", "notice",
     "resizeHandle", "resizeStatus", "capabilityDisclosure", "contextDisclosure",
     "historyMenu", "historyMenuRename", "historyMenuMoveUp", "historyMenuMoveDown",
+    "historyWorkspace", "historySidebar", "historyToggle", "historyToggleLabel",
     "renameDialog", "renameInput", "renameSubmit", "renameCancel",
     "fontDecrease", "fontIncrease", "fontScaleStatus",
   ]
@@ -76,6 +81,7 @@ export default class extends Controller {
     this.resumePollingAfterHistoryMutation = false
     this.renameInFlight = false
     this.fontScaleIndex = loadFontScaleIndex(this.panelStorage())
+    this.historyCollapsed = loadHistoryRailCollapsed(this.panelStorage())
     this.boundResizeMove = (event) => this.resizePanel(event)
     this.boundResizeEnd = (event) => this.finishResize(event)
     this.boundViewportResize = () => this.handleViewportResize()
@@ -84,6 +90,7 @@ export default class extends Controller {
     document.addEventListener("pointerdown", this.boundOutsideHistoryMenu)
     this.restorePanelSize()
     this.applyFontScale()
+    this.applyHistoryState()
   }
 
   disconnect() {
@@ -240,6 +247,21 @@ export default class extends Controller {
     } catch {
       return null
     }
+  }
+
+  toggleHistory(event) {
+    event?.preventDefault()
+    this.historyCollapsed = !this.historyCollapsed
+    saveHistoryRailCollapsed(this.panelStorage(), this.historyCollapsed)
+    this.applyHistoryState()
+  }
+
+  applyHistoryState() {
+    const collapsed = this.historyCollapsed === true
+    this.historyWorkspaceTarget.dataset.historyCollapsed = String(collapsed)
+    this.historyToggleTarget.setAttribute("aria-expanded", String(!collapsed))
+    this.historyToggleTarget.setAttribute("aria-label", collapsed ? "Expand conversation history" : "Collapse conversation history")
+    this.historyToggleLabelTarget.textContent = collapsed ? "Expand" : "Collapse"
   }
 
   viewport() {
