@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "dompurify": "3.4.13",
+    "jsdom": "30.0.1",
+    "marked": "18.0.9"
+  }
+}

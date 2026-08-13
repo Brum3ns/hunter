@@ -1,0 +1,18 @@
+{
+  "dompurify": {
+    "version": "3.4.13",
+    "upstream": "https://github.com/cure53/DOMPurify",
+    "source": "node_modules/dompurify/dist/purify.es.mjs",
+    "vendored": "vendor/javascript/dompurify.es.mjs",
+    "sha256": "1939de7b9b248a4ffdf7f8065af45116a1babb96362eaf84d8f9fc3756c26fad",
+    "license": "MPL-2.0 OR Apache-2.0"
+  },
+  "marked": {
+    "version": "18.0.9",
+    "upstream": "https://github.com/markedjs/marked",
+    "source": "node_modules/marked/lib/marked.esm.js",
+    "vendored": "vendor/javascript/marked.esm.js",
+    "sha256": "2c9b2113f8ef95ad21349952644fc1b3f759f0f92aff2ad4016a574b5ce19de5",
+    "license": "MIT"
+  }
+}
