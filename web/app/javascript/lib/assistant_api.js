@@ -47,6 +47,22 @@ export const assistantApi = Object.freeze({
     })
   },
 
+  renameConversation(id, title, { signal } = {}) {
+    return request(`/api/v1/assistant/conversations/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: { title },
+      signal,
+    })
+  },
+
+  reorderConversations(ids, { signal } = {}) {
+    return request("/api/v1/assistant/conversations/order", {
+      method: "PATCH",
+      body: { conversation_ids: ids },
+      signal,
+    })
+  },
+
   deleteConversation(id, { signal } = {}) {
     return request(`/api/v1/assistant/conversations/${encodeURIComponent(id)}`, {
       method: "DELETE",

@@ -90,6 +90,22 @@ test("assistant lifecycle API uses scoped encoded routes and CSRF for mutations"
   })
 })
 
+test("conversation organization API uses dedicated encoded PATCH routes and exact bodies", async () => {
+  const requests = installBrowserDoubles()
+
+  await assistantApi.renameConversation("7/unsafe", "Renamed")
+  await assistantApi.reorderConversations([9, 7])
+
+  assert.equal(requests[0].url, "/api/v1/assistant/conversations/7%2Funsafe")
+  assert.equal(requests[0].options.method, "PATCH")
+  assert.equal(requests[0].options.headers["X-CSRF-Token"], "csrf-test")
+  assert.deepEqual(JSON.parse(requests[0].options.body), { title: "Renamed" })
+  assert.equal(requests[1].url, "/api/v1/assistant/conversations/order")
+  assert.equal(requests[1].options.method, "PATCH")
+  assert.equal(requests[1].options.headers["X-CSRF-Token"], "csrf-test")
+  assert.deepEqual(JSON.parse(requests[1].options.body), { conversation_ids: [9, 7] })
+})
+
 test("save confirmation text includes the complete reviewed effect and no execution claim", () => {
   assert.equal(typeof ui.saveConfirmationText, "function")
   const text = ui.saveConfirmationText({
