@@ -109,6 +109,90 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_equal [], grant.write_scopes
   end
 
+  test "an administrator shutdown in the Claude dispatch gap cannot reopen or enqueue the turn" do
+    profile = assistant_provider_profiles(:claude_code)
+    conversation = Assistant::Conversation.start!(user: @user, provider_profile: profile)
+    enqueued = false
+
+    with_enabled_assistant do
+      with_claude_dispatch_gap(mutation: -> { Assistant::KillSwitch.disable!(user: @user) }) do
+        stub_methods(Assistant::TurnJob, perform_later: ->(**) { enqueued = true }) do
+          @turn = Assistant::TurnCreator.call(
+            conversation: conversation,
+            user: @user,
+            body: "do not reopen after shutdown",
+            context_refs: []
+          )
+        end
+      end
+    end
+
+    assert_equal "interrupted", @turn.reload.status
+    assert_equal "assistant_disabled", @turn.error_code
+    assert_not_nil @turn.completed_at
+    assert_not_nil @turn.turn_grant.revoked_at
+    refute enqueued
+    refute Assistant::AuditEvent.exists?(event: "turn.dispatch_failed", turn: @turn)
+  end
+
+  test "a profile disable in the Claude dispatch gap interrupts authority without enqueueing" do
+    profile = assistant_provider_profiles(:claude_code)
+    conversation = Assistant::Conversation.start!(user: @user, provider_profile: profile)
+    enqueued = false
+
+    with_enabled_assistant do
+      with_claude_dispatch_gap(mutation: -> { profile.update!(enabled: false) }) do
+        stub_methods(Assistant::TurnJob, perform_later: ->(**) { enqueued = true }) do
+          @turn = Assistant::TurnCreator.call(
+            conversation: conversation,
+            user: @user,
+            body: "do not enqueue a disabled profile",
+            context_refs: []
+          )
+        end
+      end
+    end
+
+    assert_equal "interrupted", @turn.reload.status
+    assert_equal "provider_profile_unavailable", @turn.error_code
+    assert_not_nil @turn.completed_at
+    assert_not_nil @turn.turn_grant.revoked_at
+    refute enqueued
+  end
+
+  test "a terminal revoked Claude turn in the dispatch gap is never reopened or enqueued" do
+    profile = assistant_provider_profiles(:claude_code)
+    conversation = Assistant::Conversation.start!(user: @user, provider_profile: profile)
+    enqueued = false
+    canceled_at = nil
+    mutation = lambda do
+      canceled_at = Time.current
+      turn = conversation.turns.sole
+      turn.update!(status: "canceled", completed_at: canceled_at)
+      turn.turn_grant.update!(revoked_at: canceled_at)
+      canceled_at = turn.reload.completed_at
+    end
+
+    with_enabled_assistant do
+      with_claude_dispatch_gap(mutation: mutation) do
+        stub_methods(Assistant::TurnJob, perform_later: ->(**) { enqueued = true }) do
+          @turn = Assistant::TurnCreator.call(
+            conversation: conversation,
+            user: @user,
+            body: "do not reopen terminal state",
+            context_refs: []
+          )
+        end
+      end
+    end
+
+    assert_equal "canceled", @turn.reload.status
+    assert_equal canceled_at, @turn.completed_at
+    assert_not_nil @turn.turn_grant.revoked_at
+    refute enqueued
+    refute Assistant::AuditEvent.exists?(event: "turn.dispatch_failed", turn: @turn)
+  end
+
   test "a legacy profile is rejected before rate authority audit context or enqueue side effects" do
     legacy = assistant_conversations(:one)
     counts = record_counts
@@ -272,6 +356,22 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
   end
 
   private
+
+  def with_claude_dispatch_gap(mutation:)
+    triggered = false
+    original = Assistant::ProviderProfile.instance_method(:claude_code?)
+    Assistant::ProviderProfile.define_method(:claude_code?) do
+      if catalog_slug == "claude_code" && !triggered
+        triggered = true
+        mutation.call
+      end
+      original.bind_call(self)
+    end
+    yield
+    assert triggered, "the test did not reach the post-persistence Claude dispatch gap"
+  ensure
+    Assistant::ProviderProfile.define_method(:claude_code?, original) if original
+  end
 
   def with_enabled_assistant(&block)
     stub_methods(Assistant::Config, { enabled?: true, max_records: 10 }, &block)

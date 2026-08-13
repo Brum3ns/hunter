@@ -124,11 +124,11 @@ module Assistant
 
     def dispatch(turn, raw_grant)
       if turn.provider_profile.claude_code?
-        prompt = turn.user_message&.body
-        Assistant::Turn.transaction do
-          turn.lock!
+        prompt = claim_dispatch(turn) do
+          prompt = turn.user_message&.body
           raise ArgumentError, "turn requires one user message" if prompt.blank?
           turn.update!(status: "queued", queued_at: Time.current)
+          prompt
         end
         Assistant::TurnJob.perform_later(
           turn_id: turn.id, claude: true, prompt: prompt, turn_grant: raw_grant
@@ -136,15 +136,7 @@ module Assistant
         return turn.reload
       end
 
-      envelope = Assistant::Turn.transaction do
-        setting = Assistant::Setting.lock.find(Assistant::Setting.instance.id)
-        profile = Assistant::ProviderProfile.lock.find(turn.provider_profile_id)
-        turn.lock!
-        raise Rejected, "assistant_disabled" unless
-          Assistant::Config.enabled? && setting.assistant_enabled?
-        raise Rejected, "provider_profile_unavailable" unless
-          profile.enabled? && profile.reviewed_at.present?
-
+      envelope = claim_dispatch(turn) do
         Assistant::TurnDispatcher.call(turn: turn, raw_grant: raw_grant)
       end
       # Enqueued here, after the transaction above has actually committed —
@@ -164,6 +156,22 @@ module Assistant
       interrupt_dispatch!(turn, reason: "assistant_dispatch_unavailable")
     end
     private_class_method :dispatch
+
+    def claim_dispatch(turn)
+      Assistant::Turn.transaction do
+        setting = Assistant::Setting.lock.find(Assistant::Setting.instance.id)
+        profile = Assistant::ProviderProfile.lock.find(turn.provider_profile_id)
+        turn.lock!
+        raise Rejected, "assistant_disabled" unless
+          Assistant::Config.enabled? && setting.assistant_enabled?
+        raise Rejected, "provider_profile_unavailable" unless
+          profile.enabled? && profile.reviewed_at.present?
+        raise Rejected, "turn_unavailable" unless turn.status == "created"
+
+        yield
+      end
+    end
+    private_class_method :claim_dispatch
 
     def interrupt_dispatch!(turn, reason:)
       Assistant::Turn.transaction do
