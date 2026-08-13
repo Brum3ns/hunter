@@ -152,6 +152,15 @@ test("composer Enter submits while Shift+Enter and composition keep editing", ()
     ui.composerSubmitIntent({ key: "Escape", shiftKey: false, isComposing: false }),
     false,
   )
+  for (const modifier of ["altKey", "ctrlKey", "metaKey"]) {
+    assert.equal(
+      ui.composerSubmitIntent({
+        key: "Enter", shiftKey: false, isComposing: false, [modifier]: true,
+      }),
+      false,
+      modifier,
+    )
+  }
 })
 
 test("conversation list renders an inert empty state and marks only the current chat", () => {

@@ -36,6 +36,8 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     assert_select "[role='dialog'][aria-modal='true'][aria-labelledby='hunter-assistant-title'][hidden]"
     assert_select "#hunter-assistant-panel.assistant-panel[data-assistant-target='panel']"
     assert_select "button[data-assistant-target='resizeHandle'][aria-label='Resize Hunter assistant'][data-action*='pointerdown->assistant#startResize'][data-action*='keydown->assistant#resizeWithKeyboard']"
+    assert_select "button[data-assistant-target='resizeHandle'][aria-keyshortcuts='ArrowLeft ArrowRight ArrowUp ArrowDown'][aria-describedby='hunter-assistant-resize-help']"
+    assert_select "#hunter-assistant-resize-status[data-assistant-target='resizeStatus'][role='status'][aria-live='polite']"
     assert_select "button[aria-label='Close Hunter assistant']"
     assert_select "details[data-assistant-target='capabilityDisclosure'] > summary", text: /Data access & actions/i
     assert_select "form[data-action*='assistant#startConversation'] select[data-assistant-target='providerSelect']"

@@ -8,6 +8,29 @@
 
 **Tech Stack:** Rails 8 ERB, Stimulus, importmap, Tailwind CSS v4, Node test runner, Minitest integration tests.
 
+**Status:** Complete and verified (2026-08-13).
+
+## Completion record
+
+All tasks below are delivered. Checkboxes record the final delivered state; the
+historical RED commands were not reconstructed after implementation. Final
+verification was run against the completed tree:
+
+- Tailwind CSS v4.3.1 build: passed.
+- JavaScript: 79 tests, 79 passed.
+- Static Assistant shell markup: 3 runs, 17 assertions, 0 failures.
+- Focused Assistant Rails integration: 6 runs, 80 assertions, 0 failures.
+- Full Rails: 1,281 runs, 6,361 assertions, 0 failures.
+- Rails autoloading: `zeitwerk:check` passed.
+- Live authenticated rendered-shell smoke at the Docker gateway: passed.
+- `git diff --check`: passed.
+
+The completion audit also hardened disclosure-aware mobile focus trapping,
+pointer-capture loss cleanup, resize announcements, modified-Enter handling,
+duplicate keyboard-submit prevention, mobile header spacing, and dark-surface
+contrast. These are presentation/input reliability changes only; no Assistant
+capability, API, authorization, persistence, or security boundary changed.
+
 ## Global Constraints
 
 - The panel stays anchored 16 px from the bottom-right and is resizable, not movable.
@@ -30,7 +53,7 @@
 - Produces: `PANEL_SIZE_STORAGE_KEY`, `DEFAULT_PANEL_SIZE`, `MIN_PANEL_SIZE`, `desktopPanel(viewport)`, `clampPanelSize(size, viewport)`, `resizeFromPointer(startSize, startPoint, currentPoint, viewport)`, `resizeFromKeyboard(size, key, step, viewport)`, `loadPanelSize(storage, viewport)`, and `savePanelSize(storage, size)`.
 - Consumes: only a viewport shape `{ width, height }` and the Web Storage `getItem`/`setItem` interface.
 
-- [ ] **Step 1: Write failing unit tests for defaults, clamping, anchored pointer math, keyboard math, closed-schema persistence, and storage failures**
+- [x] **Step 1: Write failing unit tests for defaults, clamping, anchored pointer math, keyboard math, closed-schema persistence, and storage failures**
 
 Create `web/test/javascript/assistant_panel_size_test.mjs` with focused tests equivalent to:
 
@@ -80,13 +103,13 @@ test("malformed data and unavailable storage fall back without throwing", () => 
 })
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run: `cd web && node --test test/javascript/assistant_panel_size_test.mjs`
 
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `assistant_panel_size.js`.
 
-- [ ] **Step 3: Implement the pure sizing module**
+- [x] **Step 3: Implement the pure sizing module**
 
 Create the constants and functions with these rules:
 
@@ -115,7 +138,7 @@ errors, parses JSON, requires exactly the sorted keys `height,width`, requires
 finite numeric values, and otherwise returns a fresh copy of the clamped
 default. `savePanelSize` catches all errors and returns a boolean.
 
-- [ ] **Step 4: Run the focused test and verify GREEN**
+- [x] **Step 4: Run the focused test and verify GREEN**
 
 Run: `cd web && node --test test/javascript/assistant_panel_size_test.mjs`
 
@@ -133,7 +156,7 @@ Expected: 5 tests pass, 0 fail.
 - Consumes: Task 1 sizing and persistence functions.
 - Produces: `resizeHandle`, `panel`, pointer lifecycle methods, keyboard resizing, viewport clamping, and full-screen mobile fallback.
 
-- [ ] **Step 1: Add failing shell assertions for the resize and disclosure semantics**
+- [x] **Step 1: Add failing shell assertions for the resize and disclosure semantics**
 
 Extend `shell exposes accessible panel controls and safe empty regions` with:
 
@@ -146,13 +169,13 @@ assert_select "details[data-assistant-target='contextDisclosure'] > summary", te
 
 Keep the existing capability-copy assertions unchanged.
 
-- [ ] **Step 2: Run the integration test and verify RED**
+- [x] **Step 2: Run the integration test and verify RED**
 
 Run: `cd web && bin/rails test test/integration/assistant_shell_test.rb`
 
 Expected: FAIL because the panel class, resize handle, and disclosure targets do not exist.
 
-- [ ] **Step 3: Restructure the partial without changing behavior or capability copy**
+- [x] **Step 3: Restructure the partial without changing behavior or capability copy**
 
 In `_assistant.html.erb`:
 
@@ -169,14 +192,14 @@ Add namespaced CSS:
 @media (min-width: 640px) {
   .assistant-panel { width: 680px; height: min(780px, calc(100dvh - 2rem)); }
 }
-.assistant-panel.is-resizing { user-select: none; }
-.assistant-panel.is-resizing::after { content: ""; position: fixed; inset: 0; cursor: nwse-resize; }
+.assistant-is-resizing,
+.assistant-is-resizing * { cursor: nwse-resize; user-select: none; }
 ```
 
 Use the button's Tailwind classes for its visible hover/focus affordance and
 hide it below `sm`.
 
-- [ ] **Step 4: Wire resizing into the existing controller**
+- [x] **Step 4: Wire resizing into the existing controller**
 
 Import Task 1 functions. Add `resizeHandle` to targets. On `connect`, bind a
 window resize callback and initialize `resizeState`; on `disconnect`, remove
@@ -191,12 +214,14 @@ adds `is-resizing`, calls `setPointerCapture`, and registers
 listeners and class, releases capture when held, and persists the final size.
 
 `resizeWithKeyboard(event)` accepts only arrow keys, prevents default, uses 16
-or 48 based on Shift, applies `resizeFromKeyboard`, stores, and updates an
-`aria-valuetext` such as `696 by 780 pixels`. `handleViewportResize` switches
-cleanly between full-screen mobile and clamped desktop dimensions without
-overwriting stored desktop dimensions on mobile.
+or 48 based on Shift, applies `resizeFromKeyboard`, stores, and updates a
+dedicated polite live status such as `Current size 696 by 780 pixels.` while the
+button retains a stable accessible name. `handleViewportResize` switches cleanly
+between full-screen mobile and clamped desktop dimensions without overwriting
+stored desktop dimensions on mobile. Pointer-capture loss follows the same
+cleanup path as pointer up/cancel.
 
-- [ ] **Step 5: Run size and shell tests and verify GREEN**
+- [x] **Step 5: Run size and shell tests and verify GREEN**
 
 Run: `cd web && node --test test/javascript/assistant_panel_size_test.mjs && bin/rails test test/integration/assistant_shell_test.rb`
 
@@ -214,7 +239,7 @@ Expected: all tests pass.
 - Produces: `composerSubmitIntent(event)` and `renderConversationList(documentRef, container, conversations, options)` from `assistant_ui.js`.
 - Preserves: every content-rendering path uses `textContent`; `innerHTML` remains prohibited.
 
-- [ ] **Step 1: Add failing unit tests for composer intent, list empty state, active state, and refreshed message classes**
+- [x] **Step 1: Add failing unit tests for composer intent, list empty state, active state, and refreshed message classes**
 
 Extend the existing Node test with:
 
@@ -242,13 +267,13 @@ test("conversation list renders an inert empty state and marks the current chat"
 Add `className = ""`, `removeAttribute`, and `style` support to `FakeElement` only
 as required by the real helper contract.
 
-- [ ] **Step 2: Run the Node test and verify RED**
+- [x] **Step 2: Run the Node test and verify RED**
 
 Run: `cd web && node --test test/javascript/assistant_controller_test.mjs`
 
 Expected: FAIL because `composerSubmitIntent` and `renderConversationList` are not exported.
 
-- [ ] **Step 3: Implement inert UI helpers and update the controller**
+- [x] **Step 3: Implement inert UI helpers and update the controller**
 
 `composerSubmitIntent` returns true only for unmodified Enter outside IME
 composition. `renderConversationList` uses only `createElement`, `textContent`,
@@ -263,7 +288,7 @@ true, prevent default and call `event.currentTarget.form.requestSubmit()`.
 Add `autosizeComposer`: reset height to `auto`, then set it to the smaller of
 `scrollHeight` and 160 px. Reset the inline height after a successful submit.
 
-- [ ] **Step 4: Apply the approved visual hierarchy in ERB and inert DOM classes**
+- [x] **Step 4: Apply the approved visual hierarchy in ERB and inert DOM classes**
 
 Update the partial and `assistant_ui.js` together:
 
@@ -281,7 +306,7 @@ Update the partial and `assistant_ui.js` together:
 - preserve every target name, form action, disabled state, live region, label,
   context option, and security disclosure string.
 
-- [ ] **Step 5: Run focused JS and Rails tests and verify GREEN**
+- [x] **Step 5: Run focused JS and Rails tests and verify GREEN**
 
 Run: `cd web && node --test test/javascript/assistant_controller_test.mjs test/javascript/assistant_panel_size_test.mjs && bin/rails test test/integration/assistant_shell_test.rb`
 
@@ -296,25 +321,25 @@ Expected: all tests pass with 0 failures.
 **Interfaces:**
 - Produces: compiled CSS containing all classes used by the redesigned partial and JavaScript render helpers.
 
-- [ ] **Step 1: Build Tailwind from the changed source and templates**
+- [x] **Step 1: Build Tailwind from the changed source and templates**
 
 Run: `cd web && bin/rails tailwindcss:build`
 
 Expected: exit 0 and `app/assets/builds/tailwind.css` is regenerated without an error.
 
-- [ ] **Step 2: Run every Assistant JavaScript test**
+- [x] **Step 2: Run every Assistant JavaScript test**
 
 Run: `cd web && node --test test/javascript/assistant_api_test.mjs test/javascript/assistant_controller_test.mjs test/javascript/assistant_panel_size_test.mjs`
 
 Expected: 0 failing tests.
 
-- [ ] **Step 3: Run Assistant shell and end-to-end integration coverage**
+- [x] **Step 3: Run Assistant shell and end-to-end integration coverage**
 
 Run: `cd web && bin/rails test test/integration/assistant_shell_test.rb test/integration/assistant_end_to_end_test.rb`
 
 Expected: 0 failures and 0 errors.
 
-- [ ] **Step 4: Run the complete Rails suite**
+- [x] **Step 4: Run the complete Rails suite**
 
 Run: `cd web && bin/rails test`
 
@@ -322,7 +347,7 @@ Expected: 0 failures and 0 errors. If PostgreSQL is unavailable, report the
 environmental blocker and the successful focused JavaScript/build evidence;
 do not claim the Rails suite passes.
 
-- [ ] **Step 5: Inspect the final diff for scope and protected user changes**
+- [x] **Step 5: Inspect the final diff for scope and protected user changes**
 
 Run: `git diff --check && git diff -- docs/superpowers/specs/2026-08-01-assistant-chat-ui-redesign.md docs/superpowers/plans/2026-08-01-assistant-chat-ui-redesign.md web/app/views/layouts/_assistant.html.erb web/app/javascript/controllers/assistant_controller.js web/app/javascript/lib/assistant_ui.js web/app/javascript/lib/assistant_panel_size.js web/app/assets/tailwind/application.css web/test/javascript/assistant_controller_test.mjs web/test/javascript/assistant_panel_size_test.mjs web/test/integration/assistant_shell_test.rb`
 

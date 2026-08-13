@@ -18,7 +18,12 @@ export function pollingDelay({ panelOpen, failureCount = 0 }) {
 }
 
 export function composerSubmitIntent(event) {
-  return event.key === "Enter" && event.shiftKey !== true && event.isComposing !== true
+  return event.key === "Enter" &&
+    event.shiftKey !== true &&
+    event.altKey !== true &&
+    event.ctrlKey !== true &&
+    event.metaKey !== true &&
+    event.isComposing !== true
 }
 
 export function safeDisplayText(value) {

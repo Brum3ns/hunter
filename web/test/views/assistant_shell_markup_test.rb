@@ -17,6 +17,10 @@ class AssistantShellMarkupTest < Minitest::Test
     assert handle
     assert_includes handle["data-action"], "pointerdown->assistant#startResize"
     assert_includes handle["data-action"], "keydown->assistant#resizeWithKeyboard"
+    assert_equal "ArrowLeft ArrowRight ArrowUp ArrowDown", handle["aria-keyshortcuts"]
+    assert_equal "Resize Hunter assistant", handle["aria-label"]
+    assert_equal "hunter-assistant-resize-help", handle["aria-describedby"]
+    assert @document.at_css("#hunter-assistant-resize-status[data-assistant-target='resizeStatus'][role='status'][aria-live='polite']")
   end
 
   def test_large_capability_and_context_controls_are_collapsed_disclosures

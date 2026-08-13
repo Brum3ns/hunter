@@ -29,7 +29,7 @@ export default class extends Controller {
     "retentionNotice", "conversationList", "profileName", "messages", "messageInput",
     "startButton", "sendButton", "cancelButton", "contextType", "contextQuery",
     "contextResults", "disclosurePreview", "drafts", "status", "notice",
-    "resizeHandle", "capabilityDisclosure", "contextDisclosure",
+    "resizeHandle", "resizeStatus", "capabilityDisclosure", "contextDisclosure",
   ]
 
   connect() {
@@ -98,6 +98,7 @@ export default class extends Controller {
     this.resizeHandleTarget.addEventListener("pointermove", this.boundResizeMove)
     this.resizeHandleTarget.addEventListener("pointerup", this.boundResizeEnd)
     this.resizeHandleTarget.addEventListener("pointercancel", this.boundResizeEnd)
+    this.resizeHandleTarget.addEventListener("lostpointercapture", this.boundResizeEnd)
     document.documentElement.classList.add("assistant-is-resizing")
   }
 
@@ -115,6 +116,7 @@ export default class extends Controller {
   finishResize(event) {
     if (!this.resizeState || event.pointerId !== this.resizeState.pointerId) return
     this.stopResize({ persist: true })
+    this.announcePanelSize()
   }
 
   stopResize({ persist }) {
@@ -123,6 +125,7 @@ export default class extends Controller {
     this.resizeHandleTarget.removeEventListener("pointermove", this.boundResizeMove)
     this.resizeHandleTarget.removeEventListener("pointerup", this.boundResizeEnd)
     this.resizeHandleTarget.removeEventListener("pointercancel", this.boundResizeEnd)
+    this.resizeHandleTarget.removeEventListener("lostpointercapture", this.boundResizeEnd)
     if (this.resizeHandleTarget.hasPointerCapture?.(pointerId)) {
       this.resizeHandleTarget.releasePointerCapture(pointerId)
     }
@@ -144,6 +147,7 @@ export default class extends Controller {
     event.preventDefault()
     this.applyPanelSize(size)
     savePanelSize(this.panelStorage(), size)
+    this.announcePanelSize()
   }
 
   handleViewportResize() {
@@ -152,7 +156,7 @@ export default class extends Controller {
       this.panelSize = null
       this.panelTarget.style.removeProperty("width")
       this.panelTarget.style.removeProperty("height")
-      this.resizeHandleTarget.setAttribute("aria-label", "Resize Hunter assistant")
+      this.resizeStatusTarget.textContent = ""
       return
     }
 
@@ -175,10 +179,12 @@ export default class extends Controller {
     }
     this.panelTarget.style.width = `${this.panelSize.width}px`
     this.panelTarget.style.height = `${this.panelSize.height}px`
-    this.resizeHandleTarget.setAttribute(
-      "aria-label",
-      `Resize Hunter assistant, current size ${this.panelSize.width} by ${this.panelSize.height} pixels`,
-    )
+  }
+
+  announcePanelSize() {
+    if (!this.panelSize) return
+    this.resizeStatusTarget.textContent =
+      `Current size ${this.panelSize.width} by ${this.panelSize.height} pixels.`
   }
 
   currentPanelSize() {
@@ -305,6 +311,7 @@ export default class extends Controller {
   async submitMessage(event) {
     event.preventDefault()
     if (!this.currentConversation) return
+    if (this.sendButtonTarget.disabled) return
     const message = this.messageInputTarget.value.trim()
     if (!message) return this.setStatus("Enter a message.")
 
@@ -459,6 +466,7 @@ export default class extends Controller {
   handleComposerKeydown(event) {
     if (!composerSubmitIntent(event)) return
     event.preventDefault()
+    if (this.sendButtonTarget.disabled) return
     event.currentTarget.form?.requestSubmit()
   }
 
@@ -678,10 +686,14 @@ export default class extends Controller {
 
   focusableElements() {
     return [...this.panelTarget.querySelectorAll(
-      'button:not([disabled]), select:not([disabled]), textarea:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-    )].filter((element) =>
-      !element.closest("[hidden]") && window.getComputedStyle(element).display !== "none"
-    )
+      'button:not([disabled]), select:not([disabled]), textarea:not([disabled]), input:not([disabled]), summary, [href], [tabindex]:not([tabindex="-1"])'
+    )].filter((element) => {
+      if (element.closest("[hidden]")) return false
+      const closedDisclosure = element.closest("details:not([open])")
+      if (closedDisclosure && element !== closedDisclosure.querySelector("summary")) return false
+      const style = window.getComputedStyle(element)
+      return style.display !== "none" && style.visibility !== "hidden"
+    })
   }
 
   firstFocusable() {

@@ -1,8 +1,35 @@
 # Assistant Chat UI Redesign
 
 **Date:** 2026-08-01
-**Status:** Approved
+**Status:** Implemented and verified (2026-08-13)
 **Module:** Assistant web shell
+
+## Completion record
+
+The redesign is complete. The delivered shell has the specified responsive
+desktop sizing, top-left pointer and keyboard resize behavior, closed numeric
+local-storage shape, full-screen mobile fallback, conversation rail, collapsed
+capability/context disclosures, message hierarchy, multiline composer, and
+safe inert rendering.
+
+The completion audit added five accessibility/reliability refinements without
+changing the Assistant capability boundary:
+
+- a dedicated polite live region announces the final keyboard or pointer size
+  while the resize button keeps a stable accessible name;
+- the resize control advertises its arrow-key shortcuts;
+- pointer-capture loss ends resizing and persists the final bounded size;
+- the mobile focus trap includes native `summary` controls and excludes controls
+  hidden inside closed disclosures; and
+- modified Enter keystrokes do not submit, while a disabled Send button blocks
+  duplicate keyboard submission during an in-flight request.
+
+Verification on 2026-08-13: Tailwind CSS v4.3.1 build passed; all 79 JavaScript
+tests passed; the static Assistant markup suite passed (3 runs, 17 assertions);
+focused Assistant Rails integration passed (6 runs, 80 assertions); the full
+Rails suite passed (1,281 runs, 6,361 assertions); `zeitwerk:check` passed; and
+an authenticated rendered-shell smoke test passed against the live app at the
+Docker gateway. The generated Tailwind build is ignored rather than tracked.
 
 ## Goal
 
@@ -60,6 +87,9 @@ without a browser driver.
 - Arrow keys resize by 16 px; Shift+Arrow resizes by 48 px. Left/Up grow the
   anchored panel and Right/Down shrink it. Keyboard changes are stored
   immediately.
+- The resize button has a stable accessible name, exposes its arrow-key
+  shortcuts, and reports the current dimensions through a dedicated polite live
+  region after keyboard resize or pointer completion.
 - The stored value uses a versioned closed shape under
   `hunter:assistant-panel-size:v1`: `{ "width": number, "height": number }`.
   Missing, malformed, non-finite, or out-of-range values fall back to or clamp
@@ -68,7 +98,8 @@ without a browser driver.
   stored so a window reopened in the same viewport remains visible.
 - Below 640 px, the panel remains full-screen, the resize handle is hidden, and
   stored desktop dimensions are neither applied nor overwritten.
-- Existing Escape-to-close and mobile focus trapping remain unchanged.
+- Existing Escape-to-close remains unchanged. Mobile focus trapping includes
+  disclosure summaries and excludes controls hidden inside a closed disclosure.
 
 ## Visual design and information architecture
 
@@ -153,6 +184,8 @@ draft validation, and save confirmation remain unchanged.
   empty conversation rendering where extracted helpers are warranted.
 - Rails integration tests assert the resize handle, collapsed disclosures,
   accessible labels, live regions, and unchanged capability copy.
+- A database-independent Nokogiri markup test covers the same critical shell
+  semantics when PostgreSQL is unavailable.
 - Existing Assistant JavaScript and Rails integration suites must remain green.
 - The Tailwind build must complete so every changed class is represented in the
   compiled stylesheet.
