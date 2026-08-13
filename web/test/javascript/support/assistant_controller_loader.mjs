@@ -1,6 +1,7 @@
 const ROOT = new URL("../../../", import.meta.url)
 const MODULES = new Map([
   ["lib/assistant_api", new URL("app/javascript/lib/assistant_api.js", ROOT).href],
+  ["lib/assistant_code_blocks", new URL("app/javascript/lib/assistant_code_blocks.js", ROOT).href],
   ["lib/assistant_font_scale", new URL("app/javascript/lib/assistant_font_scale.js", ROOT).href],
   ["lib/assistant_history", new URL("app/javascript/lib/assistant_history.js", ROOT).href],
   ["lib/assistant_history_rail", new URL("app/javascript/lib/assistant_history_rail.js", ROOT).href],

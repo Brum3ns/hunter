@@ -1,5 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { register } from "node:module"
 import { JSDOM } from "jsdom"
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -7,6 +8,7 @@ const dom = new JSDOM("<!doctype html><html><body></body></html>", {
 })
 globalThis.window = dom.window
 globalThis.document = dom.window.document
+register("./support/assistant_controller_loader.mjs", import.meta.url)
 
 const {
   renderMarkdownFragment,
@@ -37,6 +39,24 @@ test("Markdown keeps useful document structure", () => {
   assert.deepEqual([...host.querySelectorAll("li")].map((item) => item.textContent), ["first", "second"])
   assert.equal(host.querySelector("table td")?.textContent, "1")
   assert.match(host.querySelector("pre code")?.textContent, /echo safe/)
+})
+
+test("fenced code preserves only normalized inert language metadata", () => {
+  const fenced = render("```Ruby\n</code><img src=x onerror=alert(1)>\n```")
+  const code = fenced.querySelector("pre > code")
+
+  assert.equal(code.getAttribute("title"), "language:Ruby")
+  assert.equal(code.hasAttribute("class"), false)
+  assert.equal(code.attributes.length, 1)
+  assert.equal(code.textContent, "</code><img src=x onerror=alert(1)>\n")
+  assert.equal(fenced.querySelector("img"), null)
+
+  const malicious = render('```"><img src=x onerror=alert(1)>\nalert(1)\n```')
+  assert.equal(malicious.querySelector("pre > code").getAttribute("title"), "language:Code")
+  assert.equal(malicious.querySelector("img"), null)
+
+  const indented = render("    plain code\n")
+  assert.equal(indented.querySelector("pre > code").hasAttribute("title"), false)
 })
 
 test("raw HTML remains visible text and cannot create active nodes", () => {

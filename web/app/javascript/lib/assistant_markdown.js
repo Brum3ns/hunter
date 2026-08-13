@@ -1,5 +1,6 @@
 import DOMPurify from "dompurify"
 import { Marked, Renderer } from "marked"
+import { normalizeCodeLanguage } from "lib/assistant_code_blocks"
 
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g
 const ALLOWED_TAGS = Object.freeze([
@@ -20,6 +21,13 @@ function escapeHtml(value) {
 
 const renderer = new Renderer()
 renderer.html = ({ text }) => escapeHtml(text)
+renderer.code = ({ text, lang, codeBlockStyle }) => {
+  const source = `${escapeHtml(text)}${text.endsWith("\n") ? "" : "\n"}`
+  const title = codeBlockStyle === "indented"
+    ? ""
+    : ` title="language:${normalizeCodeLanguage(lang)}"`
+  return `<pre><code${title}>${source}</code></pre>\n`
+}
 
 const markdownParser = new Marked({
   async: false,

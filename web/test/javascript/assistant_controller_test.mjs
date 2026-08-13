@@ -1,7 +1,9 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { register } from "node:module"
 import { assistantApi } from "../../app/javascript/lib/assistant_api.js"
 
+register("./support/assistant_controller_loader.mjs", import.meta.url)
 const ui = await import("../../app/javascript/lib/assistant_ui.js").catch(() => ({}))
 
 class FakeElement {
