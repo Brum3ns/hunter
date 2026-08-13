@@ -134,6 +134,30 @@ in the Assistant production checklist.
 
 ### Approved exceptions
 
+- **Direct conversation organization: rename + reorder** (approved delta:
+  `docs/superpowers/specs/2026-08-13-assistant-conversation-workspace-design.md`).
+  The configured Assistant administrator may explicitly rename and reorder
+  their own conversation history through the browser UI, conditioned on all of
+  the following remaining true:
+  - Rename and reorder remain separately named, session-only, same-origin CSRF
+    protected routes with exact closed bodies. They never become a generic
+    conversation update or bulk-write endpoint.
+  - Every lookup and permutation is scoped to the human session owner. Reorder
+    accepts only the complete current owned ID set and is atomic; rename can
+    change only the bounded title.
+  - The LLM receives no rename/reorder tool. Human submission, drag/drop, or a
+    discrete move command is the approval for each effectful operation.
+  - Both writes are independently revocable through
+    `Assistant::Setting#conversation_management_enabled` and are
+    metadata-only audited without titles, order arrays, messages, or provider
+    output.
+  - Production activation still requires review evidence in
+    `docs/security/hunter-assistant-production-checklist.md`.
+
+  Any wider metadata field, background/model-initiated organization, sharing,
+  bulk mutation, or removal of owner/toggle/audit/closed-schema gates is a new
+  capability change requiring another threat-model delta.
+
 - **Approval-free create + explicit edit: Whiterabbit templates + Ansible
   playbooks** (approved delta:
   `docs/superpowers/specs/2026-07-30-assistant-mcp-full-access-authoring-design.md`).
