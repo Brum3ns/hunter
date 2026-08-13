@@ -149,6 +149,137 @@ class Assistant::TurnJobTest < Minitest::Test
     assert_equal 1, error_event["schema_version"]
   end
 
+  def test_codex_backend_dispatches_only_to_codex
+    events = [ { "kind" => "completed" } ]
+    ingested = []
+    calls = 0
+
+    stub_methods(Assistant::GatewayClient,
+      run_turn: ->(*) { flunk "a direct Codex job reached the gateway" }) do
+      stub_methods(Assistant::ClaudeCodeClient,
+        run_turn: ->(**) { flunk "a Codex job reached Claude Code" }) do
+        stub_methods(Assistant::CodexClient, run_turn: lambda { |**attributes|
+          calls += 1
+          assert_equal @turn, attributes.fetch(:turn)
+          assert_equal "persisted prompt", attributes.fetch(:prompt)
+          assert_equal "raw grant", attributes.fetch(:turn_grant)
+          events
+        }) do
+          stub_methods(Assistant::EventIngestor,
+            call: ->(event) { ingested << event; :accepted }) do
+            find_turn_returning(@turn) do
+              without_real_transactions do
+                Assistant::TurnJob.new.perform(
+                  turn_id: @turn.id,
+                  backend: "codex",
+                  prompt: "persisted prompt",
+                  turn_grant: "raw grant"
+                )
+              end
+            end
+          end
+        end
+      end
+    end
+
+    assert_equal 1, calls
+    assert_equal events, ingested
+  end
+
+  def test_claude_code_backend_dispatches_only_to_claude_code
+    events = [ { "kind" => "completed" } ]
+    ingested = []
+    calls = 0
+
+    stub_methods(Assistant::GatewayClient,
+      run_turn: ->(*) { flunk "a direct Claude Code job reached the gateway" }) do
+      stub_methods(Assistant::CodexClient,
+        run_turn: ->(**) { flunk "a Claude Code job reached Codex" }) do
+        stub_methods(Assistant::ClaudeCodeClient, run_turn: lambda { |**attributes|
+          calls += 1
+          assert_equal @turn, attributes.fetch(:turn)
+          assert_equal "persisted prompt", attributes.fetch(:prompt)
+          assert_equal "raw grant", attributes.fetch(:turn_grant)
+          events
+        }) do
+          stub_methods(Assistant::EventIngestor,
+            call: ->(event) { ingested << event; :accepted }) do
+            find_turn_returning(@turn) do
+              without_real_transactions do
+                Assistant::TurnJob.new.perform(
+                  turn_id: @turn.id,
+                  backend: "claude_code",
+                  prompt: "persisted prompt",
+                  turn_grant: "raw grant"
+                )
+              end
+            end
+          end
+        end
+      end
+    end
+
+    assert_equal 1, calls
+    assert_equal events, ingested
+  end
+
+  def test_unknown_backend_is_rejected_without_calling_any_service
+    ingested = []
+
+    stub_methods(Assistant::GatewayClient,
+      run_turn: ->(*) { flunk "an invalid backend reached the gateway" }) do
+      stub_methods(Assistant::CodexClient,
+        run_turn: ->(**) { flunk "an invalid backend reached Codex" }) do
+        stub_methods(Assistant::ClaudeCodeClient,
+          run_turn: ->(**) { flunk "an invalid backend reached Claude Code" }) do
+          stub_methods(Assistant::EventIngestor,
+            call: ->(event) { ingested << event; :accepted }) do
+            find_turn_returning(@turn) do
+              without_real_transactions do
+                Assistant::TurnJob.new.perform(
+                  turn_id: @turn.id,
+                  backend: "../../gateway",
+                  prompt: "secret prompt",
+                  turn_grant: "secret grant"
+                )
+              end
+            end
+          end
+        end
+      end
+    end
+
+    assert_equal 1, ingested.length
+    assert_equal "assistant_backend_invalid", ingested.first.dig("data", "code")
+    refute_includes ingested.to_json, "../../gateway"
+    refute_includes ingested.to_json, "secret prompt"
+    refute_includes ingested.to_json, "secret grant"
+  end
+
+  def test_empty_direct_responses_use_closed_backend_error_codes
+    { "codex" => "codex_returned_no_events",
+      "claude_code" => "claude_returned_no_events" }.each do |backend, expected_code|
+      @turn.status = "queued"
+      ingested = []
+      client = backend == "codex" ? Assistant::CodexClient : Assistant::ClaudeCodeClient
+
+      stub_methods(client, run_turn: ->(**) { [] }) do
+        stub_methods(Assistant::EventIngestor,
+          call: ->(event) { ingested << event; :accepted }) do
+          find_turn_returning(@turn) do
+            without_real_transactions do
+              Assistant::TurnJob.new.perform(
+                turn_id: @turn.id, backend: backend, prompt: "prompt", turn_grant: "grant"
+              )
+            end
+          end
+        end
+      end
+
+      assert_equal expected_code, ingested.sole.dig("data", "code")
+    end
+  end
+
   # A turn left `running` with nothing recorded is the silent failure this whole
   # transport change exists to remove, so a response ingestion rejects must still
   # terminate the turn -- and must not cost a second (billed) gateway call.

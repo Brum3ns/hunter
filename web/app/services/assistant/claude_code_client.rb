@@ -11,6 +11,17 @@ module Assistant
   # turn is recorded, never stranded. There is no activation/on-off state — an
   # unconfigured backend simply yields `claude_not_configured` on the turn.
   module ClaudeCodeClient
+    ERROR_CODES = %w[
+      claude_not_configured
+      claude_login_required
+      claude_timeout
+      claude_unreachable
+      claude_dns_failure
+      claude_connection_refused
+      claude_malformed_response
+      claude_error
+    ].freeze
+
     module_function
 
     # `poster` is injectable for tests: a lambda taking the request body hash and
@@ -24,7 +35,7 @@ module Assistant
       body = poster.call(request_body)
 
       if body.is_a?(Hash) && body.key?("error")
-        return [ error_event(turn, body.dig("error", "code").presence || "claude_error") ]
+        return [ error_event(turn, service_error_code(body["error"])) ]
       end
       session_id = body["session_id"] if body.is_a?(Hash)
       reply = body["reply"] if body.is_a?(Hash)
@@ -34,11 +45,16 @@ module Assistant
       [ assistant_message_event(turn, reply), completed_event(turn) ]
     end
 
+    def endpoint
+      base_url = ENV.fetch("ASSISTANT_CLAUDE_URL", "http://assistant-claude:8083")
+      "#{base_url.delete_suffix('/')}/chat"
+    end
+
     # Real HTTP POST to the assistant-claude service. Never raises: every
     # transport fault maps to a { "error" => { "code" => ... } } body so run_turn
     # has one place to turn a response into events.
     def post(request_body)
-      uri = URI("#{ENV.fetch('ASSISTANT_CLAUDE_URL')}/chat")
+      uri = URI(endpoint)
       request = Net::HTTP::Post.new(uri)
       request["Content-Type"] = "application/json"
       request["Authorization"] = "Bearer #{ENV.fetch('ASSISTANT_CLAUDE_INGRESS_TOKEN')}"
@@ -69,6 +85,12 @@ module Assistant
     end
     private_class_method :read_timeout_seconds
 
+    def service_error_code(error)
+      raw_code = error["code"] if error.is_a?(Hash)
+      ERROR_CODES.include?(raw_code) ? raw_code : "claude_error"
+    end
+    private_class_method :service_error_code
+
     def assistant_message_event(turn, body)
       event(turn, "assistant_message", { "body" => body })
     end
@@ -82,8 +104,10 @@ module Assistant
     private_class_method :completed_event
 
     def error_event(turn, code)
-      event(turn, "error", { "code" => code.to_s.first(100) })
+      safe_code = ERROR_CODES.include?(code) ? code : "claude_error"
+      event(turn, "error", { "code" => safe_code })
     end
+    private_class_method :error_event
 
     def event(turn, kind, data)
       {

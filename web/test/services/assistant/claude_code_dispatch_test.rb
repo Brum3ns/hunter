@@ -30,17 +30,23 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
           "kind" => "assistant_message", "data" => { "body" => "Hello!" } },
         { "schema_version" => 1, "event_id" => SecureRandom.uuid, "correlation_id" => turn.correlation_id,
           "turn_id" => turn.id, "provider_profile_id" => turn.provider_profile_id,
-          "kind" => "completed", "data" => { "input_tokens" => 0, "output_tokens" => 0, "tool_call_count" => 0 } },
+          "kind" => "completed", "data" => { "input_tokens" => 0, "output_tokens" => 0, "tool_call_count" => 0 } }
       ]
     end
 
     stub_methods(Assistant::Config, enabled?: true) do
-      stub_methods(Assistant::ClaudeCodeClient, run_turn: fake) do
-        turn = Assistant::TurnCreator.call(
-          conversation: conv, user: @user, body: "hi there", context_refs: []
-        )
-        assert_equal "completed", turn.reload.status
-        assert_nil turn.error_code
+      stub_methods(Assistant::GatewayClient,
+        run_turn: ->(*) { flunk "a direct Claude Code turn reached the gateway" }) do
+        stub_methods(Assistant::CodexClient,
+          run_turn: ->(**) { flunk "a Claude Code turn reached Codex" }) do
+          stub_methods(Assistant::ClaudeCodeClient, run_turn: fake) do
+            turn = Assistant::TurnCreator.call(
+              conversation: conv, user: @user, body: "hi there", context_refs: []
+            )
+            assert_equal "completed", turn.reload.status
+            assert_nil turn.error_code
+          end
+        end
       end
     end
 

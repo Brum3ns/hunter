@@ -1,48 +1,64 @@
 module Assistant
-  # Dispatches one turn to the gateway over HTTP and ingests whatever comes
-  # back. Enqueued by `Assistant::TurnCreator` only after ITS transaction has
+  # Dispatches one turn to its closed backend and ingests whatever comes back.
+  # Enqueued by `Assistant::TurnCreator` only after ITS transaction has
   # committed (see turn_creator.rb) — Solid Queue's `queue` database is
   # separate from the primary one in production, so a worker can pick this
   # job up as soon as it is enqueued, independent of any Ruby-level
   # transaction nesting around the enqueue call.
   #
-  # Exactly one gateway call, ever: the gateway is not idempotent with respect
-  # to provider spend, so a second attempt would bill a second call and could
-  # double-write a draft. `GatewayClient.run_turn` already funnels every
-  # transport failure (timeout, dropped connection, oversize/malformed body)
-  # into `GatewayClient::Error` — nothing here retries that call, and nothing
-  # here asks ActiveJob to retry `perform` itself. Neither Rails 8's
+  # Exactly one backend call, ever: provider execution is not idempotent with
+  # respect to spend, so a second attempt could bill a second call and
+  # double-write a draft. Each client funnels expected transport failures into
+  # its stable error contract — nothing here retries that call, and nothing here
+  # asks ActiveJob to retry `perform` itself. Neither Rails 8's
   # `ApplicationJob` nor Solid Queue retries a job automatically unless
   # `retry_on` is declared (verified: `ApplicationJob` declares none, and
   # Solid Queue only re-runs a failed execution on explicit operator/dashboard
   # action) — so a job that never calls `retry_on` and never re-raises out of
-  # `perform` back into itself runs the gateway call exactly once, with no
+  # `perform` back into itself runs the backend call exactly once, with no
   # extra guard needed.
   class TurnJob < ApplicationJob
+    NO_EVENTS_CODES = {
+      nil => "gateway_returned_no_events",
+      "codex" => "codex_returned_no_events",
+      "claude_code" => "claude_returned_no_events"
+    }.freeze
+
     queue_as :default
 
-    def perform(turn_id:, envelope: nil, claude: false, prompt: nil, turn_grant: nil)
+    def perform(turn_id:, envelope: nil, backend: nil, prompt: nil, turn_grant: nil)
       turn = Assistant::Turn.find_by(id: turn_id)
       return unless turn&.status == "queued"
 
       turn.update!(status: "running", started_at: Time.current)
 
       events =
-        if claude
-          # ClaudeCodeClient never raises: every failure is already an error event.
-          Assistant::ClaudeCodeClient.run_turn(turn: turn, prompt: prompt, turn_grant: turn_grant)
-        else
+        case backend
+        when "codex"
+          Assistant::CodexClient.run_turn(
+            turn: turn, prompt: prompt, turn_grant: turn_grant
+          )
+        when "claude_code"
+          Assistant::ClaudeCodeClient.run_turn(
+            turn: turn, prompt: prompt, turn_grant: turn_grant
+          )
+        when nil
           begin
             Assistant::GatewayClient.run_turn(envelope)
           rescue Assistant::GatewayClient::Error => error
             [ error_event(turn, error.code) ]
           end
+        else
+          [ error_event(turn, "assistant_backend_invalid") ]
         end
 
       # A response carrying no events would leave the turn `running` with nothing
-      # to observe, so an empty array is itself a failure.
-      no_events_code = claude ? "claude_returned_no_events" : "gateway_returned_no_events"
-      events = [ error_event(turn, no_events_code) ] if events.empty?
+      # to observe, so an empty array is itself a failure. The closed map prevents
+      # an untrusted backend argument from becoming part of an error code.
+      if events.empty?
+        no_events_code = NO_EVENTS_CODES.fetch(backend, "assistant_backend_invalid")
+        events = [ error_event(turn, no_events_code) ]
+      end
 
       begin
         ingest_all!(events)
@@ -53,7 +69,7 @@ module Assistant
 
     private
 
-    # All events from one gateway response are ingested together: a turn
+    # All events from one backend response are ingested together: a turn
     # response is either fully applied or not applied at all, never applied
     # halfway across separate transactions.
     def ingest_all!(events)

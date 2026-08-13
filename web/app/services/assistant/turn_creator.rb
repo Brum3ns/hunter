@@ -123,32 +123,30 @@ module Assistant
     private_class_method :disclosure_label
 
     def dispatch(turn, raw_grant)
-      if turn.provider_profile.claude_code?
-        prompt = claim_dispatch(turn) do
-          prompt = turn.user_message&.body
-          raise ArgumentError, "turn requires one user message" if prompt.blank?
-          turn.update!(status: "queued", queued_at: Time.current)
-          prompt
-        end
-        Assistant::TurnJob.perform_later(
-          turn_id: turn.id, claude: true, prompt: prompt, turn_grant: raw_grant
-        )
-        return turn.reload
-      end
+      backend = Assistant::ChatBackend.slug_for(turn.provider_profile)
+      raise Rejected, "legacy_provider_retired" unless backend
 
-      envelope = claim_dispatch(turn) do
-        Assistant::TurnDispatcher.call(turn: turn, raw_grant: raw_grant)
+      prompt = claim_dispatch(turn) do
+        prompt = turn.user_message&.body
+        raise ArgumentError, "turn requires one user message" if prompt.blank?
+
+        turn.update!(status: "queued", queued_at: Time.current)
+        prompt
       end
       # Enqueued here, after the transaction above has actually committed —
-      # not inside it, and not inside TurnDispatcher.call's own `with_lock`
-      # (which only re-joins this same transaction). Solid Queue's `queue`
-      # database is separate from the primary one in production, so the job
-      # can be picked up the instant it is enqueued; enqueuing any earlier
-      # risks a worker reading the turn before the "queued" write is visible,
-      # hitting the job's own status guard, and silently stranding the turn.
-      # A failure here is caught below exactly like any other dispatch
-      # failure, so the turn is never left stuck in "queued".
-      Assistant::TurnJob.perform_later(turn_id: turn.id, envelope: envelope)
+      # not inside it. Solid Queue's `queue` database is separate from the
+      # primary one in production, so the job can be picked up the instant it
+      # is enqueued; enqueuing any earlier risks a worker reading the turn
+      # before the "queued" write is visible, hitting the job's own status
+      # guard, and silently stranding the turn. A failure here is caught below
+      # exactly like any other dispatch failure, so the turn is never left
+      # stuck in "queued".
+      Assistant::TurnJob.perform_later(
+        turn_id: turn.id,
+        backend: backend,
+        prompt: prompt,
+        turn_grant: raw_grant
+      )
       turn.reload
     rescue Rejected => error
       interrupt_dispatch!(turn, reason: error.code)

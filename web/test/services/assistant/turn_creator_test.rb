@@ -16,10 +16,12 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
 
   test "persists direct chat authority and audit before enqueuing without resolving browser context" do
     enqueued = nil
+    raw_grant_reference = nil
     with_enabled_assistant do
       stub_methods(Assistant::Context::Resolver, find: ->(**) { flunk "direct chat resolved context" }) do
         stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
-          enqueued = attributes
+          raw_grant_reference = attributes[:turn_grant]
+          enqueued = attributes.merge(turn_grant: attributes[:turn_grant]&.dup)
           # The job is enqueued only after TurnCreator's own transaction has
           # committed, so by the time this stub runs the turn must already be
           # readable as "queued" — proving the enqueue did not happen from
@@ -45,13 +47,18 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_empty grant.resources
     assert_equal Assistant::Grants::Issuer::CHAT_TOOLS, grant.tools
     assert_equal @turn.id, enqueued.fetch(:turn_id)
-    refute_equal enqueued.dig(:envelope, "turn_grant"), grant.token_digest
+    assert_equal "codex", enqueued.fetch(:backend)
+    assert_equal "Draft a safe probe", enqueued.fetch(:prompt)
+    refute enqueued.key?(:envelope)
+    assert_equal Assistant::TurnGrant.digest(enqueued.fetch(:turn_grant)), grant.token_digest
+    assert_equal "", raw_grant_reference, "the in-memory raw grant was not cleared after enqueue"
   end
 
   test "a Claude Code turn issues a per-turn grant and enqueues TurnJob with the raw token" do
     profile = assistant_provider_profiles(:claude_code)
     conversation = Assistant::Conversation.start!(user: @user, provider_profile: profile)
     enqueued = nil
+    raw_grant_reference = nil
 
     with_enabled_assistant do
       stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
@@ -59,6 +66,7 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
         # runs, before control returns to this test — dup the token now (as a
         # real ActiveJob adapter would serialize it into the persisted job row
         # before that clear happens) so we can still inspect its real value.
+        raw_grant_reference = attributes[:turn_grant]
         enqueued = attributes.merge(turn_grant: attributes[:turn_grant]&.dup)
       }) do
         @turn = Assistant::TurnCreator.call(
@@ -79,11 +87,13 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_equal Assistant::TurnGrant::WRITE_SCOPES, grant.write_scopes
 
     assert_equal @turn.id, enqueued.fetch(:turn_id)
-    assert_equal true, enqueued.fetch(:claude)
+    assert_equal "claude_code", enqueued.fetch(:backend)
+    refute enqueued.key?(:claude)
     assert_equal "hi claude", enqueued.fetch(:prompt)
     refute_nil enqueued.fetch(:turn_grant)
     refute_equal enqueued.fetch(:turn_grant), grant.token_digest
     assert_equal Assistant::TurnGrant.digest(enqueued.fetch(:turn_grant)), grant.token_digest
+    assert_equal "", raw_grant_reference, "the in-memory raw grant was not cleared after enqueue"
   end
 
 
@@ -115,7 +125,9 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     enqueued = false
 
     with_enabled_assistant do
-      with_claude_dispatch_gap(mutation: -> { Assistant::KillSwitch.disable!(user: @user) }) do
+      with_direct_dispatch_gap(
+        backend: "claude_code", mutation: -> { Assistant::KillSwitch.disable!(user: @user) }
+      ) do
         stub_methods(Assistant::TurnJob, perform_later: ->(**) { enqueued = true }) do
           @turn = Assistant::TurnCreator.call(
             conversation: conversation,
@@ -141,7 +153,9 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     enqueued = false
 
     with_enabled_assistant do
-      with_claude_dispatch_gap(mutation: -> { profile.update!(enabled: false) }) do
+      with_direct_dispatch_gap(
+        backend: "claude_code", mutation: -> { profile.update!(enabled: false) }
+      ) do
         stub_methods(Assistant::TurnJob, perform_later: ->(**) { enqueued = true }) do
           @turn = Assistant::TurnCreator.call(
             conversation: conversation,
@@ -174,7 +188,7 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     end
 
     with_enabled_assistant do
-      with_claude_dispatch_gap(mutation: mutation) do
+      with_direct_dispatch_gap(backend: "claude_code", mutation: mutation) do
         stub_methods(Assistant::TurnJob, perform_later: ->(**) { enqueued = true }) do
           @turn = Assistant::TurnCreator.call(
             conversation: conversation,
@@ -357,20 +371,23 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
 
   private
 
-  def with_claude_dispatch_gap(mutation:)
+  def with_direct_dispatch_gap(backend:, mutation:)
     triggered = false
-    original = Assistant::ProviderProfile.instance_method(:claude_code?)
-    Assistant::ProviderProfile.define_method(:claude_code?) do
-      if catalog_slug == "claude_code" && !triggered
+    resolutions = 0
+    original = Assistant::ChatBackend.method(:slug_for)
+    Assistant::ChatBackend.define_singleton_method(:slug_for) do |profile|
+      resolved = original.call(profile)
+      resolutions += 1 if resolved == backend
+      if resolutions == 2 && !triggered
         triggered = true
         mutation.call
       end
-      original.bind_call(self)
+      resolved
     end
     yield
-    assert triggered, "the test did not reach the post-persistence Claude dispatch gap"
+    assert triggered, "the test did not reach the post-persistence direct dispatch gap"
   ensure
-    Assistant::ProviderProfile.define_method(:claude_code?, original) if original
+    Assistant::ChatBackend.define_singleton_method(:slug_for, original) if original
   end
 
   def with_enabled_assistant(&block)

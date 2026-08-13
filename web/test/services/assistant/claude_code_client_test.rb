@@ -47,11 +47,34 @@ class Assistant::ClaudeCodeClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "endpoint is the configured service chat endpoint" do
+    with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
+      assert_equal "http://assistant-claude:8083/chat", Assistant::ClaudeCodeClient.endpoint
+    end
+  end
+
   test "an error envelope from the service becomes an error event" do
     with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
       poster = ->(_body) { { "error" => { "code" => "claude_login_required" } } }
       events = Assistant::ClaudeCodeClient.run_turn(turn: @turn, prompt: "hi", poster: poster)
       assert_equal "claude_login_required", events.first["data"]["code"]
+    end
+  end
+
+  test "an unknown service error collapses without leaking service output" do
+    sensitive = "provider failed: prompt=secret session=sess_secret tool_args=private"
+
+    with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
+      poster = ->(_body) { { "error" => { "code" => sensitive } } }
+      events = Assistant::ClaudeCodeClient.run_turn(
+        turn: @turn, prompt: "secret prompt", poster: poster
+      )
+
+      assert_equal "claude_error", events.first["data"]["code"]
+      refute_includes events.to_json, sensitive
+      refute_includes events.to_json, "secret prompt"
+      refute_includes events.to_json, "sess_secret"
+      refute_includes events.to_json, "tool_args"
     end
   end
 

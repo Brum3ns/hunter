@@ -19,10 +19,14 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
 
   test "direct turn creation ignores browser context and never returns the raw grant" do
     delivery = nil
+    raw_grant_reference = nil
 
     with_enabled_assistant do
       stub_methods(Assistant::Context::Resolver, find: ->(**) { flunk "direct chat resolved browser context" }) do
-        stub_methods(Assistant::TurnJob, perform_later: ->(turn_id:, envelope:) { delivery = envelope.deep_dup }) do
+        stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
+          raw_grant_reference = attributes.fetch(:turn_grant)
+          delivery = attributes.merge(turn_grant: raw_grant_reference.dup)
+        }) do
           post "/api/v1/assistant/conversations/#{@conversation.id}/turns", params: {
             message: "Draft a safe probe",
             contexts: [ { type: "target", id: "target-1" } ]
@@ -37,8 +41,13 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
     assert_empty turn.turn_grant.resources
     assert_equal Assistant::Grants::Issuer::CHAT_TOOLS, turn.turn_grant.tools
     assert_empty response.parsed_body.fetch("context_references")
-    raw_grant = delivery["turn_grant"]
+    assert_equal turn.id, delivery.fetch(:turn_id)
+    assert_equal "codex", delivery.fetch(:backend)
+    assert_equal "Draft a safe probe", delivery.fetch(:prompt)
+    refute delivery.key?(:envelope)
+    raw_grant = delivery.fetch(:turn_grant)
     assert raw_grant.present?
+    assert_equal "", raw_grant_reference, "the in-memory raw grant was not cleared after enqueue"
     refute_includes response.body, raw_grant
     refute_includes response.body, turn.turn_grant.token_digest
     refute_includes response.body, "turn_grant"
