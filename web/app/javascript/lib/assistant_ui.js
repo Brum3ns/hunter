@@ -1,5 +1,11 @@
+import {
+  renderMarkdownFragment,
+  safeDisplayText,
+} from "#assistant-markdown"
+
 const TERMINAL_TURN_STATUSES = new Set(["completed", "failed", "canceled", "interrupted"])
-const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g
+
+export { safeDisplayText }
 
 export class LatestRequest {
   constructor() { this.generation = 0 }
@@ -24,10 +30,6 @@ export function composerSubmitIntent(event) {
     event.ctrlKey !== true &&
     event.metaKey !== true &&
     event.isComposing !== true
-}
-
-export function safeDisplayText(value) {
-  return String(value ?? "").replace(CONTROL_CHARACTERS, "�")
 }
 
 // The server sends a reason code only, never prose — see disabled_reason_for
@@ -77,22 +79,59 @@ export function saveConfirmationText(draft) {
   ].join("\n\n")
 }
 
-export function appendMessage(documentRef, container, message) {
+export function conversationDeletionText(conversation) {
+  return [
+    `Delete “${safeDisplayText(conversation?.title || "Untitled conversation")}”?`,
+    "Hunter will permanently delete this local conversation and its messages. " +
+      "Provider or backup copies may remain under their retention policies.",
+  ].join("\n\n")
+}
+
+export function appendMessage(documentRef, container, message, callbacks = {}) {
+  const userMessage = message.role === "user"
+  const row = documentRef.createElement("div")
+  row.className = userMessage
+    ? "assistant-message-row flex items-start justify-end gap-2.5"
+    : "assistant-message-row flex items-start gap-2.5"
+
+  const avatar = documentRef.createElement("span")
+  avatar.dataset.avatarRole = userMessage ? "user" : "assistant"
+  avatar.className = userMessage
+    ? "grid h-8 w-8 shrink-0 place-items-center rounded-full border border-zinc-400 bg-zinc-200 text-[10px] font-bold text-zinc-700 shadow-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+    : "grid h-8 w-8 shrink-0 place-items-center rounded-full border border-zinc-700 bg-zinc-950 text-[11px] font-bold text-white shadow-sm dark:border-zinc-500 dark:bg-zinc-100 dark:text-zinc-950"
+  avatar.setAttribute("aria-hidden", "true")
+  avatar.textContent = userMessage ? "Y" : "H"
+
   const article = documentRef.createElement("article")
-  article.className = message.role === "user"
-    ? "ml-auto max-w-[88%] rounded-2xl rounded-br-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm leading-6 text-zinc-800 shadow-sm dark:border-cyan-400/15 dark:bg-cyan-400/10 dark:text-zinc-100"
-    : "mr-auto max-w-[94%] rounded-2xl rounded-bl-md border border-zinc-200 bg-white px-4 py-3 text-sm leading-6 text-zinc-800 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 dark:text-zinc-100"
+  article.className = userMessage
+    ? "min-w-0 max-w-[88%] rounded-2xl rounded-br-md border border-zinc-400 bg-zinc-200/80 px-3.5 py-3 text-zinc-900 shadow-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+    : "min-w-0 max-w-[94%] rounded-2xl rounded-bl-md border border-zinc-300 bg-white px-3.5 py-3 text-zinc-900 shadow-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+
+  const heading = documentRef.createElement("div")
+  heading.className = "mb-1.5 flex items-center justify-between gap-3"
   const label = documentRef.createElement("p")
-  label.className = message.role === "user"
-    ? "mb-1 text-[10px] font-semibold uppercase tracking-wider text-cyan-700/70 dark:text-cyan-300/60"
-    : "mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
-  label.textContent = message.role === "user" ? "You" : "Hunter assistant"
-  const body = documentRef.createElement(message.role === "assistant" ? "pre" : "p")
-  body.className = "whitespace-pre-wrap break-words font-sans [overflow-wrap:anywhere]"
-  body.textContent = safeDisplayText(message.body)
-  article.append(label, body)
-  container.appendChild(article)
-  return article
+  label.className = "text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400"
+  label.textContent = userMessage ? "You" : "Hunter assistant"
+  const copy = documentRef.createElement("button")
+  copy.type = "button"
+  copy.className = "shrink-0 rounded-md border border-transparent px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 transition hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-white"
+  copy.setAttribute("aria-label", `Copy ${userMessage ? "your" : "Hunter assistant"} message`)
+  copy.textContent = "Copy"
+  copy.addEventListener("click", () => callbacks.onCopy?.(message))
+  heading.append(label, copy)
+
+  const body = documentRef.createElement("div")
+  body.className = "assistant-markdown min-w-0 break-words [overflow-wrap:anywhere]"
+  body.appendChild(renderMarkdownFragment(documentRef, message.body))
+  article.append(heading, body)
+
+  if (userMessage) {
+    row.append(article, avatar)
+  } else {
+    row.append(avatar, article)
+  }
+  container.appendChild(row)
+  return row
 }
 
 export function scrollMessageLog(container) {
@@ -111,25 +150,57 @@ export function renderConversationList(documentRef, container, conversations, op
 
   for (const conversation of conversations) {
     const active = String(conversation.id) === String(options.currentId ?? "")
+    const title = safeDisplayText(conversation.title)
+    const row = documentRef.createElement("div")
+    row.dataset.conversationId = String(conversation.id)
+    row.draggable = true
+    row.setAttribute("draggable", "true")
+    row.className = active
+      ? "assistant-conversation-active group flex items-center rounded-lg border border-zinc-600 bg-zinc-800 text-white shadow-sm"
+      : "group flex items-center rounded-lg border border-transparent text-zinc-400 transition hover:border-zinc-700 hover:bg-zinc-900 hover:text-white"
+
     const button = documentRef.createElement("button")
     button.type = "button"
     button.dataset.conversationId = String(conversation.id)
-    button.className = active
-      ? "assistant-conversation-active w-full truncate rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-2 text-left text-xs font-medium text-cyan-100"
-      : "w-full truncate rounded-lg border border-transparent px-2.5 py-2 text-left text-xs text-zinc-400 transition hover:border-white/10 hover:bg-white/5 hover:text-zinc-100"
-    button.textContent = safeDisplayText(conversation.title)
-    button.title = safeDisplayText(conversation.title)
+    button.className = "min-w-0 flex-1 truncate px-2.5 py-2 text-left text-xs font-medium focus:outline-none focus:ring-2 focus:ring-inset focus:ring-zinc-400"
+    button.textContent = title
+    button.title = title
     if (active) button.setAttribute("aria-current", "true")
     button.addEventListener("click", (event) => options.onSelect?.(conversation, event))
-    container.appendChild(button)
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault()
+      options.onContextMenu?.(conversation, event, button)
+    })
+    button.addEventListener("keydown", (event) => {
+      const menuIntent = event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)
+      if (!menuIntent) return
+      event.preventDefault()
+      options.onMenu?.(conversation, event, button)
+    })
+
+    const menu = documentRef.createElement("button")
+    menu.type = "button"
+    menu.className = "mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-sm text-zinc-500 opacity-100 transition hover:bg-zinc-700 hover:text-white focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-zinc-400 sm:opacity-0 sm:group-hover:opacity-100"
+    menu.setAttribute("aria-haspopup", "menu")
+    menu.setAttribute("aria-expanded", "false")
+    menu.setAttribute("aria-label", `Actions for ${title}`)
+    menu.textContent = "⋮"
+    menu.addEventListener("click", (event) => options.onMenu?.(conversation, event, menu))
+
+    row.addEventListener("dragstart", (event) => options.onDragStart?.(conversation, event, row))
+    row.addEventListener("dragover", (event) => options.onDragOver?.(conversation, event, row))
+    row.addEventListener("drop", (event) => options.onDrop?.(conversation, event, row))
+    row.addEventListener("dragend", (event) => options.onDragEnd?.(conversation, event, row))
+    row.append(button, menu)
+    container.appendChild(row)
   }
 }
 
 export function appendContextDisclosure(documentRef, container, context, onRemove) {
   const card = documentRef.createElement("article")
-  card.className = "rounded-xl border border-cyan-200 bg-cyan-50/70 p-3 text-xs shadow-sm dark:border-cyan-400/15 dark:bg-cyan-400/[0.07]"
+  card.className = "rounded-xl border border-zinc-300 bg-zinc-100 p-3 text-xs shadow-sm dark:border-zinc-600 dark:bg-zinc-900"
   const label = documentRef.createElement("p")
-  label.className = "font-semibold text-cyan-900 dark:text-cyan-200"
+  label.className = "font-semibold text-zinc-900 dark:text-zinc-100"
   label.textContent = `${safeDisplayText(context.type)} · ${safeDisplayText(context.label || context.id)}`
   const preview = documentRef.createElement("pre")
   preview.className = "slim-scroll mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white/70 p-2 font-mono text-[11px] leading-5 text-zinc-700 dark:bg-black/20 dark:text-zinc-300"
@@ -191,7 +262,7 @@ export function appendDraftCard(documentRef, container, draft, callbacks = {}) {
 function actionButton(documentRef, label, callback) {
   const button = documentRef.createElement("button")
   button.type = "button"
-  button.className = "mr-2 mt-3 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+  button.className = "mr-2 mt-3 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:border-zinc-500 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
   button.textContent = label
   button.addEventListener("click", callback)
   return button

@@ -1,6 +1,17 @@
 import { Controller } from "@hotwired/stimulus"
 import { assistantApi } from "lib/assistant_api"
 import {
+  changeFontScale,
+  FONT_SCALES,
+  loadFontScaleIndex,
+  saveFontScaleIndex,
+} from "lib/assistant_font_scale"
+import {
+  conversationIds,
+  moveConversation,
+  reorderConversation,
+} from "lib/assistant_history"
+import {
   clampPanelSize,
   desktopPanel,
   loadPanelSize,
@@ -18,6 +29,7 @@ import {
   composerSubmitIntent,
   renderDisabledNotice,
   renderConversationList as renderConversationListItems,
+  conversationDeletionText,
   saveConfirmationText,
   scrollMessageLog,
   terminalTurnStatus,
@@ -30,6 +42,9 @@ export default class extends Controller {
     "startButton", "sendButton", "cancelButton", "contextType", "contextQuery",
     "contextResults", "disclosurePreview", "drafts", "status", "notice",
     "resizeHandle", "resizeStatus", "capabilityDisclosure", "contextDisclosure",
+    "historyMenu", "historyMenuRename", "historyMenuMoveUp", "historyMenuMoveDown",
+    "renameDialog", "renameInput", "renameSubmit", "renameCancel",
+    "fontDecrease", "fontIncrease", "fontScaleStatus",
   ]
 
   connect() {
@@ -44,22 +59,43 @@ export default class extends Controller {
     this.pollFailureCount = 0
     this.conversationRequests = new LatestRequest()
     this.pollRequests = new LatestRequest()
+    this.historyListRequests = new LatestRequest()
     this.abortController = null
     this.panelSize = null
     this.resizeState = null
+    this.historyMenuConversation = null
+    this.historyMenuTrigger = null
+    this.renameConversation = null
+    this.renameTrigger = null
+    this.renameFocusControl = "title"
+    this.draggedConversationId = null
+    this.reorderInFlight = false
+    this.deleteInFlightIds = new Set()
+    this.historyMutationToken = null
+    this.activeSelectionToken = null
+    this.resumePollingAfterHistoryMutation = false
+    this.renameInFlight = false
+    this.fontScaleIndex = loadFontScaleIndex(this.panelStorage())
     this.boundResizeMove = (event) => this.resizePanel(event)
     this.boundResizeEnd = (event) => this.finishResize(event)
     this.boundViewportResize = () => this.handleViewportResize()
+    this.boundOutsideHistoryMenu = (event) => this.dismissHistoryMenu(event)
     window.addEventListener("resize", this.boundViewportResize)
+    document.addEventListener("pointerdown", this.boundOutsideHistoryMenu)
     this.restorePanelSize()
+    this.applyFontScale()
   }
 
   disconnect() {
     this.stopResize({ persist: false })
     this.stopPolling()
     this.conversationRequests.invalidate()
+    this.historyListRequests.invalidate()
     this.abortRequests()
+    this.closeHistoryMenu({ restoreFocus: false })
+    if (this.hasRenameDialogTarget && this.renameDialogTarget.open) this.renameDialogTarget.close()
     window.removeEventListener("resize", this.boundViewportResize)
+    document.removeEventListener("pointerdown", this.boundOutsideHistoryMenu)
     document.documentElement.classList.remove("overflow-hidden")
   }
 
@@ -76,6 +112,11 @@ export default class extends Controller {
 
   close() {
     this.stopResize({ persist: true })
+    this.closeHistoryMenu({ restoreFocus: false })
+    if (this.hasRenameDialogTarget && this.renameDialogTarget.open) {
+      this.cancelRename()
+      if (this.renameInFlight) return
+    }
     this.panelTarget.hidden = true
     this.bubbleTarget.setAttribute("aria-expanded", "false")
     document.documentElement.classList.remove("overflow-hidden")
@@ -211,8 +252,13 @@ export default class extends Controller {
 
   handleKeydown(event) {
     if (this.panelTarget.hidden) return
+    if (this.hasRenameDialogTarget && this.renameDialogTarget.open) return
     if (event.key === "Escape") {
       event.preventDefault()
+      if (!this.historyMenuTarget.hidden) {
+        this.closeHistoryMenu()
+        return
+      }
       this.close()
       return
     }
@@ -245,6 +291,35 @@ export default class extends Controller {
     return this.bootstrap?.settings?.effective_enabled === true
   }
 
+  conversationManagementEnabled() {
+    return this.effectiveEnabled() &&
+      this.bootstrap?.settings?.conversation_management_enabled === true
+  }
+
+  beginHistoryMutation() {
+    if (this.historyMutationToken) {
+      this.setStatus("Another conversation change is still being saved.")
+      return null
+    }
+
+    const token = Symbol("assistant-history-mutation")
+    this.historyMutationToken = token
+    this.resumePollingAfterHistoryMutation = this.activeSelectionToken !== null &&
+      this.currentTurnId !== null && !terminalTurnStatus(this.currentTurnStatus)
+    this.activeSelectionToken = null
+    this.conversationRequests.invalidate()
+    this.historyListRequests.invalidate()
+    return token
+  }
+
+  finishHistoryMutation(token) {
+    if (this.historyMutationToken !== token) return
+    this.historyMutationToken = null
+    if (this.resumePollingAfterHistoryMutation && this.currentTurnId &&
+        !terminalTurnStatus(this.currentTurnStatus)) this.schedulePoll()
+    this.resumePollingAfterHistoryMutation = false
+  }
+
   renderDisabledState(settings) {
     if (settings.effective_enabled) {
       this.noticeTarget.hidden = true
@@ -269,25 +344,37 @@ export default class extends Controller {
     event.preventDefault()
     const profileId = this.providerSelectTarget.value
     if (!profileId) return this.setStatus("Select an enabled provider profile.")
+    const mutationToken = this.beginHistoryMutation()
+    if (!mutationToken) return
 
-    const requestToken = this.conversationRequests.issue()
     this.setStatus("Starting conversation…")
-    const response = await assistantApi.createConversation(profileId, { signal: this.requestSignal() })
-    if (response.aborted || !this.conversationRequests.current(requestToken)) return
-    if (!response.ok) return this.showRequestError(response)
+    try {
+      const response = await assistantApi.createConversation(profileId, { signal: this.requestSignal() })
+      if (response.aborted) return
+      if (!response.ok) return this.showRequestError(response)
 
-    this.currentConversation = response.data
-    this.renderConversation(response.data)
-    await this.refreshConversationList()
-    this.messageInputTarget.focus()
+      this.currentConversation = response.data
+      this.renderConversation(response.data)
+      await this.refreshConversationList()
+      this.messageInputTarget.focus()
+    } finally {
+      this.finishHistoryMutation(mutationToken)
+    }
   }
 
   async selectConversation(event) {
+    this.closeHistoryMenu({ restoreFocus: false })
+    if (this.historyMutationToken) {
+      this.setStatus("Wait for the conversation change to finish.")
+      return
+    }
     const id = event.currentTarget.dataset.conversationId
     const requestToken = this.conversationRequests.issue()
+    this.activeSelectionToken = requestToken
     this.stopPolling()
     this.setStatus("Loading conversation…")
     const response = await assistantApi.getConversation(id, { signal: this.requestSignal() })
+    if (this.activeSelectionToken === requestToken) this.activeSelectionToken = null
     if (response.aborted || !this.conversationRequests.current(requestToken)) return
     if (!response.ok) return this.showRequestError(response)
 
@@ -298,6 +385,11 @@ export default class extends Controller {
   }
 
   showNewConversation() {
+    this.closeHistoryMenu({ restoreFocus: false })
+    if (this.historyMutationToken) {
+      this.setStatus("Wait for the conversation change to finish.")
+      return
+    }
     this.conversationRequests.invalidate()
     this.stopPolling()
     this.currentConversation = null
@@ -415,20 +507,53 @@ export default class extends Controller {
 
   async deleteConversation() {
     if (!this.currentConversation) return
-    const response = await assistantApi.deleteConversation(
-      this.currentConversation.id,
-      { signal: this.requestSignal() }
-    )
-    if (response.aborted) return
-    if (!response.ok) return this.showRequestError(response)
+    await this.confirmAndDeleteConversation(this.currentConversation)
+  }
 
-    this.conversationRequests.invalidate()
-    this.stopPolling()
-    this.currentConversation = null
-    this.currentTurnId = null
-    this.showStartScreen()
-    await this.refreshConversationList()
-    this.setStatus("Conversation deleted.")
+  async deleteHistoryConversation() {
+    const conversation = this.historyMenuConversation
+    this.closeHistoryMenu({ restoreFocus: false })
+    if (!conversation) return
+    await this.confirmAndDeleteConversation(conversation)
+  }
+
+  async confirmAndDeleteConversation(conversation) {
+    const conversationId = String(conversation.id)
+    if (this.deleteInFlightIds.has(conversationId)) return
+    if (!window.confirm(conversationDeletionText(conversation))) {
+      this.setStatus("Conversation deletion canceled.")
+      return
+    }
+
+    const mutationToken = this.beginHistoryMutation()
+    if (!mutationToken) return
+    this.deleteInFlightIds.add(conversationId)
+    try {
+      const response = await assistantApi.deleteConversation(conversation.id, {
+        signal: this.requestSignal(),
+      })
+      if (response.aborted) return
+      if (!response.ok) return this.showRequestError(response)
+
+      const deletedCurrent = String(this.currentConversation?.id) === conversationId
+      if (deletedCurrent) {
+        this.stopPolling()
+        this.currentConversation = null
+        this.currentTurnId = null
+        this.currentTurnStatus = null
+        this.showStartScreen()
+      }
+      await this.refreshConversationList()
+      this.setStatus("Conversation deleted.")
+      if (deletedCurrent) {
+        this.providerSelectTarget.focus()
+      } else {
+        this.focusConversationControl(this.currentConversation?.id)
+      }
+    } finally {
+      this.deleteInFlightIds.delete(conversationId)
+      this.finishHistoryMutation(mutationToken)
+    }
   }
 
   populateProviders(profiles) {
@@ -460,7 +585,311 @@ export default class extends Controller {
     renderConversationListItems(document, this.conversationListTarget, conversations, {
       currentId: this.currentConversation?.id,
       onSelect: (_conversation, event) => this.selectConversation(event),
+      onContextMenu: (conversation, event, trigger) =>
+        this.openHistoryMenu(conversation, event, trigger),
+      onMenu: (conversation, event, trigger) =>
+        this.openHistoryMenu(conversation, event, trigger),
+      onDragStart: (conversation, event, row) =>
+        this.startHistoryDrag(conversation, event, row),
+      onDragOver: (conversation, event, row) =>
+        this.dragHistoryOver(conversation, event, row),
+      onDrop: (conversation, event, row) =>
+        this.dropHistoryConversation(conversation, event, row),
+      onDragEnd: () => this.endHistoryDrag(),
     })
+  }
+
+  openHistoryMenu(conversation, event, trigger) {
+    this.closeHistoryMenu({ restoreFocus: false })
+    this.historyMenuConversation = conversation
+    this.historyMenuTrigger = trigger
+
+    const index = (this.conversations || []).findIndex((item) =>
+      String(item.id) === String(conversation.id)
+    )
+    const canOrganize = this.conversationManagementEnabled() &&
+      !this.reorderInFlight && !this.historyMutationToken
+    this.historyMenuRenameTarget.disabled = !canOrganize
+    this.historyMenuMoveUpTarget.disabled = !canOrganize || index <= 0
+    this.historyMenuMoveDownTarget.disabled = !canOrganize ||
+      index < 0 || index >= (this.conversations || []).length - 1
+    this.historyMenuTarget.hidden = false
+    trigger?.setAttribute("aria-expanded", "true")
+
+    const triggerRect = trigger?.getBoundingClientRect?.() || { left: 8, bottom: 8 }
+    const desiredLeft = Number.isFinite(event?.clientX) && event.clientX > 0
+      ? event.clientX
+      : triggerRect.left
+    const desiredTop = Number.isFinite(event?.clientY) && event.clientY > 0
+      ? event.clientY
+      : triggerRect.bottom
+    const menuRect = this.historyMenuTarget.getBoundingClientRect()
+    const left = Math.max(8, Math.min(desiredLeft, window.innerWidth - menuRect.width - 8))
+    const top = Math.max(8, Math.min(desiredTop, window.innerHeight - menuRect.height - 8))
+    this.historyMenuTarget.style.left = `${Math.round(left)}px`
+    this.historyMenuTarget.style.top = `${Math.round(top)}px`
+    this.historyMenuTarget.querySelector("button:not([disabled])")?.focus()
+  }
+
+  closeHistoryMenu({ restoreFocus = true } = {}) {
+    if (!this.hasHistoryMenuTarget || this.historyMenuTarget.hidden) return
+    const trigger = this.historyMenuTrigger
+    this.historyMenuTarget.hidden = true
+    this.historyMenuTarget.style.removeProperty("left")
+    this.historyMenuTarget.style.removeProperty("top")
+    trigger?.setAttribute("aria-expanded", "false")
+    this.historyMenuConversation = null
+    this.historyMenuTrigger = null
+    if (restoreFocus && trigger?.isConnected) trigger.focus()
+  }
+
+  dismissHistoryMenu(event) {
+    if (!this.hasHistoryMenuTarget || this.historyMenuTarget.hidden) return
+    if (this.historyMenuTarget.contains(event.target)) return
+    if (this.historyMenuTrigger?.contains?.(event.target)) return
+    this.closeHistoryMenu({ restoreFocus: false })
+  }
+
+  handleHistoryMenuKeydown(event) {
+    const items = [...this.historyMenuTarget.querySelectorAll('[role="menuitem"]:not([disabled])')]
+    if (event.key === "Escape") {
+      event.preventDefault()
+      event.stopPropagation()
+      this.closeHistoryMenu()
+      return
+    }
+    if (event.key === "Tab") {
+      this.closeHistoryMenu({ restoreFocus: false })
+      return
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || items.length === 0) return
+
+    event.preventDefault()
+    const index = items.indexOf(document.activeElement)
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? items.length - 1
+        : event.key === "ArrowDown"
+          ? (index + 1 + items.length) % items.length
+          : (index - 1 + items.length) % items.length
+    items[nextIndex].focus()
+  }
+
+  beginRename() {
+    if (!this.conversationManagementEnabled() || !this.historyMenuConversation ||
+        this.historyMutationToken) return
+    this.renameConversation = this.historyMenuConversation
+    this.renameTrigger = this.historyMenuTrigger
+    this.renameFocusControl = this.historyMenuTrigger?.getAttribute("aria-haspopup") === "menu"
+      ? "menu"
+      : "title"
+    this.renameInputTarget.value = this.renameConversation.title || ""
+    this.closeHistoryMenu({ restoreFocus: false })
+    this.renameDialogTarget.showModal()
+    this.renameInputTarget.focus()
+    this.renameInputTarget.select()
+  }
+
+  cancelRename(event) {
+    event?.preventDefault?.()
+    if (this.renameInFlight) {
+      this.setStatus("Wait for the rename to finish.")
+      return
+    }
+    this.resetRenameDialog()
+  }
+
+  resetRenameDialog({ restoreFocus = true } = {}) {
+    const trigger = this.renameTrigger
+    this.renameConversation = null
+    this.renameTrigger = null
+    this.renameFocusControl = "title"
+    this.renameSubmitTarget.disabled = false
+    this.renameCancelTarget.disabled = false
+    this.renameDialogTarget.removeAttribute("aria-busy")
+    this.renameInputTarget.setCustomValidity("")
+    if (this.renameDialogTarget.open) this.renameDialogTarget.close()
+    if (restoreFocus && trigger?.isConnected && !this.panelTarget.hidden) trigger.focus()
+  }
+
+  async submitRename(event) {
+    event.preventDefault()
+    const conversation = this.renameConversation
+    const title = this.renameInputTarget.value.trim()
+    if (!conversation || !this.conversationManagementEnabled()) return
+    if (!title) {
+      this.renameInputTarget.setCustomValidity("Enter a conversation title.")
+      this.renameInputTarget.reportValidity()
+      return
+    }
+    const mutationToken = this.beginHistoryMutation()
+    if (!mutationToken) return
+
+    this.renameInputTarget.setCustomValidity("")
+    this.renameSubmitTarget.disabled = true
+    this.renameCancelTarget.disabled = true
+    this.renameDialogTarget.setAttribute("aria-busy", "true")
+    this.renameInFlight = true
+    const focusControl = this.renameFocusControl
+    try {
+      const response = await assistantApi.renameConversation(
+        conversation.id,
+        title,
+        { signal: this.requestSignal() }
+      )
+      if (response.aborted) return
+      if (!response.ok) {
+        if (response.status === 422) {
+          this.renameInputTarget.setCustomValidity("Use a title between 1 and 200 characters.")
+          this.renameInputTarget.reportValidity()
+          this.setStatus("Conversation title was rejected.")
+          return
+        }
+        return this.showRequestError(response)
+      }
+
+      const renamed = response.data
+      this.conversations = (this.conversations || []).map((item) =>
+        String(item.id) === String(renamed.id) ? renamed : item
+      )
+      if (String(this.currentConversation?.id) === String(renamed.id)) {
+        this.currentConversation = { ...this.currentConversation, title: renamed.title }
+      }
+      this.resetRenameDialog({ restoreFocus: false })
+      this.renderConversationList(this.conversations)
+      this.focusConversationControl(renamed.id, focusControl)
+      this.setStatus("Conversation renamed.")
+    } finally {
+      this.renameInFlight = false
+      this.renameSubmitTarget.disabled = false
+      this.renameCancelTarget.disabled = false
+      this.renameDialogTarget.removeAttribute("aria-busy")
+      this.finishHistoryMutation(mutationToken)
+    }
+  }
+
+  moveHistoryUp() {
+    this.moveHistoryConversation(-1)
+  }
+
+  moveHistoryDown() {
+    this.moveHistoryConversation(1)
+  }
+
+  async moveHistoryConversation(direction) {
+    const conversation = this.historyMenuConversation
+    this.closeHistoryMenu({ restoreFocus: false })
+    if (!conversation || !this.conversationManagementEnabled() ||
+        this.reorderInFlight || this.historyMutationToken) return
+    await this.persistConversationOrder(
+      moveConversation(this.conversations || [], conversation.id, direction),
+      { focusConversationId: conversation.id },
+    )
+  }
+
+  startHistoryDrag(conversation, event, row) {
+    if (!this.conversationManagementEnabled() || this.reorderInFlight || this.historyMutationToken) {
+      event.preventDefault()
+      this.setStatus("Conversation reordering is disabled.")
+      return
+    }
+    this.closeHistoryMenu({ restoreFocus: false })
+    this.draggedConversationId = conversation.id
+    row.classList.add("opacity-60")
+    event.dataTransfer?.setData("text/plain", String(conversation.id))
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+  }
+
+  dragHistoryOver(conversation, event, row) {
+    if (this.draggedConversationId === null ||
+        String(this.draggedConversationId) === String(conversation.id)) return
+    event.preventDefault()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
+    this.clearHistoryDropIndicators()
+    const rect = row.getBoundingClientRect()
+    const placement = event.clientY < rect.top + rect.height / 2 ? "before" : "after"
+    row.dataset.dropPlacement = placement
+    row.classList.add(placement === "before" ? "border-t-white" : "border-b-white")
+  }
+
+  async dropHistoryConversation(conversation, event, row) {
+    if (this.draggedConversationId === null) return
+    event.preventDefault()
+    const placement = row.dataset.dropPlacement || "before"
+    const next = reorderConversation(
+      this.conversations || [],
+      this.draggedConversationId,
+      conversation.id,
+      placement,
+    )
+    this.endHistoryDrag()
+    await this.persistConversationOrder(next)
+  }
+
+  endHistoryDrag() {
+    this.draggedConversationId = null
+    this.clearHistoryDropIndicators()
+    this.conversationListTarget.querySelectorAll(".opacity-60").forEach((row) =>
+      row.classList.remove("opacity-60")
+    )
+  }
+
+  clearHistoryDropIndicators() {
+    this.conversationListTarget.querySelectorAll("[data-drop-placement]").forEach((row) => {
+      row.classList.remove("border-t-white", "border-b-white")
+      delete row.dataset.dropPlacement
+    })
+  }
+
+  async persistConversationOrder(next, { focusConversationId = null } = {}) {
+    if (this.reorderInFlight || this.historyMutationToken ||
+        !this.conversationManagementEnabled()) return
+    const before = [...(this.conversations || [])]
+    const beforeIds = conversationIds(before).map(String)
+    const nextIds = conversationIds(next).map(String)
+    if (beforeIds.join("\u0000") === nextIds.join("\u0000")) return
+    const mutationToken = this.beginHistoryMutation()
+    if (!mutationToken) return
+
+    this.reorderInFlight = true
+    this.renderConversationList(next)
+    if (focusConversationId !== null) this.focusConversationControl(focusConversationId, "menu")
+    this.setStatus("Saving conversation order…")
+    try {
+      const response = await assistantApi.reorderConversations(
+        conversationIds(next),
+        { signal: this.requestSignal() }
+      )
+      if (response.aborted) {
+        this.renderConversationList(before)
+        if (focusConversationId !== null) this.focusConversationControl(focusConversationId, "menu")
+        return
+      }
+      if (!response.ok) {
+        this.renderConversationList(before)
+        if (response.status === 409) await this.refreshConversationList()
+        if (focusConversationId !== null) this.focusConversationControl(focusConversationId, "menu")
+        return this.showRequestError(response)
+      }
+
+      this.renderConversationList(response.data.conversations || next)
+      if (focusConversationId !== null) this.focusConversationControl(focusConversationId, "menu")
+      this.setStatus("Conversation order saved.")
+    } finally {
+      this.reorderInFlight = false
+      this.finishHistoryMutation(mutationToken)
+    }
+  }
+
+  focusConversationControl(conversationId, control = "title") {
+    const rows = [...this.conversationListTarget.children]
+    const row = conversationId === null || conversationId === undefined
+      ? rows[0]
+      : rows.find((item) => String(item.dataset.conversationId) === String(conversationId))
+    const target = row?.children[control === "menu" ? 1 : 0]
+    target?.focus()
+    return Boolean(target)
   }
 
   handleComposerKeydown(event) {
@@ -505,9 +934,44 @@ export default class extends Controller {
 
   appendMessage(message) {
     if (message.id && this.renderedMessageIds.has(message.id)) return
-    appendMessage(document, this.messagesTarget, message)
+    appendMessage(document, this.messagesTarget, message, {
+      onCopy: (copiedMessage) => this.copyMessage(copiedMessage),
+    })
     if (message.id) this.renderedMessageIds.add(message.id)
     scrollMessageLog(this.messagesTarget)
+  }
+
+  async copyMessage(message) {
+    try {
+      await navigator.clipboard.writeText(String(message?.body || ""))
+      this.setStatus("Message copied.")
+    } catch {
+      this.setStatus("The message could not be copied.")
+    }
+  }
+
+  decreaseFontScale() {
+    this.updateFontScale(-1)
+  }
+
+  increaseFontScale() {
+    this.updateFontScale(1)
+  }
+
+  updateFontScale(delta) {
+    const next = changeFontScale(this.fontScaleIndex, delta)
+    this.fontScaleIndex = next.index
+    saveFontScaleIndex(this.panelStorage(), this.fontScaleIndex)
+    this.applyFontScale()
+  }
+
+  applyFontScale() {
+    const value = FONT_SCALES[this.fontScaleIndex] || 1
+    this.panelTarget.style.setProperty("--assistant-message-scale", String(value))
+    if (!this.hasFontScaleStatusTarget) return
+    this.fontScaleStatusTarget.textContent = `${value * 100}%`
+    this.fontDecreaseTarget.disabled = this.fontScaleIndex <= 0
+    this.fontIncreaseTarget.disabled = this.fontScaleIndex >= FONT_SCALES.length - 1
   }
 
   renderTurn(turn) {
@@ -637,8 +1101,9 @@ export default class extends Controller {
   }
 
   async refreshConversationList() {
+    const requestToken = this.historyListRequests.issue()
     const response = await assistantApi.listConversations({ signal: this.requestSignal() })
-    if (response.aborted) return
+    if (response.aborted || !this.historyListRequests.current(requestToken)) return
     if (response.ok) this.renderConversationList(response.data.conversations || [])
   }
 
@@ -651,6 +1116,12 @@ export default class extends Controller {
     const code = response.data?.error
     const message = code === "assistant_disabled"
       ? "The assistant kill switch is off."
+      : code === "conversation_management_disabled"
+        ? "Conversation renaming and reordering are disabled."
+      : code === "conversation_order_stale"
+        ? "Conversation history changed. The current order was reloaded."
+      : code === "invalid_order"
+        ? "Conversation order was rejected."
       : code === "assistant_dispatch_unavailable"
         ? "Dispatch was interrupted. Retry to create a new turn."
       : code === "context_invalid"

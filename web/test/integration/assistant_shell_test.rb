@@ -1,4 +1,5 @@
 require "test_helper"
+require "json"
 
 class AssistantShellTest < ActionDispatch::IntegrationTest
   setup do
@@ -38,6 +39,7 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     assert_select "button[data-assistant-target='resizeHandle'][aria-label='Resize Hunter assistant'][data-action*='pointerdown->assistant#startResize'][data-action*='keydown->assistant#resizeWithKeyboard']"
     assert_select "button[data-assistant-target='resizeHandle'][aria-keyshortcuts='ArrowLeft ArrowRight ArrowUp ArrowDown'][aria-describedby='hunter-assistant-resize-help']"
     assert_select "#hunter-assistant-resize-status[data-assistant-target='resizeStatus'][role='status'][aria-live='polite']"
+    assert_select "[data-assistant-resize-label]", text: /Drag to resize/i
     assert_select "button[aria-label='Close Hunter assistant']"
     assert_select "details[data-assistant-target='capabilityDisclosure'] > summary", text: /Data access & actions/i
     assert_select "form[data-action*='assistant#startConversation'] select[data-assistant-target='providerSelect']"
@@ -46,7 +48,16 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     assert_select "details[data-assistant-target='contextDisclosure'] > summary", text: /Add Hunter context/i
     assert_select "[data-assistant-target='disclosurePreview']"
     assert_select "[data-assistant-target='drafts'][aria-live='polite']"
+    assert_select "[data-assistant-target='historyMenu'][role='menu'][hidden]"
+    assert_select "dialog[data-assistant-target='renameDialog'] input[data-assistant-target='renameInput'][maxlength='200']"
+    assert_select "button[data-assistant-target='fontDecrease'][aria-label='Decrease chat text size']"
+    assert_select "button[data-assistant-target='fontIncrease'][aria-label='Increase chat text size']"
+    assert_select "#hunter-assistant-delete-consequence", text: /Provider or backup copies may remain/i
     assert_select "[data-controller='toaster'].bottom-24"
+
+    importmap = JSON.parse(css_select("script[type='importmap']").sole.text)
+    assert_match %r{\A/assets/lib/assistant_markdown-[a-f0-9]+\.js\z},
+      importmap.fetch("imports").fetch("#assistant-markdown")
   end
 
   test "shell discloses non-secret reads and permission-free bounded authoring" do

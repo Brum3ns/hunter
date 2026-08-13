@@ -136,6 +136,107 @@
   user-select: none !important;
 }
 
+/* Sanitized Assistant Markdown. All selectors stay under this rendering
+   boundary so transcript content cannot alter the rest of Hunter's layout. */
+.assistant-markdown {
+  font-size: calc(0.875rem * var(--assistant-message-scale, 1));
+  line-height: 1.65;
+}
+.assistant-markdown > :first-child { margin-top: 0; }
+.assistant-markdown > :last-child { margin-bottom: 0; }
+.assistant-markdown p,
+.assistant-markdown ul,
+.assistant-markdown ol,
+.assistant-markdown blockquote,
+.assistant-markdown pre,
+.assistant-markdown table,
+.assistant-markdown hr { margin: 0.7em 0; }
+.assistant-markdown ul,
+.assistant-markdown ol { padding-left: 1.4em; }
+.assistant-markdown ul { list-style: disc; }
+.assistant-markdown ol { list-style: decimal; }
+.assistant-markdown li + li { margin-top: 0.2em; }
+.assistant-markdown h1,
+.assistant-markdown h2,
+.assistant-markdown h3,
+.assistant-markdown h4,
+.assistant-markdown h5,
+.assistant-markdown h6 {
+  margin: 1em 0 0.45em;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.assistant-markdown h1 { font-size: 1.45em; }
+.assistant-markdown h2 { font-size: 1.3em; }
+.assistant-markdown h3 { font-size: 1.17em; }
+.assistant-markdown h4,
+.assistant-markdown h5,
+.assistant-markdown h6 { font-size: 1em; }
+.assistant-markdown blockquote {
+  border-left: 3px solid rgb(161 161 170);
+  padding-left: 0.85em;
+  color: rgb(82 82 91);
+}
+.dark .assistant-markdown blockquote {
+  border-left-color: rgb(82 82 91);
+  color: rgb(212 212 216);
+}
+.assistant-markdown a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+.assistant-markdown code {
+  border: 1px solid rgb(212 212 216);
+  border-radius: 0.3rem;
+  background: rgb(244 244 245);
+  padding: 0.08em 0.32em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+.dark .assistant-markdown code {
+  border-color: rgb(82 82 91);
+  background: rgb(39 39 42);
+}
+.assistant-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgb(63 63 70);
+  border-radius: 0.55rem;
+  background: rgb(9 9 11);
+  padding: 0.75em 0.9em;
+  color: rgb(244 244 245);
+}
+.assistant-markdown pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  white-space: pre;
+}
+.assistant-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.assistant-markdown th,
+.assistant-markdown td {
+  border: 1px solid rgb(212 212 216);
+  padding: 0.4em 0.55em;
+  text-align: left;
+  vertical-align: top;
+}
+.assistant-markdown th { background: rgb(244 244 245); font-weight: 700; }
+.dark .assistant-markdown th,
+.dark .assistant-markdown td { border-color: rgb(82 82 91); }
+.dark .assistant-markdown th { background: rgb(39 39 42); }
+.assistant-markdown hr { border: 0; border-top: 1px solid rgb(212 212 216); }
+.dark .assistant-markdown hr { border-top-color: rgb(82 82 91); }
+
 /* "Fit window" mode — wrap long request/response/curl lines instead of scrolling. */
 .code-fit {
   overflow-x: hidden;

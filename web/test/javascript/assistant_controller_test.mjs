@@ -12,6 +12,8 @@ class FakeElement {
     this.dataset = {}
     this.hidden = false
     this.disabled = false
+    this.className = ""
+    this.draggable = false
     this._textContent = ""
   }
 
@@ -22,6 +24,8 @@ class FakeElement {
   appendChild(child) { this.children.push(child); return child }
   replaceChildren(...children) { this.children = children }
   setAttribute(name, value) { this.attributes[name] = String(value) }
+  getAttribute(name) { return this.attributes[name] }
+  removeAttribute(name) { delete this.attributes[name] }
   addEventListener(name, handler) { this[`on${name}`] = handler }
 
   querySelector(tagName) {
@@ -34,7 +38,26 @@ class FakeElement {
   }
 }
 
-const fakeDocument = { createElement: (tagName) => new FakeElement(tagName) }
+class FakeTextNode {
+  constructor(value) {
+    this.tagName = "#text"
+    this.textContent = String(value)
+  }
+}
+
+const fakeDocument = {
+  createElement: (tagName) => new FakeElement(tagName),
+  createTextNode: (value) => new FakeTextNode(value),
+}
+
+function findElements(root, predicate) {
+  const matches = []
+  for (const child of root.children || []) {
+    if (predicate(child)) matches.push(child)
+    matches.push(...findElements(child, predicate))
+  }
+  return matches
+}
 
 function installBrowserDoubles() {
   const requests = []
@@ -192,25 +215,114 @@ test("conversation list renders an inert empty state and marks only the current 
   ], { currentId: 7, onSelect() {} })
 
   assert.equal(list.children.length, 2)
-  assert.equal(list.children[0].textContent, "<script>Current</script>")
+  const currentRow = list.children[0]
+  const currentTitle = currentRow.children[0]
+  assert.equal(currentTitle.textContent, "<script>Current</script>")
   assert.equal(list.children[0].querySelector("script"), null)
-  assert.equal(list.children[0].attributes["aria-current"], "true")
-  assert.match(list.children[0].className, /assistant-conversation-active/)
-  assert.equal(list.children[1].attributes["aria-current"], undefined)
+  assert.equal(currentTitle.attributes["aria-current"], "true")
+  assert.match(currentRow.className, /assistant-conversation-active/)
+  assert.equal(list.children[1].children[0].attributes["aria-current"], undefined)
 })
 
-test("message rendering preserves adversarial markup as text and neutralizes control characters", () => {
+test("conversation rows expose pointer keyboard menu and drag callbacks without parsing titles", () => {
+  const events = []
+  const list = new FakeElement("div")
+  ui.renderConversationList(fakeDocument, list, [
+    { id: "7/unsafe", title: '<img src=x onerror="steal()">' },
+  ], {
+    onSelect: (conversation) => events.push(["select", conversation.id]),
+    onContextMenu: (conversation) => events.push(["context", conversation.id]),
+    onMenu: (conversation) => events.push(["menu", conversation.id]),
+    onDragStart: (conversation) => events.push(["dragstart", conversation.id]),
+    onDragOver: (conversation) => events.push(["dragover", conversation.id]),
+    onDrop: (conversation) => events.push(["drop", conversation.id]),
+    onDragEnd: (conversation) => events.push(["dragend", conversation.id]),
+  })
+
+  const row = list.children[0]
+  const title = row.children[0]
+  const menu = row.children[1]
+  assert.equal(row.draggable, true)
+  assert.equal(title.dataset.conversationId, "7/unsafe")
+  assert.equal(title.textContent, '<img src=x onerror="steal()">')
+  assert.equal(title.querySelector("img"), null)
+  assert.equal(menu.attributes["aria-haspopup"], "menu")
+  assert.match(menu.attributes["aria-label"], /Actions for/)
+
+  let prevented = 0
+  title.onclick({})
+  title.oncontextmenu({ preventDefault() { prevented += 1 } })
+  title.onkeydown({ key: "F10", shiftKey: true, preventDefault() { prevented += 1 } })
+  title.onkeydown({ key: "ContextMenu", shiftKey: false, preventDefault() { prevented += 1 } })
+  menu.onclick({})
+  row.ondragstart({})
+  row.ondragover({})
+  row.ondrop({})
+  row.ondragend({})
+
+  assert.equal(prevented, 3)
+  assert.deepEqual(events, [
+    ["select", "7/unsafe"],
+    ["context", "7/unsafe"],
+    ["menu", "7/unsafe"],
+    ["menu", "7/unsafe"],
+    ["menu", "7/unsafe"],
+    ["dragstart", "7/unsafe"],
+    ["dragover", "7/unsafe"],
+    ["drop", "7/unsafe"],
+    ["dragend", "7/unsafe"],
+  ])
+})
+
+test("messages render safe Markdown cards with profile bubbles and original-body copy", () => {
   assert.equal(typeof ui.appendMessage, "function")
   const container = new FakeElement("section")
   const attack = '<script>alert("x")</script>\u001b[31m\u0000'
+  const copied = []
 
-  ui.appendMessage(fakeDocument, container, { role: "assistant", body: attack })
+  ui.appendMessage(
+    fakeDocument,
+    container,
+    { role: "assistant", body: attack },
+    { onCopy: (message) => copied.push(message.body) },
+  )
+  ui.appendMessage(
+    fakeDocument,
+    container,
+    { role: "user", body: "**my question**" },
+    { onCopy: (message) => copied.push(message.body) },
+  )
 
-  assert.equal(container.children.length, 1)
+  assert.equal(container.children.length, 2)
   assert.match(container.textContent, /<script>alert\("x"\)<\/script>/)
   assert.equal(container.textContent.includes("\u001b"), false)
   assert.equal(container.textContent.includes("\u0000"), false)
   assert.match(container.textContent, /Hunter assistant/)
+  const assistantRow = container.children[0]
+  const userRow = container.children[1]
+  assert.equal(assistantRow.children[0].dataset.avatarRole, "assistant")
+  assert.equal(assistantRow.children[1].tagName, "article")
+  assert.equal(userRow.children[0].tagName, "article")
+  assert.equal(userRow.children[1].dataset.avatarRole, "user")
+  assert.equal(findElements(assistantRow, (element) => element.className?.includes("assistant-markdown")).length, 1)
+
+  const copyButtons = findElements(
+    container,
+    (element) => element.tagName === "button" && element.textContent === "Copy",
+  )
+  assert.equal(copyButtons.length, 2)
+  copyButtons[0].onclick()
+  copyButtons[1].onclick()
+  assert.deepEqual(copied, [attack, "**my question**"])
+})
+
+test("conversation deletion confirmation names the effect without changing title text", () => {
+  assert.equal(
+    ui.conversationDeletionText({ title: '<script>Quarterly</script>' }),
+    "Delete “<script>Quarterly</script>”?\n\n" +
+      "Hunter will permanently delete this local conversation and its messages. " +
+      "Provider or backup copies may remain under their retention policies.",
+  )
 })
 
 test("message log scrolling follows the newest rendered content", () => {

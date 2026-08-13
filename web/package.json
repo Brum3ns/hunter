@@ -1,7 +1,11 @@
 {
   "private": true,
   "type": "module",
+  "imports": {
+    "#assistant-markdown": "./app/javascript/lib/assistant_markdown.js"
+  },
   "devDependencies": {
+    "@hotwired/stimulus": "3.2.2",
     "dompurify": "3.4.13",
     "jsdom": "30.0.1",
     "marked": "18.0.9"

@@ -4,6 +4,7 @@ require "pathname"
 
 class AssistantShellMarkupTest < Minitest::Test
   TEMPLATE = Pathname(__dir__).join("../../app/views/layouts/_assistant.html.erb").freeze
+  STYLESHEET = Pathname(__dir__).join("../../app/assets/tailwind/application.css").freeze
 
   def setup
     @document = Nokogiri::HTML5.fragment(TEMPLATE.read)
@@ -21,6 +22,53 @@ class AssistantShellMarkupTest < Minitest::Test
     assert_equal "Resize Hunter assistant", handle["aria-label"]
     assert_equal "hunter-assistant-resize-help", handle["aria-describedby"]
     assert @document.at_css("#hunter-assistant-resize-status[data-assistant-target='resizeStatus'][role='status'][aria-live='polite']")
+    assert @document.at_css("[data-assistant-resize-label]"), "resize affordance needs visible help"
+  end
+
+  def test_history_menu_rename_dialog_and_font_controls_are_accessible
+    menu = @document.at_css("[data-assistant-target='historyMenu'][role='menu'][hidden]")
+    dialog = @document.at_css("dialog[data-assistant-target='renameDialog'][aria-labelledby='hunter-assistant-rename-title']")
+
+    assert menu
+    assert_includes menu["data-action"], "keydown->assistant#handleHistoryMenuKeydown"
+    assert menu.at_css("button[data-action='assistant#beginRename'][role='menuitem']")
+    assert menu.at_css("button[data-action='assistant#moveHistoryUp'][role='menuitem']")
+    assert menu.at_css("button[data-action='assistant#moveHistoryDown'][role='menuitem']")
+    assert menu.at_css("button[data-action='assistant#deleteHistoryConversation'][role='menuitem']")
+    assert dialog
+    assert dialog.at_css("form[data-action='submit->assistant#submitRename'] input[data-assistant-target='renameInput'][maxlength='200']")
+    assert dialog.at_css("button[data-assistant-target='renameCancel'][data-action='assistant#cancelRename']")
+    assert dialog.at_css("button[data-assistant-target='renameSubmit'][type='submit']")
+    assert @document.at_css("button[data-assistant-target='fontDecrease'][aria-label='Decrease chat text size']")
+    assert @document.at_css("button[data-assistant-target='fontIncrease'][aria-label='Increase chat text size']")
+    assert @document.at_css("[data-assistant-target='fontScaleStatus'][role='status'][aria-live='polite']")
+  end
+
+  def test_delete_controls_share_the_explicit_retention_consequence
+    disclosure = @document.at_css("#hunter-assistant-delete-consequence")
+
+    assert_match(/permanently delete this local conversation/i, disclosure&.text)
+    assert_match(/provider or backup copies may remain/i, disclosure&.text)
+    assert @document.at_css("button[data-action='assistant#deleteConversation'][aria-describedby='hunter-assistant-delete-consequence']")
+  end
+
+  def test_assistant_shell_uses_strong_neutral_boundaries_without_cyan
+    panel = @document.at_css("#hunter-assistant-panel")
+    messages = @document.at_css("[data-assistant-target='messages']")
+
+    assert_match(/border-zinc-(?:300|400|500)/, panel["class"])
+    assert_match(/border-zinc-(?:200|300|400|500)/, messages["class"])
+    assistant_classes = @document.css("[data-controller='assistant'] [class]").map { |node| node["class"] }.join(" ")
+    refute_includes assistant_classes, "cyan-"
+  end
+
+  def test_markdown_typography_is_namespaced_and_uses_the_message_scale
+    css = STYLESHEET.read
+
+    assert_includes css, "font-size: calc(0.875rem * var(--assistant-message-scale, 1))"
+    %w[h1 blockquote code pre table a].each do |element|
+      assert_includes css, ".assistant-markdown #{element}", element
+    end
   end
 
   def test_large_capability_and_context_controls_are_collapsed_disclosures
