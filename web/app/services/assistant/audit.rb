@@ -21,7 +21,7 @@ module Assistant
       target_id
       metadata
     ].freeze
-    METADATA_KEYS = %w[operation reason limit outcome request_id source].freeze
+    METADATA_KEYS = %w[operation reason limit outcome request_id source count].freeze
 
     module_function
 

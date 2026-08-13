@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_100100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_13_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -81,6 +81,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_100100) do
     t.string "claude_session_id"
     t.datetime "created_at", null: false
     t.datetime "expires_at", null: false
+    t.bigint "history_position"
     t.bigint "provider_profile_id", null: false
     t.string "status", default: "active", null: false
     t.string "title", default: "New conversation", null: false
@@ -88,6 +89,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_100100) do
     t.bigint "user_id", null: false
     t.index ["provider_profile_id"], name: "index_assistant_conversations_on_provider_profile_id"
     t.index ["status", "expires_at"], name: "idx_assistant_conversations_status_expiry"
+    t.index ["user_id", "history_position"], name: "idx_assistant_conversations_user_history"
     t.index ["user_id", "updated_at"], name: "idx_assistant_conversations_user_updated"
     t.index ["user_id"], name: "index_assistant_conversations_on_user_id"
   end
@@ -179,6 +181,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_100100) do
     t.boolean "assistant_enabled", default: false, null: false
     t.integer "audit_retention_days", default: 90, null: false
     t.boolean "control_center_write_enabled", default: true, null: false
+    t.boolean "conversation_management_enabled", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "disabled_at"
     t.bigint "disabled_by_id"

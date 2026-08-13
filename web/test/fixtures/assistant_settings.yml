@@ -4,5 +4,6 @@ _fixture:
 default:
   singleton_key: true
   assistant_enabled: false
+  conversation_management_enabled: true
   transcript_retention_days: 7
   audit_retention_days: 90

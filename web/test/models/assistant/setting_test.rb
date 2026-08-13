@@ -60,4 +60,39 @@ class Assistant::SettingTest < ActiveSupport::TestCase
     assert_equal "control_center_write.enabled", event.event
     assert_equal "enabled", event.metadata["outcome"]
   end
+
+  test "conversation management defaults on independently of Control Center authoring" do
+    setting = Assistant::Setting.instance
+
+    assert setting.conversation_management_enabled?
+    assert setting.control_center_write_enabled?
+
+    setting.disable_conversation_management!(user: users(:one))
+
+    refute setting.reload.conversation_management_enabled?
+    assert setting.control_center_write_enabled?
+  end
+
+  test "conversation management toggle changes are attributed and audited" do
+    setting = Assistant::Setting.instance
+    user = users(:one)
+
+    assert_difference "Assistant::AuditEvent.count", 1 do
+      setting.disable_conversation_management!(user: user)
+    end
+    disabled = Assistant::AuditEvent.order(:id).last
+    assert_equal "conversation_management.disabled", disabled.event
+    assert_equal user.id, disabled.user_id
+    assert_equal({
+      "operation" => "conversation_management", "outcome" => "disabled"
+    }, disabled.metadata)
+
+    assert_difference "Assistant::AuditEvent.count", 1 do
+      setting.enable_conversation_management!(user: user)
+    end
+    enabled = Assistant::AuditEvent.order(:id).last
+    assert_equal "conversation_management.enabled", enabled.event
+    assert_equal user.id, enabled.user_id
+    assert_equal "enabled", enabled.metadata["outcome"]
+  end
 end

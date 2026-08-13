@@ -30,6 +30,14 @@ module Assistant
       def disable_control_center_write!(user:)
         instance.disable_control_center_write!(user: user)
       end
+
+      def enable_conversation_management!(user:)
+        instance.enable_conversation_management!(user: user)
+      end
+
+      def disable_conversation_management!(user:)
+        instance.disable_conversation_management!(user: user)
+      end
     end
 
     def enable!
@@ -53,6 +61,28 @@ module Assistant
       Assistant::Audit.record!(
         event: "control_center_write.disabled",
         attributes: { user_id: user&.id, metadata: { operation: "control_center_write", outcome: "disabled" } }
+      )
+    end
+
+    def enable_conversation_management!(user:)
+      update!(conversation_management_enabled: true)
+      Assistant::Audit.record!(
+        event: "conversation_management.enabled",
+        attributes: {
+          user_id: user&.id,
+          metadata: { operation: "conversation_management", outcome: "enabled" }
+        }
+      )
+    end
+
+    def disable_conversation_management!(user:)
+      update!(conversation_management_enabled: false)
+      Assistant::Audit.record!(
+        event: "conversation_management.disabled",
+        attributes: {
+          user_id: user&.id,
+          metadata: { operation: "conversation_management", outcome: "disabled" }
+        }
       )
     end
 

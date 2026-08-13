@@ -16,6 +16,10 @@ module Assistant
 
     before_validation :set_expiration, on: :create
 
+    scope :history_ordered, -> {
+      order(arel_table[:history_position].asc.nulls_last, updated_at: :desc, id: :desc)
+    }
+
     validates :status, inclusion: { in: STATUSES }
     validates :title, presence: true, length: { maximum: 200 }
     validates :expires_at, presence: true
@@ -24,8 +28,37 @@ module Assistant
 
     class << self
       def start!(user:, provider_profile:)
-        create!(user: user, provider_profile: provider_profile)
+        transaction do
+          user.lock!
+          minimum = where(user_id: user.id).minimum(:history_position)
+          create!(
+            user: user,
+            provider_profile: provider_profile,
+            history_position: minimum.nil? ? 0 : minimum - 1
+          )
+        end
       end
+    end
+
+    def rename_by!(actor:, title:)
+      raise ActiveRecord::RecordNotFound unless actor && actor.id == user_id
+
+      renamed = self.class.transaction do
+        conversation = self.class.lock.find(id)
+        conversation.update!(title: title.is_a?(String) ? title.strip : title)
+        Assistant::Audit.record!(
+          event: "conversation.renamed",
+          attributes: {
+            user_id: actor.id,
+            conversation_id: conversation.id,
+            status: "accepted",
+            metadata: { operation: "conversation_rename", outcome: "accepted" }
+          }
+        )
+        conversation
+      end
+      reload
+      renamed
     end
 
     def append_user_turn!(body:, context_refs:)
