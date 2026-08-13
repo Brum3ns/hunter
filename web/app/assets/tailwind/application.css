@@ -134,7 +134,10 @@
 }
 @media (max-width: 639px) {
   .assistant-workspace-grid[data-history-collapsed="false"] {
-    grid-template-columns: 3.25rem minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .assistant-workspace-grid[data-history-collapsed="false"] .assistant-chat-column {
+    grid-column: 1;
   }
   .assistant-workspace-grid[data-history-collapsed="false"] .assistant-history-sidebar {
     bottom: 0;

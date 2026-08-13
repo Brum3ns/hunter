@@ -53,6 +53,13 @@ class AssistantShellMarkupTest < Minitest::Test
     assert_equal sidebar["id"], toggle["aria-controls"]
   end
 
+  def test_new_chat_keeps_an_unconditional_name_when_collapsed_text_is_hidden
+    new_chat = @document.at_css("button[data-action='assistant#showNewConversation']")
+
+    assert new_chat.at_css("[data-history-expanded-only]")
+    assert_equal "New chat", new_chat["aria-label"]
+  end
+
   def test_delete_controls_share_the_explicit_retention_consequence
     disclosure = @document.at_css("#hunter-assistant-delete-consequence")
 
