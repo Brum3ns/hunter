@@ -1,6 +1,6 @@
 # Assistant Conversation Workspace — Design & Threat-Model Delta
 
-**Status:** APPROVED BY OPERATOR
+**Status:** COMPLETE — APPROVED AND VERIFIED
 
 **Date:** 2026-08-13
 
@@ -335,3 +335,42 @@ part of a routine version bump.
   attributes.
 - Any LLM tool for rename, reorder, delete, clipboard, browser storage, or UI
   control.
+
+## Completion record
+
+Implementation completed on 2026-08-13. The shipped boundaries are recorded in
+commits `9001dc3`, `d4d72e9`, `f066a0e`, `1602088`, and `5a3bef8`; the approved
+design and implementation plan are in `571191a` and `4d27246`.
+
+Verification evidence:
+
+- A clean `npm ci` installed 43 packages with zero reported vulnerabilities.
+  Vendored Marked and DOMPurify SHA-256 values exactly matched
+  `assistant-markdown-vendor.json`.
+- The complete JavaScript suite passed 101 tests, including DOMPurify's
+  adversarial corpus and real Stimulus/jsdom deferred-response coverage for
+  history races, rename dismissal, optimistic ordering, focus restoration,
+  context-menu boundaries, and keyboard movement.
+- The focused Assistant/model/service/API/OpenAPI/static suite passed 200 tests
+  with 1,163 assertions. The full Rails suite passed 1,307 tests with 6,572
+  assertions and no failures, errors, or skips.
+- Tailwind CSS v4.3.1 built successfully; `bin/rails zeitwerk:check` reported
+  all good; `git diff --check` was clean.
+- An authenticated smoke at `http://172.17.0.1:5000` returned the expected
+  login redirect plus `200` for the shell and bootstrap. The final controller,
+  UI helper, Markdown boundary, Marked, and DOMPurify fingerprinted assets all
+  returned `200`. Two temporary conversations were created (`201`), one was
+  renamed and the complete list reordered (`200`), persistence was fetched,
+  the original order was restored, and both temporary records were deleted.
+  Cleanup was verified afterward.
+- No provider turn was invoked during live verification. Malicious Markdown
+  stayed within the local jsdom sanitizer corpus, avoiding external model cost
+  or provider retention. No credentials, transcript bodies, or provider output
+  were recorded in verification evidence.
+- Independent review initially found async history races, rename-dismissal
+  ambiguity, lost rerender focus, and missing controller-level tests. Those
+  issues were fixed; follow-up review reported no remaining Critical or
+  Important findings and assessed the change ready to merge.
+
+This implementation does not itself satisfy the independent Assistant
+production-activation checklist; that gate remains unchanged.

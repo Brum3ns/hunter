@@ -1,6 +1,6 @@
 # Assistant Conversation Workspace Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use task checkboxes for tracking.
 
 **Goal:** Deliver owner-scoped conversation rename/reorder/delete controls and a Hunter-native, resizable, scalable chat that safely renders Markdown with avatars and per-message copy actions.
 
@@ -44,7 +44,7 @@
 - Produces: `Assistant::ConversationOrganization::InvalidOrder#code` with `invalid_order` or `conversation_order_stale`.
 - Produces: `Assistant::Setting#conversation_management_enabled?`, `.enable_conversation_management!(user:)`, and `.disable_conversation_management!(user:)`.
 
-- [ ] **Step 1: Write failing model/service tests for ordering, rename, exact permutations, atomic failure, and the independent toggle**
+- [x] **Step 1: Write failing model/service tests for ordering, rename, exact permutations, atomic failure, and the independent toggle**
 
 Add literal expectations such as:
 
@@ -103,7 +103,7 @@ new chats take a position before the current minimum. Test enable/disable
 methods flip and audit the new setting without affecting
 `control_center_write_enabled`.
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run:
 
@@ -115,7 +115,7 @@ bin/rails test test/models/assistant/conversation_test.rb test/models/assistant/
 Expected: failures identify the missing column, scope, methods, service, and
 setting.
 
-- [ ] **Step 3: Add the migration and minimal transactional implementation**
+- [x] **Step 3: Add the migration and minimal transactional implementation**
 
 Migration body:
 
@@ -149,7 +149,7 @@ Add setting class/instance enable/disable methods that record
 `conversation_management.enabled`/`.disabled` with user ID and closed
 `operation`/`outcome` metadata.
 
-- [ ] **Step 4: Migrate and run the focused tests to verify GREEN**
+- [x] **Step 4: Migrate and run the focused tests to verify GREEN**
 
 Run:
 
@@ -161,7 +161,7 @@ bin/rails test test/models/assistant/conversation_test.rb test/models/assistant/
 
 Expected: all focused tests pass with zero errors.
 
-- [ ] **Step 5: Commit the data boundary**
+- [x] **Step 5: Commit the data boundary**
 
 ```bash
 git add web/db/migrate/20260813000000_add_assistant_conversation_workspace.rb web/db/schema.rb web/app/models/assistant/conversation.rb web/app/models/assistant/setting.rb web/app/services/assistant/audit.rb web/app/services/assistant/conversation_organization.rb web/test/models/assistant/conversation_test.rb web/test/models/assistant/setting_test.rb web/test/services/assistant/conversation_organization_test.rb web/test/fixtures/assistant_settings.yml
@@ -188,7 +188,7 @@ git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Add audit
 - Produces: `PATCH /api/v1/assistant/conversations/order` routed to `reorder` with exact `{conversation_ids}`.
 - Produces: safe `conversation_management_enabled` in settings/bootstrap and the existing settings update contract.
 
-- [ ] **Step 1: Write failing integration tests for success and every fail-closed boundary**
+- [x] **Step 1: Write failing integration tests for success and every fail-closed boundary**
 
 Add tests that:
 
@@ -220,7 +220,7 @@ toggle audit. Add OpenAPI assertions that both bodies have
 `additionalProperties: false`, exact required fields, integer items, and a
 1,000-item maximum.
 
-- [ ] **Step 2: Run the focused integration tests and verify RED**
+- [x] **Step 2: Run the focused integration tests and verify RED**
 
 Run:
 
@@ -231,7 +231,7 @@ bin/rails test test/integration/api/v1/assistant/conversations_test.rb test/inte
 
 Expected: failures name the missing routes/actions/setting field/OpenAPI paths.
 
-- [ ] **Step 3: Implement exact decoding, authorization, ordering, and audit**
+- [x] **Step 3: Implement exact decoding, authorization, ordering, and audit**
 
 Route shape:
 
@@ -261,11 +261,11 @@ and its explicit explanation.
 Document exact schemas, response codes, session-only security, revocation, and
 no generic update fields in OpenAPI.
 
-- [ ] **Step 4: Run the focused integration tests and verify GREEN**
+- [x] **Step 4: Run the focused integration tests and verify GREEN**
 
 Run the command from Step 2. Expected: all tests pass.
 
-- [ ] **Step 5: Commit the HTTP boundary**
+- [x] **Step 5: Commit the HTTP boundary**
 
 ```bash
 git add web/config/routes.rb web/app/controllers/api/v1/assistant web/app/views/settings/_assistant.html.erb web/config/openapi/assistant.yaml web/test/integration/api/v1/assistant web/test/integration/api/v1/openapi_test.rb web/test/integration/settings/assistant_test.rb
@@ -287,7 +287,7 @@ git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Add close
 - Produces: `FONT_SCALE_STORAGE_KEY`, `FONT_SCALES`, `loadFontScaleIndex(storage)`, `saveFontScaleIndex(storage, index)`, and `changeFontScale(index, delta)`.
 - Produces: `assistantApi.renameConversation(id, title)` and `assistantApi.reorderConversations(ids)`.
 
-- [ ] **Step 1: Write failing pure/client tests**
+- [x] **Step 1: Write failing pure/client tests**
 
 Use hand-derived list expectations:
 
@@ -308,7 +308,7 @@ clamping, input immutability, exact font storage keys, invalid/extra/non-integer
 fallback, and storage exceptions. Extend the API request test to assert encoded
 PATCH routes, CSRF, and exact JSON bodies.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 cd web
@@ -317,7 +317,7 @@ node --test test/javascript/assistant_history_test.mjs test/javascript/assistant
 
 Expected: missing-module/export failures.
 
-- [ ] **Step 3: Implement the minimal pure modules and API methods**
+- [x] **Step 3: Implement the minimal pure modules and API methods**
 
 Use exactly:
 
@@ -335,11 +335,11 @@ PATCH /api/v1/assistant/conversations/:encoded_id  { title }
 PATCH /api/v1/assistant/conversations/order        { conversation_ids: ids }
 ```
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run the Step 2 command. Expected: all pass.
 
-- [ ] **Step 5: Commit the browser state primitives**
+- [x] **Step 5: Commit the browser state primitives**
 
 ```bash
 git add web/app/javascript/lib/assistant_api.js web/app/javascript/lib/assistant_history.js web/app/javascript/lib/assistant_font_scale.js web/test/javascript/assistant_controller_test.mjs web/test/javascript/assistant_history_test.mjs web/test/javascript/assistant_font_scale_test.mjs
@@ -364,7 +364,7 @@ git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Add Assis
 - Produces: `safeDisplayText(value)` and `renderMarkdownFragment(documentRef, body, options = {})`.
 - `options.purifier` and `options.parser` exist only to test explicit unsupported/error fallback; normal browser calls use the pinned imports.
 
-- [ ] **Step 1: Add pinned packages and vendor exact distributions mechanically**
+- [x] **Step 1: Add pinned packages and vendor exact distributions mechanically**
 
 Create a private package file with exact dev dependencies:
 
@@ -386,7 +386,7 @@ into the listed vendor paths. Record version, upstream URL, source file, and
 SHA-256 for each distribution in `assistant-markdown-vendor.json`. Pin
 `marked`/`dompurify` to those local Propshaft assets in importmap.
 
-- [ ] **Step 2: Write failing jsdom tests for useful Markdown, raw HTML, malicious URLs, active elements, and fallback**
+- [x] **Step 2: Write failing jsdom tests for useful Markdown, raw HTML, malicious URLs, active elements, and fallback**
 
 Initialize jsdom before dynamically importing the module. Assert real returned
 DOM behavior, not source strings:
@@ -418,7 +418,7 @@ and a mutation-XSS fixture (`<math><mtext><table><mglyph><style><!--</style><img
 title=\"--></mglyph><img src=1 onerror=alert(1)>\">`). Fallback must return one
 text node containing the inert original display text.
 
-- [ ] **Step 3: Run the Markdown test and verify RED**
+- [x] **Step 3: Run the Markdown test and verify RED**
 
 ```bash
 cd web
@@ -428,7 +428,7 @@ node --test test/javascript/assistant_markdown_test.mjs
 
 Expected: missing `assistant_markdown.js` failure.
 
-- [ ] **Step 4: Implement the one-way parser/sanitizer pipeline**
+- [x] **Step 4: Implement the one-way parser/sanitizer pipeline**
 
 Instantiate a private `Marked` parser with `gfm: true`, `breaks: true`,
 `async: false`, and a raw-HTML renderer that HTML-escapes the token text. Call
@@ -439,7 +439,7 @@ spec, and `ALLOWED_ATTR: ["href", "title"]`. Do not combine
 overrides the latter. Do not mutate the returned fragment. Catch every parser
 or sanitizer error and return `documentRef.createTextNode(displayText)`.
 
-- [ ] **Step 5: Run the Markdown and complete JavaScript suite to verify GREEN**
+- [x] **Step 5: Run the Markdown and complete JavaScript suite to verify GREEN**
 
 ```bash
 cd web
@@ -449,7 +449,7 @@ node --test test/javascript/assistant_markdown_test.mjs test/javascript/*.mjs
 Expected: zero failures; malicious fixtures contain no active nodes or
 attributes.
 
-- [ ] **Step 6: Commit the pinned rendering boundary**
+- [x] **Step 6: Commit the pinned rendering boundary**
 
 ```bash
 git add web/package.json web/package-lock.json web/vendor/javascript/marked.esm.js web/vendor/javascript/dompurify.es.mjs web/vendor/javascript/licenses web/vendor/javascript/assistant-markdown-vendor.json web/config/importmap.rb web/app/javascript/lib/assistant_markdown.js web/test/javascript/assistant_markdown_test.mjs
@@ -471,7 +471,7 @@ git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Add a pin
 - Produces: shared context/overflow menu, rename dialog, pointer drag/drop,
   move fallbacks, confirmed delete, avatars, message copy, and font buttons.
 
-- [ ] **Step 1: Write failing UI and shell tests for accessible interactions**
+- [x] **Step 1: Write failing UI and shell tests for accessible interactions**
 
 Extend the fake DOM only with real methods the helpers consume (`removeAttribute`,
 `classList`, `createTextNode`, `focus`, and drag event listeners). Assert:
@@ -490,7 +490,7 @@ Extend the fake DOM only with real methods the helpers consume (`removeAttribute
   font decrease/increase controls, scale/status live region, more visible resize
   help, and shared delete confirmation disclosure.
 
-- [ ] **Step 2: Run focused JS/static shell tests and verify RED**
+- [x] **Step 2: Run focused JS/static shell tests and verify RED**
 
 ```bash
 cd web
@@ -501,7 +501,7 @@ bin/rails test test/integration/assistant_shell_test.rb
 
 Expected: failures identify missing row/menu/dialog/avatar/copy/font controls.
 
-- [ ] **Step 3: Implement inert rows, message cards, and static controls**
+- [x] **Step 3: Implement inert rows, message cards, and static controls**
 
 Refactor `renderConversationList` to create a draggable row with separate title
 and overflow buttons using only `createElement`, `textContent`, attributes, and
@@ -518,7 +518,7 @@ Add the one static menu, rename dialog/form, A−/A+ buttons, scale text, status
 region, and visible resize tooltip in ERB. Keep every existing Assistant target,
 disclosure string, context option, draft action, and composer behavior.
 
-- [ ] **Step 4: Wire controller state and effectful gestures**
+- [x] **Step 4: Wire controller state and effectful gestures**
 
 On connect, restore/apply the font index; bind outside-menu dismissal; initialize
 `historyMenuConversation`, `historyMenuTrigger`, `draggedConversationId`, and
@@ -544,11 +544,11 @@ Copy `message.body` through `navigator.clipboard.writeText` and report success
 or failure. Apply font values through `--assistant-message-scale`, persist only
 the index, update `87.5%`/`100%`/`112.5%`/`125%`, and disable buttons at bounds.
 
-- [ ] **Step 5: Run the focused tests and verify GREEN**
+- [x] **Step 5: Run the focused tests and verify GREEN**
 
 Run the Step 2 command. Expected: all pass.
 
-- [ ] **Step 6: Commit the workspace interactions**
+- [x] **Step 6: Commit the workspace interactions**
 
 ```bash
 git add web/app/javascript/lib/assistant_ui.js web/app/javascript/controllers/assistant_controller.js web/app/views/layouts/_assistant.html.erb web/test/javascript/assistant_controller_test.mjs web/test/views/assistant_shell_markup_test.rb web/test/integration/assistant_shell_test.rb
@@ -568,7 +568,7 @@ git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Add acces
 - Produces: `.assistant-markdown` typography and `--assistant-message-scale`.
 - Preserves: global `--color-brand` values for non-Assistant modules.
 
-- [ ] **Step 1: Write failing rendered-class and typography behavior tests**
+- [x] **Step 1: Write failing rendered-class and typography behavior tests**
 
 Assert message/list/context/action elements use zinc/black/white classes and
 contain no `cyan-` token. In the static shell test, assert the panel has a
@@ -577,7 +577,7 @@ has visible help, and Assistant nodes contain no cyan class. Assert the built
 DOM uses the scale custom property and semantic Markdown selectors for code,
 pre, tables, blockquotes, headings, and links.
 
-- [ ] **Step 2: Run UI/static tests and verify RED**
+- [x] **Step 2: Run UI/static tests and verify RED**
 
 ```bash
 cd web
@@ -587,7 +587,7 @@ bundle exec ruby test/views/assistant_shell_markup_test.rb
 
 Expected: current cyan classes and missing Markdown typography fail.
 
-- [ ] **Step 3: Implement the neutral palette and namespaced typography**
+- [x] **Step 3: Implement the neutral palette and namespaced typography**
 
 Replace Assistant cyan accents with inverse zinc buttons, zinc active rows,
 neutral focus rings, and higher-contrast zinc borders. Keep amber status and
@@ -600,7 +600,7 @@ and underlined links. Set base size with
 `font-size: calc(0.875rem * var(--assistant-message-scale, 1))`; ensure nested
 code uses `em` sizing so scaling remains coherent.
 
-- [ ] **Step 4: Build Tailwind and run focused tests to verify GREEN**
+- [x] **Step 4: Build Tailwind and run focused tests to verify GREEN**
 
 ```bash
 cd web
@@ -611,7 +611,7 @@ bundle exec ruby test/views/assistant_shell_markup_test.rb
 
 Expected: build and tests pass; no Assistant cyan classes remain.
 
-- [ ] **Step 5: Commit the Hunter visual finish**
+- [x] **Step 5: Commit the Hunter visual finish**
 
 ```bash
 git add web/app/assets/tailwind/application.css web/app/views/layouts/_assistant.html.erb web/app/javascript/lib/assistant_ui.js web/test/javascript/assistant_controller_test.mjs web/test/views/assistant_shell_markup_test.rb
@@ -627,7 +627,7 @@ git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "Align the
 **Interfaces:**
 - Verifies: every deliverable and no regression outside the Assistant surface.
 
-- [ ] **Step 1: Reinstall exact JavaScript test dependencies and verify vendor digests**
+- [x] **Step 1: Reinstall exact JavaScript test dependencies and verify vendor digests**
 
 ```bash
 cd web
@@ -639,7 +639,7 @@ node --test test/javascript/*.mjs
 Expected: digests exactly match `assistant-markdown-vendor.json`; all JavaScript
 tests pass.
 
-- [ ] **Step 2: Run focused Rails, OpenAPI, and static security tests**
+- [x] **Step 2: Run focused Rails, OpenAPI, and static security tests**
 
 ```bash
 cd web
@@ -650,7 +650,7 @@ bin/rails zeitwerk:check
 
 Expected: zero failures/errors and Zeitwerk reports all expected files loaded.
 
-- [ ] **Step 3: Run build, full Rails suite, and repository checks**
+- [x] **Step 3: Run build, full Rails suite, and repository checks**
 
 Source the deployment `.env` without printing it, clear inherited
 `CONTROL_CENTER_COMMAND_ALLOWLIST`, and point tests to the Docker-gateway test
@@ -670,7 +670,7 @@ git status --short
 Expected: Tailwind exits 0, full Rails has zero failures/errors, Zeitwerk passes,
 no whitespace errors, and only intended completion-document changes remain.
 
-- [ ] **Step 4: Perform an authenticated live smoke against port 5000**
+- [x] **Step 4: Perform an authenticated live smoke against port 5000**
 
 After the Docker app is healthy at `http://172.17.0.1:5000`, use a temporary
 cookie jar and credentials loaded from `.env` without echoing them. Verify the
@@ -685,7 +685,7 @@ only through the jsdom malicious corpus and do not send a live turn.
 Expected: 2xx/204 routes, persisted title/order, owner isolation, no browser
 console/import error reported by the rendered asset graph, and cleanup succeeds.
 
-- [ ] **Step 5: Record evidence, self-review, and commit completion**
+- [x] **Step 5: Record evidence, self-review, and commit completion**
 
 Update the spec status with actual command counts/results and mark plan boxes
 only for steps actually executed. Review for placeholders, contradictions,
@@ -699,3 +699,20 @@ git status --short
 ```
 
 Expected: completion commit succeeds and the worktree is clean.
+
+## Completion record
+
+Completed and verified on 2026-08-13.
+
+- Tasks 1–4 were committed as `9001dc3`, `d4d72e9`, `f066a0e`, and `1602088`.
+- The overlapping interaction and Hunter visual work in Tasks 5–6 was committed
+  together as `5a3bef8` so its shell, runtime classes, namespaced CSS, importmap
+  alias, and controller-level tests remained one passing unit.
+- Clean-install JavaScript result: 101 tests passed; npm reported zero
+  vulnerabilities; both vendor digests matched the recorded manifest.
+- Focused Rails result: 200 tests, 1,163 assertions, zero failures/errors.
+- Full Rails result: 1,307 tests, 6,572 assertions, zero failures/errors/skips.
+- Tailwind and Zeitwerk passed. Authenticated port-5000 shell, asset, rename,
+  reorder, persistence, cleanup, and current-controller checks passed without
+  invoking an external provider.
+- Two-pass independent review ended with no Critical or Important findings.
