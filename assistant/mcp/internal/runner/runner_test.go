@@ -130,6 +130,17 @@ func TestDispatchCancellationPropagates(t *testing.T) {
 	}
 }
 
+func TestDispatchPreservesStableHunterOutcome(t *testing.T) {
+	b := fakeBackend{
+		grant: liveGrant(transport.Grant{Tools: []string{"edit_x"}}),
+		doErr: &transport.HunterError{Code: "destination_stale"},
+	}
+	_, err := newRunner(b, tool.Tool{Name: "edit_x"}).Dispatch(context.Background(), "g", "edit_x", []byte(`{}`))
+	if got := PublicError(err); got != "destination_stale" {
+		t.Fatalf("PublicError = %q, want destination_stale", got)
+	}
+}
+
 func TestDispatchValidateRejection(t *testing.T) {
 	tl := tool.Tool{Name: "list_x", Validate: func([]byte) error { return errors.New("bad output") }}
 	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), payload: []byte(`{"ok":1}`)}

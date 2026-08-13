@@ -1,14 +1,25 @@
 import { Controller } from "@hotwired/stimulus"
 import { assistantApi } from "lib/assistant_api"
 import {
+  clampPanelSize,
+  desktopPanel,
+  loadPanelSize,
+  resizeFromKeyboard,
+  resizeFromPointer,
+  savePanelSize,
+} from "lib/assistant_panel_size"
+import {
   appendContextDisclosure,
   appendDraftCard,
   appendMessage,
   applyComposerAvailability,
   LatestRequest,
   pollingDelay,
+  composerSubmitIntent,
   renderDisabledNotice,
+  renderConversationList as renderConversationListItems,
   saveConfirmationText,
+  scrollMessageLog,
   terminalTurnStatus,
 } from "lib/assistant_ui"
 
@@ -18,6 +29,7 @@ export default class extends Controller {
     "retentionNotice", "conversationList", "profileName", "messages", "messageInput",
     "startButton", "sendButton", "cancelButton", "contextType", "contextQuery",
     "contextResults", "disclosurePreview", "drafts", "status", "notice",
+    "resizeHandle", "capabilityDisclosure", "contextDisclosure",
   ]
 
   connect() {
@@ -33,16 +45,26 @@ export default class extends Controller {
     this.conversationRequests = new LatestRequest()
     this.pollRequests = new LatestRequest()
     this.abortController = null
+    this.panelSize = null
+    this.resizeState = null
+    this.boundResizeMove = (event) => this.resizePanel(event)
+    this.boundResizeEnd = (event) => this.finishResize(event)
+    this.boundViewportResize = () => this.handleViewportResize()
+    window.addEventListener("resize", this.boundViewportResize)
+    this.restorePanelSize()
   }
 
   disconnect() {
+    this.stopResize({ persist: false })
     this.stopPolling()
     this.conversationRequests.invalidate()
     this.abortRequests()
+    window.removeEventListener("resize", this.boundViewportResize)
     document.documentElement.classList.remove("overflow-hidden")
   }
 
   async open() {
+    this.restorePanelSize()
     this.panelTarget.hidden = false
     this.panelTarget.setAttribute("aria-modal", String(this.mobilePanel()))
     this.bubbleTarget.setAttribute("aria-expanded", "true")
@@ -53,11 +75,132 @@ export default class extends Controller {
   }
 
   close() {
+    this.stopResize({ persist: true })
     this.panelTarget.hidden = true
     this.bubbleTarget.setAttribute("aria-expanded", "false")
     document.documentElement.classList.remove("overflow-hidden")
     if (this.currentTurnId && !terminalTurnStatus(this.currentTurnStatus)) this.schedulePoll()
     this.bubbleTarget.focus()
+  }
+
+  startResize(event) {
+    if (!this.desktopPanel() || (event.button !== undefined && event.button !== 0)) return
+    event.preventDefault()
+    this.stopResize({ persist: false })
+
+    const rect = this.panelTarget.getBoundingClientRect()
+    this.resizeState = {
+      pointerId: event.pointerId,
+      startSize: { width: rect.width, height: rect.height },
+      startPoint: { x: event.clientX, y: event.clientY },
+    }
+    this.resizeHandleTarget.setPointerCapture?.(event.pointerId)
+    this.resizeHandleTarget.addEventListener("pointermove", this.boundResizeMove)
+    this.resizeHandleTarget.addEventListener("pointerup", this.boundResizeEnd)
+    this.resizeHandleTarget.addEventListener("pointercancel", this.boundResizeEnd)
+    document.documentElement.classList.add("assistant-is-resizing")
+  }
+
+  resizePanel(event) {
+    if (!this.resizeState || event.pointerId !== this.resizeState.pointerId) return
+    const size = resizeFromPointer(
+      this.resizeState.startSize,
+      this.resizeState.startPoint,
+      { x: event.clientX, y: event.clientY },
+      this.viewport(),
+    )
+    this.applyPanelSize(size)
+  }
+
+  finishResize(event) {
+    if (!this.resizeState || event.pointerId !== this.resizeState.pointerId) return
+    this.stopResize({ persist: true })
+  }
+
+  stopResize({ persist }) {
+    if (!this.resizeState) return
+    const pointerId = this.resizeState.pointerId
+    this.resizeHandleTarget.removeEventListener("pointermove", this.boundResizeMove)
+    this.resizeHandleTarget.removeEventListener("pointerup", this.boundResizeEnd)
+    this.resizeHandleTarget.removeEventListener("pointercancel", this.boundResizeEnd)
+    if (this.resizeHandleTarget.hasPointerCapture?.(pointerId)) {
+      this.resizeHandleTarget.releasePointerCapture(pointerId)
+    }
+    this.resizeState = null
+    document.documentElement.classList.remove("assistant-is-resizing")
+    if (persist && this.panelSize) savePanelSize(this.panelStorage(), this.panelSize)
+  }
+
+  resizeWithKeyboard(event) {
+    if (!this.desktopPanel()) return
+    const size = resizeFromKeyboard(
+      this.currentPanelSize(),
+      event.key,
+      event.shiftKey ? 48 : 16,
+      this.viewport(),
+    )
+    if (!size) return
+
+    event.preventDefault()
+    this.applyPanelSize(size)
+    savePanelSize(this.panelStorage(), size)
+  }
+
+  handleViewportResize() {
+    if (!this.desktopPanel()) {
+      this.stopResize({ persist: false })
+      this.panelSize = null
+      this.panelTarget.style.removeProperty("width")
+      this.panelTarget.style.removeProperty("height")
+      this.resizeHandleTarget.setAttribute("aria-label", "Resize Hunter assistant")
+      return
+    }
+
+    const size = this.panelSize
+      ? clampPanelSize(this.panelSize, this.viewport())
+      : loadPanelSize(this.panelStorage(), this.viewport())
+    this.applyPanelSize(size)
+    savePanelSize(this.panelStorage(), size)
+  }
+
+  restorePanelSize() {
+    if (!this.desktopPanel()) return this.handleViewportResize()
+    this.applyPanelSize(loadPanelSize(this.panelStorage(), this.viewport()))
+  }
+
+  applyPanelSize(size) {
+    this.panelSize = {
+      width: Math.round(size.width),
+      height: Math.round(size.height),
+    }
+    this.panelTarget.style.width = `${this.panelSize.width}px`
+    this.panelTarget.style.height = `${this.panelSize.height}px`
+    this.resizeHandleTarget.setAttribute(
+      "aria-label",
+      `Resize Hunter assistant, current size ${this.panelSize.width} by ${this.panelSize.height} pixels`,
+    )
+  }
+
+  currentPanelSize() {
+    if (this.panelSize) return this.panelSize
+    const rect = this.panelTarget.getBoundingClientRect()
+    return { width: rect.width, height: rect.height }
+  }
+
+  panelStorage() {
+    try {
+      return window.localStorage
+    } catch {
+      return null
+    }
+  }
+
+  viewport() {
+    return { width: window.innerWidth, height: window.innerHeight }
+  }
+
+  desktopPanel() {
+    return desktopPanel(this.viewport())
   }
 
   handleKeydown(event) {
@@ -144,6 +287,7 @@ export default class extends Controller {
 
     this.currentConversation = response.data
     this.renderConversation(response.data)
+    this.renderConversationList(this.conversations || [])
     this.setStatus("")
   }
 
@@ -154,6 +298,7 @@ export default class extends Controller {
     this.currentTurnId = null
     this.currentTurnStatus = null
     this.showStartScreen()
+    this.renderConversationList(this.conversations || [])
     this.providerSelectTarget.focus()
   }
 
@@ -180,6 +325,7 @@ export default class extends Controller {
 
     if (response.data?.id) this.renderTurn(response.data)
     this.messageInputTarget.value = ""
+    this.messageInputTarget.style.removeProperty("height")
     this.selectedContexts = []
     this.renderContextDisclosures()
     this.sendButtonTarget.disabled = false
@@ -218,7 +364,7 @@ export default class extends Controller {
     for (const option of response.data.options || []) {
       const button = document.createElement("button")
       button.type = "button"
-      button.className = "block w-full rounded px-2 py-1 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      button.className = "block w-full rounded-lg border border-transparent px-2.5 py-2 text-left text-xs text-zinc-700 transition hover:border-zinc-200 hover:bg-white dark:text-zinc-300 dark:hover:border-white/10 dark:hover:bg-zinc-900"
       button.textContent = option.label
       button.addEventListener("click", () => this.attachContext(option))
       this.contextResultsTarget.appendChild(button)
@@ -303,16 +449,23 @@ export default class extends Controller {
   }
 
   renderConversationList(conversations) {
-    this.conversationListTarget.replaceChildren()
-    conversations.forEach((conversation) => {
-      const button = document.createElement("button")
-      button.type = "button"
-      button.dataset.conversationId = String(conversation.id)
-      button.className = "w-full rounded-md px-2 py-2 text-left text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-      button.textContent = conversation.title
-      button.addEventListener("click", (event) => this.selectConversation(event))
-      this.conversationListTarget.appendChild(button)
+    this.conversations = conversations
+    renderConversationListItems(document, this.conversationListTarget, conversations, {
+      currentId: this.currentConversation?.id,
+      onSelect: (_conversation, event) => this.selectConversation(event),
     })
+  }
+
+  handleComposerKeydown(event) {
+    if (!composerSubmitIntent(event)) return
+    event.preventDefault()
+    event.currentTarget.form?.requestSubmit()
+  }
+
+  autosizeComposer(event) {
+    const input = event.currentTarget
+    input.style.height = "auto"
+    input.style.height = `${Math.min(input.scrollHeight, 160)}px`
   }
 
   renderConversation(conversation) {
@@ -346,6 +499,7 @@ export default class extends Controller {
     if (message.id && this.renderedMessageIds.has(message.id)) return
     appendMessage(document, this.messagesTarget, message)
     if (message.id) this.renderedMessageIds.add(message.id)
+    scrollMessageLog(this.messagesTarget)
   }
 
   renderTurn(turn) {
@@ -519,17 +673,19 @@ export default class extends Controller {
   }
 
   mobilePanel() {
-    return window.matchMedia("(max-width: 639px)").matches
+    return !this.desktopPanel()
   }
 
   focusableElements() {
     return [...this.panelTarget.querySelectorAll(
       'button:not([disabled]), select:not([disabled]), textarea:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-    )].filter((element) => !element.closest("[hidden]"))
+    )].filter((element) =>
+      !element.closest("[hidden]") && window.getComputedStyle(element).display !== "none"
+    )
   }
 
   firstFocusable() {
-    return this.focusableElements()[0]
+    return this.panelTarget.querySelector("[data-assistant-initial-focus]") || this.focusableElements()[0]
   }
 
   trapFocus(event) {

@@ -92,12 +92,23 @@ func TestGetOutputValidation(t *testing.T) {
 	full := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","target":{` +
 		`"id":"t1","host":"a","program":"p","status_code":200,"title":"t",` +
 		`"url":"https://a","status_family":"2xx","webserver":"nginx","content_type":"text/html",` +
-		`"port":443,"scheme":"https","tech":["nginx"],"seen_at":"2026-01-01","page_type":"login"}}`
+		`"port":443,"scheme":"https","tech":["nginx"],"seen_at":"2026-01-01","page_type":"login",` +
+		`"input":"a","ip":"192.0.2.1","path":"/","method":"GET","content_length":42,"words":5,"lines":2,` +
+		`"response_time":"120ms","tool":"httpx","failed":false,"phash":123,"csp_fqdns":[],"csp_domains":[],` +
+		`"response_headers":[{"name":"Server","value":"nginx","redacted":false}]}}`
 	if err := tl.Validate([]byte(full)); err != nil {
 		t.Fatalf("valid full output rejected: %v", err)
 	}
 	if tl.Validate([]byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","target":{"id":"t1"}}`)) == nil {
 		t.Fatal("partial target accepted")
+	}
+	leaked := strings.Replace(full, `"redacted":false}`, `"redacted":false,"cookie":"leak"}`, 1)
+	if tl.Validate([]byte(leaked)) == nil {
+		t.Fatal("nested response header field accepted")
+	}
+	wrongHeaderType := strings.Replace(full, `"value":"nginx"`, `"value":{"arbitrary":true}`, 1)
+	if tl.Validate([]byte(wrongHeaderType)) == nil {
+		t.Fatal("nested response header value type accepted")
 	}
 }
 

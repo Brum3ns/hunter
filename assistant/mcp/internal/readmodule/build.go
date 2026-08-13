@@ -92,9 +92,12 @@ func getSchema(idPattern *regexp.Regexp) json.RawMessage {
 // decodeList closed-decodes into a raw map, then rejects any key outside the
 // allowed set and any value whose JSON type is wrong for its field.
 func decodeList(spec Spec) func([]byte) (tool.Request, error) {
-	allowed := map[string]string{"page": "int", "limit": "int"}
+	allowed := map[string]ListField{
+		"page":  {Name: "page", Kind: "int", Min: 1, Max: 100_000},
+		"limit": {Name: "limit", Kind: "int", Min: 1, Max: spec.maxItems()},
+	}
 	for _, f := range spec.ListFields {
-		allowed[f.Name] = f.Kind
+		allowed[f.Name] = f
 	}
 	return func(args []byte) (tool.Request, error) {
 		var raw map[string]json.RawMessage
@@ -102,8 +105,8 @@ func decodeList(spec Spec) func([]byte) (tool.Request, error) {
 			return tool.Request{}, codec.ErrInvalid
 		}
 		for key, val := range raw {
-			kind, ok := allowed[key]
-			if !ok || !typeMatches(kind, val) {
+			field, ok := allowed[key]
+			if !ok || !fieldMatches(field, val) {
 				return tool.Request{}, codec.ErrInvalid
 			}
 		}
@@ -111,14 +114,17 @@ func decodeList(spec Spec) func([]byte) (tool.Request, error) {
 	}
 }
 
-func typeMatches(kind string, val json.RawMessage) bool {
-	trimmed := strings.TrimSpace(string(val))
-	switch kind {
+func fieldMatches(field ListField, val json.RawMessage) bool {
+	switch field.Kind {
 	case "int":
-		_, err := strconv.Atoi(trimmed)
-		return err == nil
+		var value int
+		if json.Unmarshal(val, &value) != nil {
+			return false
+		}
+		return (field.Min == 0 && field.Max == 0) || value >= field.Min && value <= field.Max
 	case "string":
-		return len(trimmed) > 0 && trimmed[0] == '"'
+		var value string
+		return json.Unmarshal(val, &value) == nil && (field.MaxLen == 0 || len(value) <= field.MaxLen)
 	}
 	return false
 }

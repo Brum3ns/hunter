@@ -114,6 +114,7 @@ module Api
             assistant_enabled: setting.assistant_enabled?,
             infrastructure_enabled: state.active,
             effective_enabled: state.active && setting.assistant_enabled?,
+			control_center_write_enabled: setting.control_center_write_enabled?,
             disabled_reason: disabled_reason_for(setting, state),
             providers: ::Assistant::ProviderCredentials.statuses.map do |status|
               entry = ::Assistant::ProviderCatalog.fetch!(status.slug)

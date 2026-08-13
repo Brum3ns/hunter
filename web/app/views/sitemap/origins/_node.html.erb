@@ -5,7 +5,9 @@
         targets. The checkbox is a sibling of (not nested in) the activate
         button so a checkbox click never bubbles into sitemap-tree#activate. %>
     <% if node.endpoint? %>
-      <label class="flex shrink-0 cursor-pointer items-center pl-2">
+      <%# Small visible box, large invisible hit-area: the padding on the label
+          is clickable and toggles the checkbox. %>
+      <label class="flex shrink-0 cursor-pointer items-center py-1.5 pl-2 pr-1.5">
         <input type="checkbox" data-targets-selection-target="checkbox"
                data-action="targets-selection#toggleRow" data-id="<%= node.endpoint.id %>"
                class="h-3.5 w-3.5 rounded border-zinc-300 bg-white accent-zinc-900 dark:border-white/20 dark:bg-white/5 dark:accent-white" />

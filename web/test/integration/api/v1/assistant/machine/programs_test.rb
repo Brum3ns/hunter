@@ -26,10 +26,32 @@ class Api::V1::Assistant::Machine::ProgramsTest < ActionDispatch::IntegrationTes
     body = response.parsed_body
     assert_equal 1, body["count"]
     item = body["items"].first
-    assert_equal %w[sid name platform public bounty_range], item.keys
+    assert_equal %w[sid name platform public bounty_range favorited trashed last_viewed_at], item.keys
     assert_equal "acme-corp", item["sid"]
     assert_equal "hackerone", item["platform"]
     assert_equal true, item["public"]
+  end
+
+  test "list_programs exposes this turn user's favorite trash and view state and filters trash" do
+    user = assistant_turns(:created).user
+    user.favorites.create!(program_sid: "acme-corp")
+    user.trashes.create!(program_sid: "acme-corp")
+    user.program_views.create!(program_sid: "acme-corp", viewed_at: Time.zone.parse("2026-07-30 10:00 UTC"))
+    captured = nil
+    result = Programs::Query::Result.new(programs: [ Program.new(program_data) ], total: 1)
+
+    stub_methods(Programs::Query, call: ->(qp) { captured = qp; result }) do
+      get "/api/v1/assistant/machine/programs", params: { trash_only: "yes" }, headers: headers(read_grant)
+    end
+
+    assert_response :success
+    item = response.parsed_body.fetch("items").sole
+    assert_equal true, item["favorited"]
+    assert_equal true, item["trashed"]
+    assert_equal "2026-07-30T10:00:00.000Z", item["last_viewed_at"]
+    assert_equal "yes", captured[:trash_only]
+    assert_equal user.favorite_sids, captured[:_favorited_sids]
+    assert_equal user.trash_sids, captured[:_trashed_sids]
   end
 
   test "list_programs passes filters, q, and pagination through to Programs::Query.call" do
@@ -91,18 +113,28 @@ class Api::V1::Assistant::Machine::ProgramsTest < ActionDispatch::IntegrationTes
     assert_response :success
     result = response.parsed_body["program"]
     expected_keys = %w[
-      sid name platform public bounty_range
+      sid name platform public bounty_range favorited trashed last_viewed_at
       slug url vdp bounty bounty_min bounty_max currency reward_avg reward_max
       report_count reports_24h reports_7d reports_month avg_response_hrs
-      scope_count collaboration tags languages scope out_of_scope
+      scope_count collaboration tags languages date status description description_redacted
+      organization reward_grid hall_of_fame hacktivity rules rules_redacted
+      qualifying_vulnerabilities non_qualifying_vulnerabilities account_access
+      account_access_redacted required_user_agent restricted_ips vpn_active vpn_ips
+      scope out_of_scope
     ]
     assert_equal expected_keys, result.keys
     assert_equal "acme-corp", result["slug"]
-    assert_equal [ { "asset" => "example.com", "type" => "web" } ], result["scope"]
-    assert_equal [ { "asset" => "internal.example.com", "type" => "web" } ], result["out_of_scope"]
+    assert_equal [ {
+      "asset" => "example.com", "type" => "web", "type_name" => nil, "value" => nil,
+      "bounty" => nil, "inscope" => nil, "report_count" => nil
+    } ], result["scope"]
+    assert_equal [ {
+      "asset" => "internal.example.com", "type" => "web", "type_name" => nil, "value" => nil,
+      "bounty" => nil, "inscope" => nil, "report_count" => nil
+    } ], result["out_of_scope"]
   end
 
-  test "get_program's full payload excludes bloat/infra fields even when populated" do
+  test "get_program exposes useful plain data but never raw HTML or source containers" do
     data = program_data.merge(
       "policy" => {
         "rules_html" => "<p>rules</p>",
@@ -125,16 +157,44 @@ class Api::V1::Assistant::Machine::ProgramsTest < ActionDispatch::IntegrationTes
     assert_response :success
     result = response.parsed_body["program"]
     expected_keys = %w[
-      sid name platform public bounty_range
+      sid name platform public bounty_range favorited trashed last_viewed_at
       slug url vdp bounty bounty_min bounty_max currency reward_avg reward_max
       report_count reports_24h reports_7d reports_month avg_response_hrs
-      scope_count collaboration tags languages scope out_of_scope
+      scope_count collaboration tags languages date status description description_redacted
+      organization reward_grid hall_of_fame hacktivity rules rules_redacted
+      qualifying_vulnerabilities non_qualifying_vulnerabilities account_access
+      account_access_redacted required_user_agent restricted_ips vpn_active vpn_ips
+      scope out_of_scope
     ]
     assert_equal expected_keys, result.keys
-    refute_includes response.body, "rules"
-    refute_includes response.body, "very long description"
-    refute_includes response.body, "10.0.0.2"
-    refute_includes response.body, "xss"
+    assert_equal "a very long description that should never leak", result["description"]
+    assert_equal [ "xss" ], result["qualifying_vulnerabilities"]
+    assert_equal [ "10.0.0.2" ], result["vpn_ips"]
+    refute_includes response.body, "<p>rules</p>"
+    refute_includes response.body, "<p>access</p>"
+    refute result.key?("raw")
+  end
+
+  test "get_program normalizes nested reward and scope scalars to the broker contract" do
+    data = program_data.merge(
+      "reward_grid" => { "low" => "100.5", "medium" => "not-a-number" },
+      "scope" => [ {
+        "asset" => "example.com", "type" => "web", "bounty" => true,
+        "inscope" => false, "report_count" => "7"
+      } ]
+    )
+
+    stub_methods(Programs::Source, find: Program.new(data)) do
+      get "/api/v1/assistant/machine/programs/acme-corp", headers: headers(read_grant)
+    end
+
+    assert_response :success
+    program = response.parsed_body.fetch("program")
+    assert_equal 100.5, program.dig("reward_grid", "low")
+    assert_nil program.dig("reward_grid", "medium")
+    assert_equal true, program.dig("scope", 0, "bounty")
+    assert_equal false, program.dig("scope", 0, "inscope")
+    assert_equal 7, program.dig("scope", 0, "report_count")
   end
 
   test "get_program releases the reservation on a miss" do
@@ -144,6 +204,22 @@ class Api::V1::Assistant::Machine::ProgramsTest < ActionDispatch::IntegrationTes
 
     assert_response :not_found
     assert_equal 0, Assistant::TurnGrant.order(:id).last.reload.reserved_bytes
+  end
+
+  test "an aggregate projection above the encoded result ceiling fails closed" do
+    oversized_scope = Array.new(500) do |index|
+      { "asset" => "#{index}-#{"a" * 1_500}.example", "type" => "web" }
+    end
+    grant = read_grant
+    grant_record = Assistant::TurnGrant.order(:id).last
+
+    stub_methods(Programs::Source, find: Program.new(program_data.merge("scope" => oversized_scope))) do
+      get "/api/v1/assistant/machine/programs/acme-corp", headers: headers(grant)
+    end
+
+    assert_response :forbidden
+    assert_equal "result_rejected", response.parsed_body["error"]
+    assert_equal 0, grant_record.reload.reserved_bytes
   end
 
   private

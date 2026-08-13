@@ -22,6 +22,7 @@ export default class extends Controller {
     "batchFileInput", "dropOverlay", "importDialog", "importRows", "importSummary", "importClose",
     "conflictPanel", "conflictFile", "conflictName",
     "searchInput", "resultCount", "clearSearch", "listError", "noMatches",
+    "stagedBanner", "stagedCount",
   ]
 
   connect() {
@@ -30,6 +31,7 @@ export default class extends Controller {
     this.editorSession = new TemplateEditorSession()
     this.sendTemplate = null
     this.pendingSelection = null
+    this.stagedSelection = null
     this.mode = "structured"
     this.lastEdited = "structured"
     this._syncing = false
@@ -39,24 +41,54 @@ export default class extends Controller {
     this._importRowViews = new Map()
     this._pendingConflict = null
     this._resetEditor({ guard: false, focus: false })
-    this.refresh().then(() => this._checkPendingSelection())
+    this.refresh().then(() => this._loadStagedSelection())
   }
 
   // A Target/Sitemap page handed off a selection via sessionStorage before
-  // navigating here (see hunter.jobSelection). Consume it once: open the send
-  // dialog straight away and preview the resolved target count. Waits for
-  // `refresh()` so a default template is available to pre-select.
-  _checkPendingSelection() {
+  // navigating here (see hunter.jobSelection). Rather than forcing open a
+  // modal (which would cover the template list), we STAGE the targets: show a
+  // banner and keep them until the user sends a job or clears them. Any "Send"
+  // — for an existing template or one they build here — then ships with them.
+  // The payload stays in sessionStorage so a reload keeps the staged targets.
+  _loadStagedSelection() {
     const stored = sessionStorage.getItem("hunter.jobSelection")
     if (!stored) return
-    sessionStorage.removeItem("hunter.jobSelection")
     let parsed = null
     try {
       parsed = JSON.parse(stored)
     } catch {
       parsed = null
     }
-    if (parsed) this.openSendWithSelection(parsed)
+    if (!parsed || !(parsed.selections && parsed.selections.length)) {
+      sessionStorage.removeItem("hunter.jobSelection")
+      return
+    }
+    this.stagedSelection = parsed
+    this._renderStagedBanner()
+  }
+
+  // Toggle the "targets staged" banner and resolve their live count.
+  _renderStagedBanner() {
+    const has = !!(this.stagedSelection && this.stagedSelection.selections.length)
+    if (this.hasStagedBannerTarget) this.stagedBannerTarget.classList.toggle("hidden", !has)
+    if (!has) return
+    if (this.hasStagedCountTarget) this.stagedCountTarget.textContent = "…"
+    this._resolveStagedCount()
+  }
+
+  async _resolveStagedCount() {
+    if (!this.stagedSelection) return
+    const body = { ...this.stagedSelection, targets: [] }
+    const { ok, data } = await apiFetch(this.resolveUrlValue, { method: "POST", body })
+    // A later clear/send may have dropped the selection while this was in flight.
+    if (!this.stagedSelection || !this.hasStagedCountTarget) return
+    this.stagedCountTarget.textContent = ok && data ? String(data.count) : "?"
+  }
+
+  clearStaged() {
+    this.stagedSelection = null
+    sessionStorage.removeItem("hunter.jobSelection")
+    this._renderStagedBanner()
   }
 
   disconnect() {
@@ -802,14 +834,12 @@ export default class extends Controller {
 
   // --- send job ------------------------------------------------------------
 
-  // `t` is the template row that was clicked. It is undefined when the dialog
-  // is opened from a handed-off selection with no template chosen yet (see
-  // openSendWithSelection) — guard against that instead of assuming a template.
-  // A per-row open is always a fresh one-off send, so it clears any handoff
-  // selection (openSendWithSelection re-assigns pendingSelection afterward).
+  // Open the send dialog for template `t`. Any targets staged from a
+  // Target/Sitemap "Send to job" hand-off are attached to this send so the
+  // dialog previews them and submitJob ships them — that's the whole point of
+  // staging. With nothing staged this is a plain one-off send (pendingSelection
+  // stays null, exactly as before).
   openSend(t) {
-    this.pendingSelection = null
-    if (this.hasSelectionSummaryTarget) this.selectionSummaryTarget.textContent = ""
     this.sendTemplate = t || null
     this.sendNameTarget.textContent = this.sendTemplate ? this.sendTemplate.name : "(choose a template below)"
     this.sendTargetsTarget.value = ""
@@ -818,17 +848,9 @@ export default class extends Controller {
     this.sendDelayTarget.value = "0"
     this.sendResultTarget.classList.add("hidden")
     this.sendResultTarget.textContent = ""
+    this.pendingSelection = this.stagedSelection
+    if (this.hasSelectionSummaryTarget) this.selectionSummaryTarget.textContent = ""
     if (!this.sendDialogTarget.open) this.sendDialogTarget.showModal()
-  }
-
-  // Entry point for a handed-off selection (Target/Sitemap "Send to job").
-  // There is no template context yet, so default to the first loaded template
-  // (falling back to whatever sendTemplate already held, typically null) and
-  // let the user change it from the list as usual before submitting. openSend
-  // clears pendingSelection, so assign it AFTER opening, then preview.
-  openSendWithSelection(selection) {
-    this.openSend(this.templates?.[0] || this.sendTemplate)
-    this.pendingSelection = selection
     this.previewTargets()
   }
 
@@ -849,8 +871,9 @@ export default class extends Controller {
     return this.sendTargetsTarget.value.split("\n").map((s) => s.trim()).filter(Boolean)
   }
 
-  // Canceling/closing discards any handed-off selection so a subsequent send
-  // never ships a stale, invisible selection.
+  // Closing the dialog detaches the selection from THIS send only; staged
+  // targets survive (the banner keeps them) so the next Send still includes
+  // them. openSend re-attaches stagedSelection each time it opens.
   closeSend() {
     this.pendingSelection = null
     if (this.hasSelectionSummaryTarget) this.selectionSummaryTarget.textContent = ""
@@ -875,6 +898,13 @@ export default class extends Controller {
     this.sendResultTarget.classList.remove("hidden")
     if (ok && data) {
       this.pendingSelection = null
+      // The staged targets have now been consumed by a real job — drop them
+      // so they can't be silently re-sent, and clear the banner.
+      if (this.stagedSelection) {
+        this.stagedSelection = null
+        sessionStorage.removeItem("hunter.jobSelection")
+        this._renderStagedBanner()
+      }
       this.sendResultTarget.textContent =
         `status: ${data.status}\nJob #${data.id} queued — see the Jobs tab for progress.`
     } else {

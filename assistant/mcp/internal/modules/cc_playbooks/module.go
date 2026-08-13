@@ -3,6 +3,8 @@
 package cc_playbooks
 
 import (
+	"encoding/json"
+	"errors"
 	"regexp"
 
 	"hunter.local/assistant/mcp/internal/readmodule"
@@ -20,11 +22,19 @@ func (Module) Tools() []tool.Tool {
 		BasePath: "/api/v1/assistant/machine/control_center/ansible/playbooks", DetailKey: "playbook",
 		ListDesc:    "List and count Control Center Ansible playbooks, ordered by name. Page with page/limit.",
 		GetDesc:     "Return the full record for one Ansible playbook by its integer id.",
-		SummaryKeys: []string{"id", "name", "description", "checksum", "updated_at"},
+		SummaryKeys: []string{"id", "name", "description", "checksum", "lock_version", "created_by", "updated_at"},
 		FullKeys: []string{
-			"id", "name", "description", "checksum", "updated_at",
+			"id", "name", "description", "checksum", "lock_version", "created_by", "updated_at",
 			"yaml_content", "variable_set_ids", "created_at",
 		},
-		IDPattern: idPattern,
+		ValidateDetail: validateDetail,
+		IDPattern:      idPattern,
 	})
+}
+
+func validateDetail(detail map[string]json.RawMessage) error {
+	if !readmodule.BoundedIntegerArray(detail["variable_set_ids"], 100, 1, 9_223_372_036_854_775_807, true) {
+		return errors.New("invalid playbook variable set projection")
+	}
+	return nil
 }

@@ -1,12 +1,32 @@
 <%# web/app/views/sitemap/origins/_origin.html.erb %>
 <li data-node>
-  <button type="button" data-action="click->sitemap-tree#activate" aria-expanded="false"
-          class="flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800">
-    <span data-chevron class="inline-flex w-4 shrink-0 text-zinc-400 transition-transform"><%= heroicon "chevron-right", classes: "h-4 w-4" %></span>
-    <span class="shrink-0 text-zinc-400"><%= heroicon(target.scheme == "https" ? "lock-closed" : "globe-alt", classes: "h-4 w-4") %></span>
-    <span class="truncate font-medium text-zinc-800 dark:text-zinc-100"><%= target.host %>:<%= target.port %></span>
-    <span class="ml-auto shrink-0 rounded bg-zinc-200 px-1.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"><%= counts[target.id].to_i %></span>
-  </button>
+  <div class="flex items-center">
+    <%# Ticking an origin sends its whole endpoint set (matching the active
+        search) to the job — no need to expand it. Disabled while facet filters
+        are active, since those aren't encoded into the selection query and
+        would mismatch the count shown on the row (mirrors "Select all
+        matching filter"). The checkbox is a sibling of the activate button so
+        clicking it never expands the tree. %>
+    <% if @facets_active %>
+      <label class="flex shrink-0 cursor-not-allowed items-center py-1.5 pl-2 pr-1.5" title="Clear facet filters to select a whole origin, or expand and tick rows">
+        <input type="checkbox" disabled
+               class="h-3.5 w-3.5 rounded border-zinc-300 bg-white opacity-40 dark:border-white/20 dark:bg-white/5" />
+      </label>
+    <% else %>
+      <label class="flex shrink-0 cursor-pointer items-center py-1.5 pl-2 pr-1.5" title="Select the whole origin">
+        <input type="checkbox" data-targets-selection-target="originCheckbox"
+               data-action="targets-selection#toggleOrigin" data-origin="<%= target.origin %>"
+               class="h-3.5 w-3.5 rounded border-zinc-300 bg-white accent-zinc-900 dark:border-white/20 dark:bg-white/5 dark:accent-white" />
+      </label>
+    <% end %>
+    <button type="button" data-action="click->sitemap-tree#activate" aria-expanded="false"
+            class="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800">
+      <span data-chevron class="inline-flex w-4 shrink-0 text-zinc-400 transition-transform"><%= heroicon "chevron-right", classes: "h-4 w-4" %></span>
+      <span class="shrink-0 text-zinc-400"><%= heroicon(target.scheme == "https" ? "lock-closed" : "globe-alt", classes: "h-4 w-4") %></span>
+      <span class="truncate font-medium text-zinc-800 dark:text-zinc-100"><%= target.host %>:<%= target.port %></span>
+      <span class="ml-auto shrink-0 rounded bg-zinc-200 px-1.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"><%= counts[target.id].to_i %></span>
+    </button>
+  </div>
   <div data-children hidden>
     <%= turbo_frame_tag "origin_tree_#{target.id}", data: { src: targets_sitemap_origin_tree_path(target, filter) } %>
   </div>

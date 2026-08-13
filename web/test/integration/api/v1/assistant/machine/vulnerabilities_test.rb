@@ -69,7 +69,8 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
     expected_keys = %w[
       id name severity status program
       type cwe tags tool asset date description impact
-      host url ip port submitted status_updated_at confidence
+      host url ip port target_input method submitted status_updated_at confidence
+      evidence
     ]
     assert_equal expected_keys, result.keys
     assert_equal "Reflected XSS", result["name"]
@@ -97,8 +98,10 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
         "extracted" => "SECRET-EXTRACTED-CREDENTIALS",
         "llm_reasoning" => "SECRET-LLM-REASONING-INTERNAL"
       },
-      "request" => "GET / HTTP/1.1\r\nCookie: session=SECRET-COOKIE-VALUE\r\nAuthorization: Bearer SECRET-REQUEST-TOKEN\r\n\r\n",
-      "response" => "HTTP/1.1 200 OK\r\nSet-Cookie: session=SECRET-RESPONSE-COOKIE\r\n\r\n"
+      "request" => {
+        "request" => "GET / HTTP/1.1\r\nCookie: session=SECRET-COOKIE-VALUE\r\nAuthorization: Bearer SECRET-REQUEST-TOKEN\r\nX-Trace: useful\r\n\r\n",
+        "response" => "HTTP/1.1 200 OK\r\nSet-Cookie: session=SECRET-RESPONSE-COOKIE\r\nServer: nginx\r\n\r\n"
+      }
     }
 
     stub_methods(Vulnerabilities::MongoSource, find: vuln) do
@@ -110,7 +113,8 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
     expected_keys = %w[
       id name severity status program
       type cwe tags tool asset date description impact
-      host url ip port submitted status_updated_at confidence
+      host url ip port target_input method submitted status_updated_at confidence
+      evidence
     ]
     assert_equal expected_keys, result.keys
 
@@ -121,6 +125,11 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
     ].each do |secret|
       refute_includes response.body, secret
     end
+    assert_includes result.dig("evidence", "request"), "X-Trace: useful"
+    assert_includes result.dig("evidence", "response"), "Server: nginx"
+    assert_equal true, result.dig("evidence", "request_redacted")
+    assert_includes result.dig("evidence", "curl"), "Authorization: [REDACTED]"
+    assert_equal true, result.dig("evidence", "curl_redacted")
   end
 
   test "get_vulnerability releases the reservation on a miss" do

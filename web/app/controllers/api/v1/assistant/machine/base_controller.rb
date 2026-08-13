@@ -3,7 +3,9 @@ module Api
     module Assistant
       module Machine
         class BaseController < Api::V1::BaseController
-          MAX_REQUEST_BYTES = 65_536
+          # Includes the closed JSON envelope and escaping around a schema-
+          # bounded 64 KiB Ansible source.
+          MAX_REQUEST_BYTES = 524_288
 
           skip_before_action :authenticate_api!
           skip_before_action :authorize_scope!
@@ -72,6 +74,7 @@ module Api
           def require_control_center_write_enabled!(reservation)
             if !::Assistant::Setting.instance.control_center_write_enabled?
               reservation.fail!
+              audit_machine_authoring_failure!(reason: "control_center_write_disabled")
               render json: { error: "control_center_write_disabled" }, status: :forbidden
               return false
             end
@@ -84,24 +87,143 @@ module Api
           # turn a committed write into a 403: it accounts the response bytes
           # via Reservation#complete_write! but always renders 201.
           def machine_create_response(reservation, key:, record:)
+			machine_authoring_response(reservation, key: key, record: record, status: :created)
+		  end
+
+		  def machine_edit_response(reservation, key:, record:)
+			machine_authoring_response(reservation, key: key, record: record, status: :ok)
+		  end
+
+		  def machine_authoring_response(reservation, key:, record:, status:)
             payload = {
               correlation_id: machine_grant.turn.correlation_id,
-              key => { id: record.id, name: record.name }
+              key => { id: record.id, name: record.name, lock_version: record.lock_version }
             }
             reservation.complete_write!(bytes: JSON.generate(payload).bytesize)
 
             set_grant_budget_headers
-            render json: payload, status: :created
+			render json: payload, status: status
           end
 
           def render_machine_validation_error(reservation, codes)
             reservation.fail!
+            audit_machine_authoring_failure!(reason: "validation_failed")
             render json: { error: "validation_failed", codes: codes }, status: :unprocessable_content
           end
 
           def render_machine_create_error(reservation, errors)
+			render_machine_persist_error(reservation, errors)
+		  end
+
+		  def render_machine_persist_error(reservation, errors)
             reservation.fail!
-            render json: { error: "create_rejected", errors: errors }, status: :unprocessable_content
+			if errors.details.values.flatten.any? { |detail| detail[:error] == :taken }
+			  audit_machine_authoring_failure!(reason: "name_conflict")
+			  render json: { error: "name_conflict" }, status: :conflict
+			elsif errors[:base].include?("destination_stale")
+			  audit_machine_authoring_failure!(reason: "destination_stale")
+			  render json: { error: "destination_stale" }, status: :conflict
+			else
+			  code = if errors[:variable_set_ids].any?
+				"ansible_variable_set_ids_unknown"
+			  else
+				"artifact_persistence_invalid"
+			  end
+			  audit_machine_authoring_failure!(reason: "validation_failed")
+			  render json: { error: "validation_failed", codes: [ code ] }, status: :unprocessable_content
+			end
+		  end
+
+		  def render_machine_artifact_not_found(reservation)
+			reservation.fail!
+			audit_machine_authoring_failure!(reason: "artifact_not_found")
+			render json: { error: "artifact_not_found" }, status: :not_found
+		  end
+
+		  def consume_authoring_rate!(reservation, action:)
+			::Assistant::RateLimiter.consume!(user: machine_user, action: action)
+			true
+		  rescue ::Assistant::RateLimiter::LimitExceeded => error
+			reservation.fail!
+			audit_machine_authoring_failure!(reason: "authoring_rate_limited")
+			render json: {
+			  error: "authoring_rate_limited", retry_after: error.retry_after_seconds
+			}, status: :too_many_requests
+			false
+		  end
+
+		  def machine_expected_lock_version(reservation)
+			value = params[:expected_lock_version]
+			return value if value.is_a?(Integer) && value >= 0
+
+			render_machine_validation_error(reservation, [ "expected_lock_version_invalid" ])
+			nil
+		  end
+
+		  def audit_machine_authoring!(event:, operation:, target_type:, record:)
+			turn = machine_grant.turn
+			::Assistant::Audit.record!(event: event, attributes: {
+			  correlation_id: machine_grant.turn.correlation_id,
+			  user_id: machine_user&.id,
+			  conversation_id: turn.conversation_id,
+			  turn_id: turn.id,
+			  provider_profile_id: turn.provider_profile_id,
+			  byte_count: request.content_length.to_i,
+			  target_type: target_type,
+			  target_id: record.id,
+			  metadata: { operation: operation, outcome: event == "machine.create" ? "created" : "updated" }
+			})
+          end
+
+          def persist_and_audit_machine_authoring(reservation:, event:, operation:, target_type:)
+            result = nil
+            ActiveRecord::Base.transaction(requires_new: true) do
+              result = yield
+              audit_machine_authoring!(event: event, operation: operation,
+                target_type: target_type, record: result.record) if result.success?
+            end
+            result
+          rescue StandardError
+            reservation.fail!
+            raise
+          end
+
+          def audit_machine_authoring_failure!(reason:)
+            context = machine_authoring_audit_context
+            return unless context
+
+            ::Assistant::Audit.record!(event: "machine.#{context.fetch(:action)}_rejected", attributes: {
+              correlation_id: machine_grant&.turn&.correlation_id,
+              user_id: machine_user&.id,
+              status: "rejected",
+              target_type: context.fetch(:target_type),
+              target_id: machine_authoring_target_id,
+              metadata: {
+                operation: context.fetch(:operation), outcome: "rejected", reason: reason.to_s.first(255)
+              }
+            })
+          end
+
+          def machine_authoring_audit_context
+            case [ controller_path, action_name ]
+            when [ "api/v1/assistant/machine/control_center/templates", "create" ]
+              { action: "create", operation: "create_whiterabbit_template",
+                target_type: "control_center_whiterabbit_template" }
+            when [ "api/v1/assistant/machine/control_center/templates", "update" ]
+              { action: "edit", operation: "edit_whiterabbit_template",
+                target_type: "control_center_whiterabbit_template" }
+            when [ "api/v1/assistant/machine/control_center/ansible/playbooks", "create" ]
+              { action: "create", operation: "create_ansible_playbook",
+                target_type: "control_center_ansible_playbook" }
+            when [ "api/v1/assistant/machine/control_center/ansible/playbooks", "update" ]
+              { action: "edit", operation: "edit_ansible_playbook",
+                target_type: "control_center_ansible_playbook" }
+            end
+          end
+
+          def machine_authoring_target_id
+            value = params[:id].to_s
+            value if value.match?(/\A[1-9][0-9]{0,18}\z/)
           end
 
           def authorize_tool!(tool, scope: nil, resource_type: nil, resource_id: nil)
@@ -132,6 +254,7 @@ module Api
               tools: grant.tools,
               resources: grant.resources,
               read_scopes: grant.read_scopes,
+              write_scopes: grant.write_scopes,
               expires_at: grant.expires_at.iso8601,
               calls_remaining: [ grant.max_calls - grant.call_count, 0 ].max,
               bytes_remaining: remaining_bytes(grant)
@@ -160,6 +283,7 @@ module Api
           end
 
           def render_grant_authorization_error(error)
+            audit_machine_authoring_failure!(reason: error.code) if machine_authoring_audit_context
             render json: { error: "invalid_turn_grant", reason: error.code }, status: :forbidden
           end
         end

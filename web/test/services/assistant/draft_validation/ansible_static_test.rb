@@ -119,6 +119,23 @@ class Assistant::DraftValidation::AnsibleStaticTest < ActiveSupport::TestCase
     assert_equal "ansible-static-v1", result.validation_version
   end
 
+  test "rejects inline cookie and OAuth credential material" do
+    ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
+
+    [ "Cookie: session=do-not-persist", "client_secret=do-not-persist", "refresh_token: do-not-persist" ].each do |value|
+      result = Assistant::DraftValidation::AnsibleStatic.call(<<~YAML)
+        ---
+        - hosts: workers
+          tasks:
+            - ansible.builtin.debug:
+                msg: #{value.inspect}
+      YAML
+
+      refute result.valid?, value
+      assert_includes result.codes, "ansible_secret_material_not_allowed", value
+    end
+  end
+
   test "rejects source above the assistant 64 KiB limit before generic validation" do
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
     generic_validator_called = false

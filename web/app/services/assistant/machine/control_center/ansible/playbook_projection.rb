@@ -13,20 +13,29 @@ module Assistant
           def summary(playbook)
             {
               "id" => playbook.id,
-              "name" => playbook.name,
-              "description" => playbook.description,
+              "name" => safe_text(playbook.name),
+              "description" => safe_text(playbook.description),
               "checksum" => playbook.checksum,
+			  "lock_version" => playbook.lock_version,
+			  "created_by" => safe_text(playbook.created_by.username),
               "updated_at" => playbook.updated_at
             }
           end
 
           def full(playbook)
             summary(playbook).merge(
-              "yaml_content" => playbook.yaml_content,
+              "yaml_content" => safe_text(playbook.yaml_content),
               "variable_set_ids" => playbook.variable_set_ids,
               "created_at" => playbook.created_at
             )
           end
+
+          def safe_text(value)
+            return nil if value.nil?
+
+            ::Assistant::Machine::SensitiveData.text(value.to_s, max_bytes: 65_536).value
+          end
+          private_class_method :safe_text
         end
       end
     end

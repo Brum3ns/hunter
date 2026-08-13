@@ -58,6 +58,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     playbook = body["playbook"]
     assert playbook["id"].present?
     assert_equal "assistant-playbook", playbook["name"]
+    assert_equal 0, playbook["lock_version"]
 
     record = ::ControlCenter::Ansible::Playbook.find(playbook["id"])
     assert_equal "assistant-playbook", record.name
@@ -67,6 +68,19 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     event = Assistant::AuditEvent.order(:id).last
     assert_equal "machine.create", event.event
     assert_equal "create_ansible_playbook", event.metadata["operation"]
+  end
+
+  test "creates an exact maximum-size source including its JSON envelope" do
+    source = VALID_YAML + "# " + ("<" * (Assistant::DraftValidation::AnsibleStatic::MAX_SOURCE_BYTES - VALID_YAML.bytesize - 2))
+    assert_equal Assistant::DraftValidation::AnsibleStatic::MAX_SOURCE_BYTES, source.bytesize
+
+    post "/api/v1/assistant/machine/control_center/ansible/playbooks",
+      params: { playbook: { name: "maximum-source", source: source } },
+      headers: headers(write_grant), as: :json
+
+    assert_response :created
+    record = ControlCenter::Ansible::Playbook.find(response.parsed_body.dig("playbook", "id"))
+    assert_equal source, record.yaml_content
   end
 
   test "rejects a playbook using ansible.builtin.shell and persists nothing" do
@@ -91,6 +105,22 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     assert_response :unprocessable_content
     assert_equal "validation_failed", response.parsed_body["error"]
     assert_includes response.parsed_body["codes"], "ansible_url_not_allowed"
+  end
+
+  test "returns a stable validation code for an unknown variable set" do
+    grant = write_grant
+    grant_record = Assistant::TurnGrant.order(:id).last
+
+    assert_no_difference -> { ::ControlCenter::Ansible::Playbook.count } do
+      post "/api/v1/assistant/machine/control_center/ansible/playbooks",
+        params: { playbook: VALID_PLAYBOOK.merge(variable_set_ids: [ 9_999_999 ]) },
+        headers: headers(grant), as: :json
+    end
+
+    assert_response :unprocessable_content
+    assert_equal "validation_failed", response.parsed_body["error"]
+    assert_equal [ "ansible_variable_set_ids_unknown" ], response.parsed_body["codes"]
+    assert_equal 0, grant_record.reload.reserved_bytes
   end
 
   test "refuses a grant without the write scope" do

@@ -3,6 +3,9 @@
 package vulnerabilities
 
 import (
+	"encoding/json"
+	"errors"
+
 	"hunter.local/assistant/mcp/internal/readmodule"
 	"hunter.local/assistant/mcp/internal/tool"
 )
@@ -27,7 +30,30 @@ func (Module) Tools() []tool.Tool {
 		FullKeys: []string{
 			"id", "name", "severity", "status", "program",
 			"type", "cwe", "tags", "tool", "asset", "date", "description", "impact",
-			"host", "url", "ip", "port", "submitted", "status_updated_at", "confidence",
+			"host", "url", "ip", "port", "target_input", "method", "submitted", "status_updated_at", "confidence",
+			"evidence",
 		},
+		ValidateDetail: validateDetail,
 	})
+}
+
+func validateDetail(detail map[string]json.RawMessage) error {
+	keys := []string{
+		"request", "request_redacted", "response", "response_redacted",
+		"curl", "curl_redacted", "extracted", "extracted_redacted",
+	}
+	if !readmodule.BoundedStringArray(detail["tags"], 500, 4_096) ||
+		!readmodule.TypedObject(detail["evidence"], keys, func(evidence map[string]json.RawMessage) bool {
+			return readmodule.StringValue(evidence["request"], 16_384, true) &&
+				readmodule.BooleanValue(evidence["request_redacted"], false) &&
+				readmodule.StringValue(evidence["response"], 16_384, true) &&
+				readmodule.BooleanValue(evidence["response_redacted"], false) &&
+				readmodule.StringValue(evidence["curl"], 16_384, true) &&
+				readmodule.BooleanValue(evidence["curl_redacted"], false) &&
+				readmodule.StringValue(evidence["extracted"], 16_384, true) &&
+				readmodule.BooleanValue(evidence["extracted_redacted"], false)
+		}) {
+		return errors.New("invalid vulnerability evidence projection")
+	}
+	return nil
 }

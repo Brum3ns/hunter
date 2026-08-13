@@ -32,13 +32,13 @@ module Assistant
         Assistant::RateLimiter.consume!(user: user, action: "turn_start", now: Time.current)
         if profile.claude_code?
           # Claude Code path: no context resolution and no gateway envelope, but
-          # (Path B) a per-turn grant IS issued so the backend can present it to
-          # the read-only MCP — mirrors the legacy branch's Issuer.call below.
+          # (Path B) a per-turn grant is issued so the backend can present it to
+          # the reviewed chat MCP catalog.
           turn = conversation.append_user_turn!(body: body, context_refs: [])
           raw_grant = Assistant::Grants::Issuer.call(
             turn: turn,
             resources: [],
-            tools: Assistant::Grants::Issuer::TOOLS
+            tools: Assistant::Grants::Issuer::CHAT_TOOLS
           )
         else
           contexts = resolve_contexts!(context_refs, user)
@@ -49,7 +49,7 @@ module Assistant
           raw_grant = Assistant::Grants::Issuer.call(
             turn: turn,
             resources: contexts.map { |context| context.fetch(:resource) },
-            tools: Assistant::Grants::Issuer::TOOLS
+            tools: Assistant::Grants::Issuer::LEGACY_TOOLS
           )
         end
         Assistant::Audit.record!(

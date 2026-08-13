@@ -23,10 +23,10 @@ const listenAddress = "0.0.0.0:8083"
 // defence, not as a meaningful product limit.
 const maxRequestBytes = 64 << 10
 
-// defaultMCPTools is the read-only mcp__hunter__* allowlist used when
-// ASSISTANT_CLAUDE_MCP_TOOLS is unset. It MUST contain only read tools —
-// never a built-in (Bash/Write/Edit/Read/WebFetch/...) and never a write/
-// execute/send MCP tool; see AGENTS.md's assistant capability change rule.
+// defaultMCPTools is the exact reviewed chat catalog used when
+// ASSISTANT_CLAUDE_MCP_TOOLS is unset. It contains bounded Hunter reads and
+// the four dedicated Control Center create/edit tools; never a Claude built-in
+// or a generic/delete/run/send capability.
 var defaultMCPTools = strings.Fields(
 	"mcp__hunter__list_targets mcp__hunter__get_target " +
 		"mcp__hunter__list_cves mcp__hunter__get_cve " +
@@ -37,7 +37,9 @@ var defaultMCPTools = strings.Fields(
 		"mcp__hunter__list_jobs mcp__hunter__get_job " +
 		"mcp__hunter__list_playbooks mcp__hunter__get_playbook " +
 		"mcp__hunter__list_run_groups mcp__hunter__get_run_group " +
-		"mcp__hunter__get_run mcp__hunter__list_run_events",
+		"mcp__hunter__get_run mcp__hunter__list_run_events " +
+		"mcp__hunter__create_whiterabbit_template mcp__hunter__create_ansible_playbook " +
+		"mcp__hunter__edit_whiterabbit_template mcp__hunter__edit_ansible_playbook",
 )
 
 func main() {
@@ -251,8 +253,8 @@ func intFromEnv(name string, fallback int) int {
 // tool list, falling back to defaultMCPTools when it is unset or empty —
 // mirroring intFromEnv's fallback-on-empty convention for this file's other
 // env-derived settings. The result is always filtered to the mcp__hunter__
-// prefix (see filterHunterMCPTools) so a misconfigured operator override can
-// never widen --allowedTools to a built-in or non-hunter MCP tool.
+// reviewed catalog (see filterHunterMCPTools), so configuration may narrow
+// authority but can never add a future Hunter tool or a CLI built-in.
 func mcpToolsFromEnv() []string {
 	raw := os.Getenv("ASSISTANT_CLAUDE_MCP_TOOLS")
 	if raw == "" {
@@ -261,39 +263,35 @@ func mcpToolsFromEnv() []string {
 	return filterHunterMCPTools(strings.Fields(raw))
 }
 
-// hunterMCPToolPrefix is the only prefix ever allowed into --allowedTools.
-const hunterMCPToolPrefix = "mcp__hunter__"
-
-// filterHunterMCPTools drops any entry that is not exactly prefixed with
-// mcp__hunter__, so the CLI allowlist can never carry a built-in (Bash,
-// Write, ...) or a non-hunter MCP tool regardless of what
-// ASSISTANT_CLAUDE_MCP_TOOLS is set to. If nothing survives, it returns an
-// empty slice rather than substituting any other tool list — the backend
-// already treats an empty/absent config as "no MCP for this turn".
+// filterHunterMCPTools intersects the requested names with the exact reviewed
+// catalog. Iterating the catalog also de-duplicates and gives stable ordering.
 func filterHunterMCPTools(tools []string) []string {
-	filtered := make([]string, 0, len(tools))
+	requested := make(map[string]struct{}, len(tools))
 	for _, tool := range tools {
-		if strings.HasPrefix(tool, hunterMCPToolPrefix) {
-			filtered = append(filtered, tool)
+		requested[tool] = struct{}{}
+	}
+	filtered := make([]string, 0, len(defaultMCPTools))
+	for _, reviewed := range defaultMCPTools {
+		if _, ok := requested[reviewed]; ok {
+			filtered = append(filtered, reviewed)
 		}
 	}
 	return filtered
 }
 
-// defaultSystemPrompt is the tool-use policy appended to the CLI's default
-// system prompt on MCP-enabled turns. It keeps the model from calling a
-// read tool unless the user's message explicitly asks for a Hunter data
-// lookup — without it, the model calls the tools speculatively and every
-// turn pays the multi-hop MCP round trip.
-const defaultSystemPrompt = "You are the Hunter assistant. You have read-only tools (named mcp__hunter__*) that look up live data in Hunter: targets, CVEs, vulnerabilities, sitemap endpoints, bug-bounty programs, and Control Center templates/jobs/ansible runs. STRICT TOOL POLICY: never call any tool unless the user's most recent message EXPLICITLY asks you to look up, search, list, count, fetch, or show Hunter data. For greetings, small talk, general questions, definitions, or anything that does not explicitly request a Hunter data lookup, answer directly from your own knowledge and DO NOT call any tool. If you are unsure whether the user wants a lookup, do NOT call a tool — answer briefly and offer to look it up if they want. Never call a tool speculatively, proactively, or to double-check. When a lookup IS explicitly requested, make the fewest tool calls needed."
+// defaultSystemPrompt is the reviewed tool-use policy appended to MCP-enabled
+// turns. It makes ordinary Hunter work direct while keeping every effect inside
+// the four narrow authoring tools.
+const defaultSystemPrompt = "You are the Hunter assistant. The mcp__hunter__ tools give you current, secret-safe Hunter data for targets, CVEs, vulnerabilities, sitemap endpoints, bug-bounty programs, and Control Center artifacts and history. Use the read tools whenever they are needed to answer or complete the user's Hunter request, using focused filters and the fewest calls that give a reliable result. Do not call tools for greetings, unrelated general knowledge, or speculative exploration. " +
+	"When the user asks to create, write, add, or generate a Whiterabbit template/script or Ansible playbook, use the matching dedicated create tool and persist it to Control Center without asking for confirmation. Fill in safe obvious defaults so requests such as creating an httpx proof template work in one turn. Create never overwrites an existing artifact; if its name conflicts, report the conflict and do not edit it. " +
+	"Only use an edit tool when the user explicitly asks to edit, update, change, or fix an existing artifact. Read that artifact first when its ID or current lock version is needed, then submit a narrowly scoped edit. Never delete any artifact. Never run, execute, launch, schedule, or send anything. Never use a generic shell, filesystem, network, credential, settings, or write capability."
 
-// systemPromptFromEnv returns the tool-use policy appended via
-// --append-system-prompt. ASSISTANT_CLAUDE_SYSTEM_PROMPT overrides it when
-// set; an explicit empty value disables the append (operator opt-out), which
-// is why this distinguishes unset from empty rather than falling back on "".
+// systemPromptFromEnv returns the reviewed tool-use policy appended via
+// --append-system-prompt. Operator context may extend that policy, but cannot
+// replace or erase the mandatory explicit-edit and no-delete/run rules.
 func systemPromptFromEnv() string {
-	if raw, ok := os.LookupEnv("ASSISTANT_CLAUDE_SYSTEM_PROMPT"); ok {
-		return raw
+	if raw := strings.TrimSpace(os.Getenv("ASSISTANT_CLAUDE_SYSTEM_PROMPT")); raw != "" {
+		return "Additional operator context:\n" + raw + "\n\nMandatory Hunter tool policy:\n" + defaultSystemPrompt
 	}
 	return defaultSystemPrompt
 }

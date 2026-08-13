@@ -78,19 +78,17 @@ docker compose exec assistant-claude claude -p "say ok" --output-format json
 
 ## Step 3 — Confirm the app is reachable
 
-`web` publishes port `3000` in dev (not `5000` — confirm this against your own
-`docker-compose.yaml`/`docker-compose.prod.yaml` rather than assuming, since
-published ports are a config choice, not a code constant). Note: the container
-still listens on 5000 internally (Procfile `-p 5000`); dev compose publishes
-it as host 3000. Prod (`docker-compose.prod.yaml`) keeps 5000 behind a
-TLS-terminating proxy.
+`web` publishes port `5000` in the current development Compose file. Confirm
+this against the resolved Compose configuration because published ports remain
+a deployment choice. Production keeps the app behind its TLS-terminating
+proxy.
 
 ```sh
 grep -A2 '^  web:' docker-compose.yaml | grep -A1 'ports:'
-# expect: - "0.0.0.0:3000:5000"
+# expect: - "0.0.0.0:5000:5000"
 ```
 
-If you are on the same host `dockerd` is running on, `localhost:3000` reaches
+If you are on the same host `dockerd` is running on, `localhost:5000` reaches
 it directly (the bind is `0.0.0.0`, so it is not restricted to the Docker
 bridge). If you are driving this from a separate machine or a nested
 container/devcontainer setup where `localhost` does not resolve to the Docker
@@ -104,18 +102,19 @@ docker network inspect bridge --format '{{ (index .IPAM.Config 0).Gateway }}'
 Quick health check before opening a browser:
 
 ```sh
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/up
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5000/up
 ```
 
 **Expect:** `200`.
 
 ## Step 4 — Drive a real chat turn on the Claude provider profile
 
-1. Open `http://localhost:3000` (or `http://<host-ip-or-gateway-ip>:3000`)
+1. Open `http://localhost:5000` (or `http://<host-ip-or-gateway-ip>:5000`)
    in a browser, sign in as the configured session administrator
    (`ADMIN_USERNAME`), and open the Hunter assistant panel.
 2. Confirm the panel's capability disclosure now reads that the assistant can
-   read Hunter data through bounded, read-only tools
+   read non-secret Hunter data and can create or explicitly edit validated
+   Control Center templates/playbooks without a confirmation prompt
    (`#hunter-assistant-capability-disclosure` in
    `web/app/views/layouts/_assistant.html.erb`) — this is the UI-facing half
    of this change, and should be visible before you start a conversation.
@@ -137,10 +136,10 @@ answer the model could have produced without calling a tool.
    **Expect:** a fast, direct reply with **no** tool call (verify no
    `hunter-mcp`/machine-API log line for that turn). The backend appends a
    strict system prompt (`--append-system-prompt`) instructing the model to
-   call a read tool *only* when you explicitly ask for a Hunter data lookup —
-   this is what keeps ordinary questions fast. Operators can override or
-   disable that policy with `ASSISTANT_CLAUDE_SYSTEM_PROMPT` (empty = disabled;
-   the model may then call tools speculatively again).
+   use Hunter tools when needed for the request and never for small talk.
+   `ASSISTANT_CLAUDE_SYSTEM_PROMPT` can add operator context before that
+   policy, but cannot replace or disable the mandatory explicit-edit,
+   no-overwrite, and no-delete/run rules. An empty value adds nothing.
 
 ## Step 5 — Confirm the tool call actually round-tripped
 

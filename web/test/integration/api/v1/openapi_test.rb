@@ -172,4 +172,30 @@ class Api::V1::OpenapiTest < ActionDispatch::IntegrationTest
     assert_equal "control_center", doc.dig("paths", "/api/v1/control_center/jobs", "post", "x-api-scope")
     assert_equal "control_center", doc.dig("paths", "/api/v1/control_center/jobs/{id}", "get", "x-api-scope")
   end
+
+  test "documents closed Assistant create and explicit edit authoring inputs" do
+    sign_in_as(@user)
+    get "/api/v1/openapi.json"
+
+    assert_response :success
+    doc = JSON.parse(response.body)
+    command = doc.dig("components", "schemas", "AssistantWhiterabbitCommand")
+    assert_equal false, command["additionalProperties"]
+    assert_equal %w[command], command["required"]
+
+    template_patch = doc.dig(
+      "paths", "/api/v1/assistant/machine/control_center/templates/{id}",
+      "patch", "requestBody", "content", "application/json", "schema", "properties", "changes"
+    )
+    assert_equal false, template_patch["additionalProperties"]
+    assert_equal %w[name kind tags description output commands target], template_patch.fetch("properties").keys
+
+    playbook_patch = doc.dig(
+      "paths", "/api/v1/assistant/machine/control_center/ansible/playbooks/{id}",
+      "patch", "requestBody", "content", "application/json", "schema", "properties", "changes"
+    )
+    assert_equal %w[name description source variable_set_ids], playbook_patch.fetch("properties").keys
+    settings = doc.dig("components", "schemas", "AssistantSettingsInput", "properties", "settings", "properties")
+    assert settings.key?("control_center_write_enabled")
+  end
 end

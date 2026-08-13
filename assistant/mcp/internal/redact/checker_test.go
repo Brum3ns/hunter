@@ -8,6 +8,10 @@ func TestCheckerRejectsSecretsAndOversizedBodies(t *testing.T) {
 		[]byte(`{"authorization":"Bearer secret"}`),
 		[]byte(`{"key":"-----BEGIN PRIVATE KEY-----"}`),
 		[]byte(`{"url":"https://user:pass@example.test"}`),
+		[]byte(`{"command":"curl -H 'Cookie: session=do-not-return' https://example.test"}`),
+		[]byte(`{"value":"client_secret=do-not-return"}`),
+		[]byte(`{"value":"refresh_token: do-not-return"}`),
+		[]byte(`{"client_secret":"do-not-return"}`),
 		make([]byte, 65),
 	} {
 		if err := checker.Check(body); err == nil {
@@ -17,7 +21,12 @@ func TestCheckerRejectsSecretsAndOversizedBodies(t *testing.T) {
 }
 
 func TestCheckerAcceptsBoundedSanitizedJSON(t *testing.T) {
-	if err := NewChecker(1024).Check([]byte(`{"host":"example.test"}`)); err != nil {
-		t.Fatal(err)
+	for _, body := range [][]byte{
+		[]byte(`{"host":"example.test"}`),
+		[]byte(`{"client_secret":"[REDACTED]"}`),
+	} {
+		if err := NewChecker(1024).Check(body); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

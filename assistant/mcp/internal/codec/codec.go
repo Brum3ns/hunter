@@ -10,7 +10,9 @@ import (
 	"unicode/utf8"
 )
 
-const MaxInputBytes = 64 << 10
+// MaxInputBytes includes the JSON envelope and worst-case escaping around a
+// schema-bounded 64 KiB Ansible source.
+const MaxInputBytes = 512 << 10
 
 // SafeID bounds every resource/id string a tool accepts or a grant authorizes.
 var SafeID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$`)

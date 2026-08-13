@@ -33,6 +33,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
       template = body["template"]
       assert template["id"].present?
       assert_equal "assistant-probe", template["name"]
+      assert_equal 0, template["lock_version"]
 
       record = ControlCenter::Template.find(template["id"])
       assert_equal "assistant-probe", record.name
@@ -41,6 +42,62 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
       event = Assistant::AuditEvent.order(:id).last
       assert_equal "machine.create", event.event
       assert_equal "create_whiterabbit_template", event.metadata["operation"]
+      assert_equal assistant_turns(:created).id, event.turn_id
+      assert_equal assistant_turns(:created).conversation_id, event.conversation_id
+      assert_equal assistant_turns(:created).provider_profile_id, event.provider_profile_id
+      assert_operator event.byte_count, :>, 0
+    end
+  end
+
+  test "an audit failure rolls back the artifact create" do
+    grant = write_grant
+    grant_record = Assistant::TurnGrant.order(:id).last
+    stub_methods(ControlCenter::TemplateValidator, allowlist: [ "curl" ]) do
+      assert_no_difference -> { ControlCenter::Template.count } do
+        assert_raises RuntimeError do
+          stub_methods(Assistant::Audit, record!: ->(**) { raise "audit unavailable" }) do
+            post "/api/v1/assistant/machine/control_center/templates",
+              params: { template: VALID_TEMPLATE }, headers: headers(grant), as: :json
+          end
+        end
+      end
+    end
+    assert_equal 0, grant_record.reload.reserved_bytes
+  end
+
+  test "an unexpected persistence failure releases the result reservation" do
+    grant = write_grant
+    grant_record = Assistant::TurnGrant.order(:id).last
+
+    stub_methods(ControlCenter::TemplateValidator, allowlist: [ "curl" ]) do
+      assert_raises RuntimeError do
+        stub_methods(ControlCenter::Templates::Persist,
+          call: ->(**) { raise "persistence unavailable" }) do
+          post "/api/v1/assistant/machine/control_center/templates",
+            params: { template: VALID_TEMPLATE }, headers: headers(grant), as: :json
+        end
+      end
+    end
+
+    assert_equal 0, grant_record.reload.reserved_bytes
+  end
+
+  test "creates a natural minimal command and preserves full safe template fields" do
+    stub_methods(ControlCenter::TemplateValidator, allowlist: [ "httpx" ]) do
+      post "/api/v1/assistant/machine/control_center/templates", params: {
+        template: {
+          name: "httpx-file-proof", kind: "cmdscript", tags: [ "recon" ], output: "jsonl",
+          commands: [ { command: "httpx" } ],
+          target: { type: "file", separator: "newline", output: "__TARGET_FILE__" }
+        }
+      }, headers: headers(write_grant), as: :json
+
+      assert_response :created
+      record = ControlCenter::Template.find(response.parsed_body.dig("template", "id"))
+      assert_equal [], record.commands.first.fetch("args")
+      assert_equal "", record.commands.first.fetch("operator")
+      assert_equal [ "recon" ], record.tags
+      assert_equal "file", record.target.fetch("type")
     end
   end
 
@@ -68,8 +125,13 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
           params: { template: VALID_TEMPLATE }, headers: headers(write_grant), as: :json
       end
 
-      assert_response :unprocessable_content
-      assert_equal "create_rejected", response.parsed_body["error"]
+      assert_response :conflict
+      assert_equal "name_conflict", response.parsed_body["error"]
+      event = Assistant::AuditEvent.order(:id).last
+      assert_equal "machine.create_rejected", event.event
+      assert_equal({
+        "operation" => "create_whiterabbit_template", "outcome" => "rejected", "reason" => "name_conflict"
+      }, event.metadata)
     end
   end
 
@@ -130,6 +192,9 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
 
     assert_response :forbidden
     assert_equal "control_center_write_disabled", response.parsed_body["error"]
+    event = Assistant::AuditEvent.order(:id).last
+    assert_equal "machine.create_rejected", event.event
+    assert_equal "control_center_write_disabled", event.metadata["reason"]
   end
 
   private

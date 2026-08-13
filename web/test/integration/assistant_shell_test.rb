@@ -34,23 +34,27 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_select "[role='dialog'][aria-modal='true'][aria-labelledby='hunter-assistant-title'][hidden]"
+    assert_select "#hunter-assistant-panel.assistant-panel[data-assistant-target='panel']"
+    assert_select "button[data-assistant-target='resizeHandle'][aria-label='Resize Hunter assistant'][data-action*='pointerdown->assistant#startResize'][data-action*='keydown->assistant#resizeWithKeyboard']"
     assert_select "button[aria-label='Close Hunter assistant']"
+    assert_select "details[data-assistant-target='capabilityDisclosure'] > summary", text: /Data access & actions/i
     assert_select "form[data-action*='assistant#startConversation'] select[data-assistant-target='providerSelect']"
     assert_select "[data-assistant-target='retentionNotice']", text: /retention/i
     assert_select "form[data-action*='assistant#submitMessage'] textarea"
+    assert_select "details[data-assistant-target='contextDisclosure'] > summary", text: /Add Hunter context/i
     assert_select "[data-assistant-target='disclosurePreview']"
     assert_select "[data-assistant-target='drafts'][aria-live='polite']"
     assert_select "[data-controller='toaster'].bottom-24"
   end
 
-  test "shell discloses read-only tool access to Hunter data" do
+  test "shell discloses non-secret reads and permission-free bounded authoring" do
     sign_in_as(@admin)
     get root_path
 
     assert_response :success
-    assert_select "#hunter-assistant-capability-disclosure", text: /read-only tools/i
-    assert_select "#hunter-assistant-capability-disclosure", text: /create.*validated Whiterabbit templates and Ansible playbooks/i
-    assert_select "#hunter-assistant-capability-disclosure", text: /but not edit, delete, or run/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /read non-secret Hunter data/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /create and explicitly edit validated Whiterabbit templates and Ansible playbooks without a confirmation prompt/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /never delete or run/i
   end
 
   test "server-rendered profile data remains escaped and no secret metadata is present" do

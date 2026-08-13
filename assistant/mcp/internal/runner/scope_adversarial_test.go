@@ -9,6 +9,7 @@ import (
 	cc_run_groups "hunter.local/assistant/mcp/internal/modules/cc_run_groups"
 	cc_runs "hunter.local/assistant/mcp/internal/modules/cc_runs"
 	cc_templates "hunter.local/assistant/mcp/internal/modules/cc_templates"
+	"hunter.local/assistant/mcp/internal/modules/ccwrite"
 	cves "hunter.local/assistant/mcp/internal/modules/cves"
 	sitemap "hunter.local/assistant/mcp/internal/modules/sitemap"
 	targets "hunter.local/assistant/mcp/internal/modules/targets"
@@ -38,6 +39,39 @@ func newTemplatesRunner(b Backend) *Runner {
 	reg := NewRegistry()
 	reg.Add(cc_templates.Module{})
 	return New(b, reg, redact.NewChecker(64<<10))
+}
+
+func newCCWriteRunner(b Backend) *Runner {
+	reg := NewRegistry()
+	reg.Add(ccwrite.Module{})
+	return New(b, reg, redact.NewChecker(64<<10))
+}
+
+func TestCreateTemplateAllowedOnlyByDedicatedWriteScope(t *testing.T) {
+	payload := []byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{"id":1,"name":"httpx proof","lock_version":0}}`)
+	b := fakeBackend{grant: transport.Grant{
+		Tools: []string{"create_whiterabbit_template"}, WriteScopes: []string{"control_center_templates_write"},
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+	}, payload: payload}
+	out, err := newCCWriteRunner(b).Dispatch(context.Background(), "g", "create_whiterabbit_template", []byte(`{"template":{"name":"httpx proof","kind":"cmdscript","commands":[{"command":"httpx","args":["-l","targets.txt"]}]}}`))
+	if err != nil || string(out) != string(payload) {
+		t.Fatalf("write scope happy path failed: %q %v", out, err)
+	}
+}
+
+func TestCreateTemplateRejectsMissingOrMisclassifiedWriteScope(t *testing.T) {
+	for _, grant := range []transport.Grant{
+		{Tools: []string{"create_whiterabbit_template"}},
+		{Tools: []string{"create_whiterabbit_template"}, ReadScopes: []string{"control_center_templates_write"}},
+	} {
+		grant.ExpiresAt = time.Now().Add(time.Minute)
+		grant.CallsRemaining = 8
+		grant.BytesRemaining = 4096
+		_, err := newCCWriteRunner(fakeBackend{grant: grant}).Dispatch(context.Background(), "g", "create_whiterabbit_template", []byte(`{"template":{"name":"n","kind":"cmdscript","commands":[{"command":"httpx"}]}}`))
+		if !errors.Is(err, ErrScopeDenied) {
+			t.Fatalf("want ErrScopeDenied for grant %#v, got %v", grant, err)
+		}
+	}
 }
 
 // newAnsibleRunner registers both Control Center Ansible modules that share

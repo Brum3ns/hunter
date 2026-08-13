@@ -119,4 +119,22 @@ class Api::V1::Assistant::ProviderProfilesTest < ActionDispatch::IntegrationTest
     assert Assistant::TurnGrant.where(revoked_at: nil).none?
     assert_equal "interrupted", assistant_turns(:created).reload.status
   end
+
+  test "settings serialize and audit the independently revocable Control Center authoring switch" do
+    Assistant::Setting.instance.enable_control_center_write!
+
+    get "/api/v1/assistant/settings"
+    assert_response :success
+    assert_equal true, response.parsed_body.fetch("control_center_write_enabled")
+
+    patch "/api/v1/assistant/settings", params: {
+      settings: { control_center_write_enabled: false }
+    }, as: :json
+    assert_response :success
+    assert_equal false, response.parsed_body.fetch("control_center_write_enabled")
+    refute Assistant::Setting.instance.reload.control_center_write_enabled?
+    event = Assistant::AuditEvent.order(:id).last
+    assert_equal "control_center_write.disabled", event.event
+    assert_equal @admin.id, event.user_id
+  end
 end

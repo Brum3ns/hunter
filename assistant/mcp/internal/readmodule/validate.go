@@ -61,6 +61,9 @@ func validateGet(spec Spec) func([]byte) error {
 		if !codec.ExactKeys(detail, spec.FullKeys) {
 			return errRejected
 		}
+		if spec.ValidateDetail != nil && spec.ValidateDetail(detail) != nil {
+			return errRejected
+		}
 		return nil
 	}
 }

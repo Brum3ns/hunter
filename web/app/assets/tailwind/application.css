@@ -114,6 +114,28 @@
   }
 }
 
+/* Assistant panel: anchored bottom-right and resized from its top-left handle.
+   Inline dimensions set by Stimulus override the defaults after restoration. */
+@media (min-width: 640px) {
+  .assistant-panel {
+    width: 680px;
+    height: min(780px, calc(100dvh - 2rem));
+    min-width: min(480px, calc(100vw - 2rem));
+    min-height: min(520px, calc(100dvh - 2rem));
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100dvh - 2rem);
+    box-shadow:
+      0 28px 70px -24px rgb(0 0 0 / 0.55),
+      0 10px 24px -16px rgb(0 0 0 / 0.3);
+  }
+}
+
+.assistant-is-resizing,
+.assistant-is-resizing * {
+  cursor: nwse-resize !important;
+  user-select: none !important;
+}
+
 /* "Fit window" mode — wrap long request/response/curl lines instead of scrolling. */
 .code-fit {
   overflow-x: hidden;

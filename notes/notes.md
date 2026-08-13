@@ -1,0 +1,7 @@
+- Add a statistic so I can see how many times I scanned a target, X endpoint and with what version of whiterabbit template.
+- Statitstic page to see VPS
+- Report templates connected to gitea
+- LLM instructions / skills how to write ansible, whiterabbit and how to fetch target, sitemap, cve to use and chain
+- Fully autonomous LLM steered (with limitations for security and safety)
+- Notification + discord webhook
+- Nuclei template intelligence - auto write nuclei + llm powered

@@ -76,6 +76,19 @@ class Assistant::TurnGrantTest < ActiveSupport::TestCase
     assert clone.valid?, clone.errors.full_messages.join(", ")
   end
 
+  test "WRITE_SCOPES is the exact independently revocable create and edit set" do
+    assert_equal(
+      %w[
+        control_center_templates_write
+        control_center_templates_edit
+        control_center_ansible_write
+        control_center_ansible_edit
+      ],
+      Assistant::TurnGrant::WRITE_SCOPES
+    )
+    assert_empty Assistant::TurnGrant::READ_SCOPES & Assistant::TurnGrant::WRITE_SCOPES
+  end
+
   private
 
   def clone_of_issued_grant(secret)

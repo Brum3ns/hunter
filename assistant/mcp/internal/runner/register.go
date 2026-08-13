@@ -58,6 +58,9 @@ func wrapResult(payload []byte) (map[string]any, []byte, bool) {
 
 // PublicError maps an internal runner error to a stable, non-revealing token.
 func PublicError(err error) string {
+	if code, ok := stableHunterCode(err); ok {
+		return code
+	}
 	switch {
 	case errors.Is(err, ErrUnknownTool):
 		return "unknown_tool"

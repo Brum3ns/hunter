@@ -2,12 +2,12 @@ require "test_helper"
 
 class Assistant::ConfigTest < ActiveSupport::TestCase
   test "hard ceilings cannot be raised by environment configuration" do
-    stub_methods(Assistant::Config, configured: ->(_key) { "999999" }) do
+    stub_methods(Assistant::Config, configured: ->(_key) { "99999999" }) do
       assert_equal 300.seconds, Assistant::Config.grant_ttl
       assert_equal 10, Assistant::Config.max_records
       assert_equal 8, Assistant::Config.max_tool_calls
-      assert_equal 65_536, Assistant::Config.max_result_bytes
-      assert_equal 262_144, Assistant::Config.max_total_bytes
+      assert_equal 524_288, Assistant::Config.max_result_bytes
+      assert_equal 2_097_152, Assistant::Config.max_total_bytes
       assert_equal 10, Assistant::Config.turn_starts_per_minute
       assert_equal 60, Assistant::Config.turn_starts_per_hour
       assert_equal 2, Assistant::Config.max_concurrent_turns

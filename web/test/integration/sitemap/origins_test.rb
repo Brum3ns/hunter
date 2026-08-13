@@ -71,6 +71,25 @@ class Sitemap::OriginsTest < ActionDispatch::IntegrationTest
     assert_select "button[disabled]", text: "Select all matching filter"
   end
 
+  test "each origin row renders a whole-origin selection checkbox scoped to its origin" do
+    t = target!(host: "pick.me"); endpoint!(t, "/x")
+
+    get targets_sitemap_path
+
+    assert_select "input[type=checkbox][data-targets-selection-target=originCheckbox]" \
+                  "[data-action='targets-selection#toggleOrigin'][data-origin=?]", t.origin
+  end
+
+  test "whole-origin checkbox is disabled when a facet filter is active" do
+    t = target!(host: "faceted3.atg.se"); endpoint!(t, "/x", method: "POST")
+
+    get targets_sitemap_path(methods: [ "POST" ])
+
+    assert_select "input[data-targets-selection-target=originCheckbox]", count: 0
+    assert_select "label[title=?] input[type=checkbox][disabled]",
+                  "Clear facet filters to select a whole origin, or expand and tick rows"
+  end
+
   test "renders as the Sitemap tab in the Target department" do
     target = target!(host: "tab.example.com"); endpoint!(target, "/x")
 

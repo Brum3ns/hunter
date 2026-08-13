@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"hunter.local/assistant/mcp/internal/codec"
 	"hunter.local/assistant/mcp/internal/tool"
 )
 
@@ -167,5 +168,25 @@ func TestGetOutputValidation(t *testing.T) {
 	bad := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","thing":{"id":"t1","name":"n"}}`
 	if tl.Validate([]byte(bad)) == nil {
 		t.Fatal("missing full key accepted")
+	}
+}
+
+func TestGetRunsModuleSpecificNestedValidation(t *testing.T) {
+	s := spec()
+	s.ValidateDetail = func(detail map[string]json.RawMessage) error {
+		var nested map[string]json.RawMessage
+		if codec.DecodeRawClosed(detail["detail"], &nested) != nil || !codec.ExactKeys(nested, []string{"safe"}) {
+			return errRejected
+		}
+		return nil
+	}
+	tl := find(t, Build(s), "get_thing")
+	good := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","thing":{"id":"t1","name":"n","detail":{"safe":true}}}`
+	if err := tl.Validate([]byte(good)); err != nil {
+		t.Fatalf("valid nested detail rejected: %v", err)
+	}
+	bad := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","thing":{"id":"t1","name":"n","detail":{"safe":true,"secret":"leak"}}}`
+	if tl.Validate([]byte(bad)) == nil {
+		t.Fatal("nested unknown field accepted")
 	}
 }

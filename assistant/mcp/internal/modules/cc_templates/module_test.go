@@ -69,22 +69,22 @@ func TestGetTemplateBuildsPath(t *testing.T) {
 func TestListTemplatesOutputValidation(t *testing.T) {
 	tl := find(t, "list_templates")
 	good := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":1,"page":1,"limit":50,` +
-		`"items":[{"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"updated_at":"2026-01-01"}]}`
+		`"items":[{"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"lock_version":0,"created_by":"operator","updated_at":"2026-01-01"}]}`
 	if err := tl.Validate([]byte(good)); err != nil {
 		t.Fatalf("valid output rejected: %v", err)
 	}
 	bad := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":1,"page":1,"limit":50,` +
-		`"items":[{"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"updated_at":"2026-01-01","created_by":"x"}]}`
+		`"items":[{"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"lock_version":0,"created_by":"operator","updated_at":"2026-01-01","credential":"x"}]}`
 	if tl.Validate([]byte(bad)) == nil {
-		t.Fatal("accepted invalid output (created_by leaked)")
+		t.Fatal("accepted invalid output")
 	}
 }
 
 func TestGetTemplateOutputValidation(t *testing.T) {
 	tl := find(t, "get_template")
 	full := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{` +
-		`"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"updated_at":"2026-01-01",` +
-		`"output":"json","commands":[{"command":"curl","args":[]}],"target":{"type":"host"},"created_at":"2026-01-01"}}`
+		`"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"lock_version":0,"created_by":"operator","updated_at":"2026-01-01",` +
+		`"output":"json","commands":[{"command":"curl","args":[],"operator":""}],"target":{"type":"host","separator":null,"output":null},"created_at":"2026-01-01"}}`
 	if err := tl.Validate([]byte(full)); err != nil {
 		t.Fatalf("valid full output rejected: %v", err)
 	}
@@ -92,10 +92,32 @@ func TestGetTemplateOutputValidation(t *testing.T) {
 		t.Fatal("partial template accepted")
 	}
 	leaked := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{` +
-		`"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"updated_at":"2026-01-01",` +
-		`"output":"json","commands":[],"target":null,"created_at":"2026-01-01","created_by":"x"}}`
+		`"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"lock_version":0,"created_by":"operator","updated_at":"2026-01-01",` +
+		`"output":"json","commands":[],"target":null,"created_at":"2026-01-01","credential":"x"}}`
 	if tl.Validate([]byte(leaked)) == nil {
-		t.Fatal("accepted output leaking created_by")
+		t.Fatal("accepted output with an unknown field")
+	}
+	nestedLeak := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{` +
+		`"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":["recon"],"lock_version":0,"created_by":"operator","updated_at":"2026-01-01",` +
+		`"output":"json","commands":[{"command":"curl","args":[],"operator":"","credential":"leak"}],"target":null,"created_at":"2026-01-01"}}`
+	if tl.Validate([]byte(nestedLeak)) == nil {
+		t.Fatal("accepted unknown nested command field")
+	}
+}
+
+func TestGetTemplateRejectsMalformedNestedCommandAndTargetValues(t *testing.T) {
+	tl := find(t, "get_template")
+	base := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{` +
+		`"id":1,"name":"probe","kind":"cmdscript","description":"d","tags":[],"lock_version":0,"created_by":"operator","updated_at":"2026-01-01",` +
+		`"output":"json","commands":[{"command":"httpx","args":[],"operator":""}],` +
+		`"target":{"type":"file","separator":"newline","output":"__TARGET_FILE__"},"created_at":"2026-01-01"}}`
+	for _, malformed := range []string{
+		strings.Replace(base, `"args":[]`, `"args":[{"arbitrary":true}]`, 1),
+		strings.Replace(base, `"separator":"newline"`, `"separator":42`, 1),
+	} {
+		if tl.Validate([]byte(malformed)) == nil {
+			t.Fatalf("accepted malformed nested template: %s", malformed)
+		}
 	}
 }
 

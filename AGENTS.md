@@ -134,28 +134,33 @@ in the Assistant production checklist.
 
 ### Approved exceptions
 
-- **Approval-free create: Whiterabbit templates + Ansible playbooks** (spec:
-  `docs/superpowers/specs/2026-07-30-assistant-approval-free-create-design.md`).
-  Create-only (never edit/delete/run) of these two Control Center artifact
-  types is approved **without** the human-approval step, conditioned on all of
+- **Approval-free create + explicit edit: Whiterabbit templates + Ansible
+  playbooks** (approved delta:
+  `docs/superpowers/specs/2026-07-30-assistant-mcp-full-access-authoring-design.md`).
+  Create and explicit user-requested edit (never delete/run) of these two
+  Control Center artifact types are approved **without** a confirmation step,
+  conditioned on all of
   the following remaining true:
   - The strict content validators (`Assistant::DraftValidation::AnsibleStatic`
     for playbooks, `Assistant::DraftValidation::Whiterabbit`/`TemplateValidator`
     for templates) remain mandatory, fail-closed gates — no persist path may
     bypass them.
-  - The capability stays create-only: the machine endpoints only ever build a
-    new record (`Model.new`); there is no edit, delete, or run path.
+  - Create only builds a new record (`Model.new`) and never overwrites. Edit is
+    separately named for every existing artifact, requires the artifact ID
+    plus `expected_lock_version`, validates the complete merged artifact, and
+    fails stale; there is no delete or run path.
   - Authorization is via dedicated, non-wildcard write scopes
-    (`control_center_templates_write`, `control_center_ansible_write`) granted
-    only alongside the matching `create_*` tool, and the whole capability is
+    (`control_center_templates_write`, `control_center_templates_edit`,
+    `control_center_ansible_write`, `control_center_ansible_edit`) granted only
+    alongside the matching `create_*`/`edit_*` tool, and the whole capability is
     independently revocable via `Assistant::Setting#control_center_write_enabled`
     (default on) without touching any read capability.
-  - Every create is attributed to the turn's human user and audited
+  - Every create/edit is attributed to the turn's human user and audited
     metadata-only (`Assistant::Audit.record!`).
   - Production activation still stays gated by, and requires review evidence
     recorded in, the Assistant production checklist
     (`docs/security/hunter-assistant-production-checklist.md`) before enable.
 
-  Any change to these conditions (new artifact type, edit/delete/run, a
+  Any change to these conditions (new artifact type, delete/run, blind edit, a
   broadened or wildcard scope, or removing the validator/toggle/audit gates)
   is a new capability change requiring its own threat-model delta.

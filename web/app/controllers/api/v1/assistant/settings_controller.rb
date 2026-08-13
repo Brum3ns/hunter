@@ -12,6 +12,9 @@ module Api
           enabled = if attributes.key?(:assistant_enabled)
             ActiveModel::Type::Boolean.new.cast(attributes[:assistant_enabled])
           end
+		  authoring_enabled = if attributes.key?(:control_center_write_enabled)
+			ActiveModel::Type::Boolean.new.cast(attributes[:control_center_write_enabled])
+		  end
           identity_missing = false
 
           ::Assistant::Setting.transaction do
@@ -21,7 +24,7 @@ module Api
               identity_missing = true
               raise ActiveRecord::Rollback
             end
-            setting.update!(attributes.except(:assistant_enabled))
+			setting.update!(attributes.except(:assistant_enabled, :control_center_write_enabled))
             if attributes.key?(:assistant_enabled)
               if enabled
                 setting.enable!
@@ -29,6 +32,13 @@ module Api
                 ::Assistant::KillSwitch.disable!(user: current_assistant_user)
               end
             end
+			if attributes.key?(:control_center_write_enabled)
+			  if authoring_enabled
+				setting.enable_control_center_write!(user: current_assistant_user)
+			  else
+				setting.disable_control_center_write!(user: current_assistant_user)
+			  end
+			end
           end
           if identity_missing
             return render json: { error: "assistant_service_identity_required" },
@@ -45,6 +55,7 @@ module Api
         def settings_params
           params.require(:settings).permit(
             :assistant_enabled,
+			:control_center_write_enabled,
             :transcript_retention_days,
             :audit_retention_days
           ).to_h.symbolize_keys

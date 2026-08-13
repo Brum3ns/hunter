@@ -54,4 +54,11 @@ class ControlCenter::TemplateWorkspaceTest < ActionDispatch::IntegrationTest
       assert_select "[data-control-center-templates-target=selectionSummary]", count: 1
     end
   end
+
+  test "wires a staged-targets banner with a clear action" do
+    assert_select "[data-control-center-templates-target=stagedBanner]" do
+      assert_select "[data-control-center-templates-target=stagedCount]", count: 1
+      assert_select "button[data-action='control-center-templates#clearStaged']", text: /Clear/
+    end
+  end
 end

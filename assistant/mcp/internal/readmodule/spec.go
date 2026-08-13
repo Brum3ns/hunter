@@ -4,7 +4,10 @@
 // compile-time helper — every tool it emits is independently named and scoped.
 package readmodule
 
-import "regexp"
+import (
+	"encoding/json"
+	"regexp"
+)
 
 // ListField is one closed query parameter a list_* tool accepts.
 type ListField struct {
@@ -32,6 +35,8 @@ type Spec struct {
 	ListFields  []ListField // extra filters; page+limit are always added
 	SummaryKeys []string    // exact keys of each list item
 	FullKeys    []string    // exact keys of the detail object
+	// ValidateDetail optionally enforces closed nested shapes after FullKeys.
+	ValidateDetail func(map[string]json.RawMessage) error
 
 	IDPattern *regexp.Regexp // nil ⇒ codec.SafeID
 	MaxItems  int            // 0 ⇒ 50

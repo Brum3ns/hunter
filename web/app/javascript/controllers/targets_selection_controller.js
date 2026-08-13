@@ -1,66 +1,64 @@
 import { Controller } from "@hotwired/stimulus"
+import { TargetSelection } from "lib/target_selection"
 
-// Tracks a target selection on a list page and hands it to Control Center.
-// Two modes: explicit ids, or "all matching the current filter" (with a set of
-// un-ticked exclude ids). `source` and the current query come from data attrs
-// so the same controller serves the Target page (source=targets) and the
-// Sitemap page (source=sitemap).
+// DOM wrapper around lib/target_selection.js. Serves both the Target page
+// (source=targets) and the Sitemap page (source=sitemap). Selection kinds:
+// per-row checkboxes (with SHIFT-click range), whole-origin checkboxes
+// (sitemap), and "select all matching filter". Hands the result to Control
+// Center via sessionStorage.
 export default class extends Controller {
-  static targets = ["checkbox", "count", "selectAll"]
+  static targets = ["checkbox", "originCheckbox", "count"]
   static values = { source: String, query: String }
 
   connect() {
-    this.ids = new Set()
-    this.excluded = new Set()
-    this.allMatching = false
+    this.selection = new TargetSelection({ source: this.sourceValue, query: this.queryValue })
     this.render()
   }
 
+  // A per-row checkbox click. Supports SHIFT-click to select the range from the
+  // last-clicked box to this one across the currently-rendered rows.
   toggleRow(event) {
-    const id = event.target.dataset.id
-    if (this.allMatching) {
-      event.target.checked ? this.excluded.delete(id) : this.excluded.add(id)
-    } else {
-      event.target.checked ? this.ids.add(id) : this.ids.delete(id)
-    }
+    const box = event.target
+    const boxes = this.checkboxTargets
+    const index = boxes.indexOf(box)
+    const orderedIds = boxes.map((c) => c.dataset.id)
+    const { ids, checked } = this.selection.applyClick(orderedIds, index, box.checked, event.shiftKey)
+
+    // Sync the DOM for every box the range touched (the clicked one is already
+    // in `checked`; the rest need to be brought into line).
+    const affected = new Set(ids)
+    boxes.forEach((c) => {
+      if (affected.has(c.dataset.id)) c.checked = checked
+    })
+    this.render()
+  }
+
+  toggleOrigin(event) {
+    this.selection.toggleOrigin(event.target.dataset.origin, event.target.checked)
     this.render()
   }
 
   selectAllMatching() {
-    this.allMatching = true
-    this.excluded.clear()
+    this.selection.selectAllMatching()
     this.checkboxTargets.forEach((c) => (c.checked = true))
+    this.originCheckboxTargets.forEach((c) => (c.checked = false))
     this.render()
   }
 
   clear() {
-    this.allMatching = false
-    this.ids.clear()
-    this.excluded.clear()
+    this.selection.clear()
     this.checkboxTargets.forEach((c) => (c.checked = false))
+    this.originCheckboxTargets.forEach((c) => (c.checked = false))
     this.render()
   }
 
-  descriptor() {
-    if (this.allMatching) {
-      return { source: this.sourceValue, mode: "filter", q: this.queryValue,
-               exclude_ids: [...this.excluded] }
-    }
-    return { source: this.sourceValue, mode: "ids", ids: [...this.ids] }
-  }
-
-  count() {
-    if (this.allMatching) return `all matching − ${this.excluded.size}`
-    return `${this.ids.size}`
-  }
-
   sendToJob() {
-    const payload = { selections: [this.descriptor()] }
+    const payload = { selections: this.selection.descriptors() }
     sessionStorage.setItem("hunter.jobSelection", JSON.stringify(payload))
     window.location.assign("/control_center")
   }
 
   render() {
-    if (this.hasCountTarget) this.countTarget.textContent = this.count()
+    if (this.hasCountTarget) this.countTarget.textContent = this.selection.countLabel()
   }
 }

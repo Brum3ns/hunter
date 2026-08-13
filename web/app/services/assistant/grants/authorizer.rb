@@ -138,12 +138,22 @@ module Assistant
           raise AuthorizationError, "grant_expired" unless grant.expires_at.future?
           raise AuthorizationError, "grant_binding_invalid" unless valid_bindings?(grant)
           raise AuthorizationError, "tool_not_allowed" unless grant.tools.include?(tool)
-          if scope.present? && !(grant.read_scopes.include?(scope.to_s) || grant.write_scopes.include?(scope.to_s))
+          if scope.present? && !scope_allowed?(grant, scope.to_s)
             raise AuthorizationError, "scope_not_allowed"
           end
 
           authorize_resource!(grant, tool, resource_type, resource_id)
           raise AuthorizationError, "grant_calls_exhausted" if grant.call_count >= grant.max_calls
+        end
+
+        def scope_allowed?(grant, scope)
+          if Assistant::TurnGrant::READ_SCOPES.include?(scope)
+            grant.read_scopes.include?(scope)
+          elsif Assistant::TurnGrant::WRITE_SCOPES.include?(scope)
+            grant.write_scopes.include?(scope)
+          else
+            false
+          end
         end
 
         def valid_bindings?(grant)

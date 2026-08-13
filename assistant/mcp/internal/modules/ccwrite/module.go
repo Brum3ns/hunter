@@ -1,18 +1,17 @@
-// Package ccwrite provides the two approval-free Control Center create tools:
-// create_whiterabbit_template and create_ansible_playbook. Both are
-// create-only (never edit, delete, or run) and are gated by dedicated write
-// scopes; the Rails endpoint runs the mandatory fail-closed content
-// validators before persisting.
+// Package ccwrite provides the four approval-free Control Center authoring
+// tools. Creates never overwrite. Edits require an explicit artifact ID and
+// optimistic lock version. No tool deletes, runs, schedules, or executes.
 package ccwrite
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"hunter.local/assistant/mcp/internal/codec"
 	"hunter.local/assistant/mcp/internal/tool"
 )
 
-const maxRequestBytes = 64 << 10
+const maxRequestBytes = 512 << 10
 
 type Module struct{}
 
@@ -20,25 +19,39 @@ func (Module) Tools() []tool.Tool {
 	return []tool.Tool{
 		{
 			Name: "create_whiterabbit_template",
-			Description: "Create a new Whiterabbit template. Create-only: never edits, deletes, or runs " +
-				"anything. The content is validated fail-closed before it is saved.",
-			InputSchema:  templateSchema,
-			OutputSchema: tool.ResultSchema,
-			Scope:        "control_center_templates_write",
-			Decode:       decodeTemplate,
-			BuildRequest: buildCreate("/api/v1/assistant/machine/control_center/templates"),
-			Validate:     func(payload []byte) error { return validateCreateOutput(payload, "template") },
+			Description: "Create a new validated Whiterabbit template in Control Center without a confirmation prompt. " +
+				"Never overwrites, edits, deletes, or runs an existing template.",
+			InputSchema: templateSchema, OutputSchema: resultSchema("template"),
+			Scope: "control_center_templates_write", WriteScope: true,
+			Decode: decodeTemplate, BuildRequest: buildCreate("/api/v1/assistant/machine/control_center/templates"),
+			Validate: func(payload []byte) error { return validateCreateOutput(payload, "template") },
 		},
 		{
 			Name: "create_ansible_playbook",
-			Description: "Create a new Ansible playbook. Create-only: never edits, deletes, or runs " +
-				"anything. The content is validated fail-closed before it is saved.",
-			InputSchema:  playbookSchema,
-			OutputSchema: tool.ResultSchema,
-			Scope:        "control_center_ansible_write",
-			Decode:       decodePlaybook,
-			BuildRequest: buildCreate("/api/v1/assistant/machine/control_center/ansible/playbooks"),
-			Validate:     func(payload []byte) error { return validateCreateOutput(payload, "playbook") },
+			Description: "Create a new validated Ansible playbook in Control Center without a confirmation prompt. " +
+				"Never overwrites, edits, deletes, or runs an existing playbook.",
+			InputSchema: playbookSchema, OutputSchema: resultSchema("playbook"),
+			Scope: "control_center_ansible_write", WriteScope: true,
+			Decode: decodePlaybook, BuildRequest: buildCreate("/api/v1/assistant/machine/control_center/ansible/playbooks"),
+			Validate: func(payload []byte) error { return validateCreateOutput(payload, "playbook") },
+		},
+		{
+			Name: "edit_whiterabbit_template",
+			Description: "Edit an existing Whiterabbit template by ID after an explicit user edit request. " +
+				"Requires its current lock version, validates the complete merged template, and never deletes or runs it.",
+			InputSchema: templateEditSchema, OutputSchema: resultSchema("template"),
+			Scope: "control_center_templates_edit", WriteScope: true,
+			Decode: decodeTemplateEdit, BuildRequest: buildEdit("/api/v1/assistant/machine/control_center/templates/%d"),
+			Validate: func(payload []byte) error { return validateCreateOutput(payload, "template") },
+		},
+		{
+			Name: "edit_ansible_playbook",
+			Description: "Edit an existing Ansible playbook by ID after an explicit user edit request. " +
+				"Requires its current lock version, validates the complete merged playbook, and never deletes or runs it.",
+			InputSchema: playbookEditSchema, OutputSchema: resultSchema("playbook"),
+			Scope: "control_center_ansible_edit", WriteScope: true,
+			Decode: decodePlaybookEdit, BuildRequest: buildEdit("/api/v1/assistant/machine/control_center/ansible/playbooks/%d"),
+			Validate: func(payload []byte) error { return validateCreateOutput(payload, "playbook") },
 		},
 	}
 }
@@ -48,6 +61,7 @@ func decodeTemplate(args []byte) (tool.Request, error) {
 	if err := codec.DecodeClosed(args, &in); err != nil || validateTemplateInput(in) != nil {
 		return tool.Request{}, codec.ErrInvalid
 	}
+	normalizeCommands(in.Template.Commands)
 	return tool.Request{Payload: in}, nil
 }
 
@@ -59,8 +73,41 @@ func decodePlaybook(args []byte) (tool.Request, error) {
 	return tool.Request{Payload: in}, nil
 }
 
-// buildCreate marshals the decoded payload as the POST body for path, enforcing
-// the shared 64 KiB request cap.
+func decodeTemplateEdit(args []byte) (tool.Request, error) {
+	allowed := []string{"name", "kind", "tags", "description", "output", "commands", "target"}
+	if !nonNullClosedObject(args, []string{"id", "expected_lock_version", "changes"}, "changes", allowed) {
+		return tool.Request{}, codec.ErrInvalid
+	}
+	var in templateEditInput
+	if err := codec.DecodeClosed(args, &in); err != nil || validateTemplateChanges(in) != nil {
+		return tool.Request{}, codec.ErrInvalid
+	}
+	if in.Changes.Commands != nil {
+		normalizeCommands(*in.Changes.Commands)
+	}
+	return tool.Request{Payload: in}, nil
+}
+
+func normalizeCommands(commands []templateCommand) {
+	for index := range commands {
+		if commands[index].Args == nil {
+			commands[index].Args = []string{}
+		}
+	}
+}
+
+func decodePlaybookEdit(args []byte) (tool.Request, error) {
+	allowed := []string{"name", "description", "source", "variable_set_ids"}
+	if !nonNullClosedObject(args, []string{"id", "expected_lock_version", "changes"}, "changes", allowed) {
+		return tool.Request{}, codec.ErrInvalid
+	}
+	var in playbookEditInput
+	if err := codec.DecodeClosed(args, &in); err != nil || validatePlaybookChanges(in) != nil {
+		return tool.Request{}, codec.ErrInvalid
+	}
+	return tool.Request{Payload: in}, nil
+}
+
 func buildCreate(path string) func(tool.Request) (tool.Call, error) {
 	return func(req tool.Request) (tool.Call, error) {
 		body, err := json.Marshal(req.Payload)
@@ -68,5 +115,33 @@ func buildCreate(path string) func(tool.Request) (tool.Call, error) {
 			return tool.Call{}, codec.ErrInvalid
 		}
 		return tool.Call{Method: "POST", Path: path, Body: body}, nil
+	}
+}
+
+func buildEdit(pathFormat string) func(tool.Request) (tool.Call, error) {
+	return func(req tool.Request) (tool.Call, error) {
+		var id int64
+		var body any
+		switch in := req.Payload.(type) {
+		case templateEditInput:
+			id = in.ID
+			body = struct {
+				ExpectedLockVersion int64           `json:"expected_lock_version"`
+				Changes             templateChanges `json:"changes"`
+			}{in.ExpectedLockVersion, in.Changes}
+		case playbookEditInput:
+			id = in.ID
+			body = struct {
+				ExpectedLockVersion int64           `json:"expected_lock_version"`
+				Changes             playbookChanges `json:"changes"`
+			}{in.ExpectedLockVersion, in.Changes}
+		default:
+			return tool.Call{}, codec.ErrInvalid
+		}
+		encoded, err := json.Marshal(body)
+		if err != nil || len(encoded) > maxRequestBytes {
+			return tool.Call{}, codec.ErrInvalid
+		}
+		return tool.Call{Method: "PATCH", Path: fmt.Sprintf(pathFormat, id), Body: encoded}, nil
 	}
 }

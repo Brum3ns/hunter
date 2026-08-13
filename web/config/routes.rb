@@ -116,12 +116,14 @@ Rails.application.routes.draw do
             get "templates", to: "templates#index"
             get "templates/:id", to: "templates#show", constraints: { id: /\d+/ }
             post "templates", to: "templates#create"
+            patch "templates/:id", to: "templates#update", constraints: { id: /\d+/ }
             get "jobs", to: "jobs#index"
             get "jobs/:id", to: "jobs#show", constraints: { id: /\d+/ }
             namespace :ansible do
               get "playbooks", to: "playbooks#index"
               get "playbooks/:id", to: "playbooks#show", constraints: { id: /\d+/ }
               post "playbooks", to: "playbooks#create"
+              patch "playbooks/:id", to: "playbooks#update", constraints: { id: /\d+/ }
               get "run_groups", to: "run_groups#index"
               get "run_groups/:id", to: "run_groups#show", constraints: { id: /\d+/ }
               get "runs/:id", to: "runs#show", constraints: { id: /\d+/ }

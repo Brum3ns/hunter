@@ -33,41 +33,87 @@ module Api
                 )
               end
 
-              # Approval-free create. AnsibleStatic is the sole, fail-closed
+              # Approval-free authoring. AnsibleStatic is the sole, fail-closed
               # persist gate below — it MUST run and MUST reject (422, no
               # persist) before ControlCenter::Ansible::Playbooks::Persist is
-              # ever called. Create-only: always
-              # ControlCenter::Ansible::Playbook.new, never an existing record.
+              # ever called. Create always uses a new record; update is a
+              # separate explicit tool and requires the expected lock version.
               def create
                 reservation = authorize_tool!("create_ansible_playbook", scope: "control_center_ansible_write")
                 return unless require_control_center_write_enabled!(reservation)
+                return unless consume_authoring_rate!(reservation, action: "create")
+                input = ::Assistant::Machine::ControlCenter::ArtifactInput.ansible_create(params[:playbook])
+                return render_machine_validation_error(reservation, input.codes) unless input.valid?
 
-                begin
-                  ::Assistant::RateLimiter.consume!(user: machine_user, action: "create")
-                rescue ::Assistant::RateLimiter::LimitExceeded => e
-                  reservation.fail!
-                  return render json: { error: e.code, retry_after: e.retry_after_seconds }, status: :too_many_requests
-                end
-
-                envelope = ::Assistant::DraftEnvelope.ansible(params[:playbook])
-                return render_machine_validation_error(reservation, envelope.codes) unless envelope.valid?
-
-                result = ::Assistant::DraftValidation::AnsibleStatic.call(envelope.normalized["source"])
+                result = ::Assistant::DraftValidation::AnsibleStatic.call(input.normalized["source"])
                 return render_machine_validation_error(reservation, result.codes) unless result.valid?
 
-                persist = ::ControlCenter::Ansible::Playbooks::Persist.call(
-                  record: ::ControlCenter::Ansible::Playbook.new,
-                  attributes: { name: envelope.normalized["name"], yaml_content: result.normalized }, user: machine_user
-                )
+                persist = persist_and_audit_machine_authoring(
+                  reservation: reservation,
+                  event: "machine.create", operation: "create_ansible_playbook",
+                  target_type: "control_center_ansible_playbook"
+                ) do
+                  ::ControlCenter::Ansible::Playbooks::Persist.call(
+                    record: ::ControlCenter::Ansible::Playbook.new,
+                    attributes: persistence_attributes(input.normalized, result.normalized), user: machine_user
+                  )
+                end
                 return render_machine_create_error(reservation, persist.errors) unless persist.success?
 
-                ::Assistant::Audit.record!(event: "machine.create", attributes: {
-                  correlation_id: machine_grant.turn.correlation_id, user_id: machine_user&.id,
-                  target_type: "control_center_ansible_playbook", target_id: persist.record.id,
-                  metadata: { operation: "create_ansible_playbook", outcome: "created" }
-                })
                 machine_create_response(reservation, key: :playbook, record: persist.record)
               end
+
+			  def update
+				reservation = authorize_tool!("edit_ansible_playbook", scope: "control_center_ansible_edit")
+				return unless require_control_center_write_enabled!(reservation)
+				return unless consume_authoring_rate!(reservation, action: "edit")
+				expected_lock_version = machine_expected_lock_version(reservation)
+				return if expected_lock_version.nil?
+				playbook = ::ControlCenter::Ansible::Playbook.includes(:variable_sets).find_by(id: params[:id])
+				return render_machine_artifact_not_found(reservation) unless playbook
+
+				changes = ::Assistant::Machine::ControlCenter::ArtifactInput.ansible_changes(params[:changes])
+				return render_machine_validation_error(reservation, changes.codes) unless changes.valid?
+				candidate = ::Assistant::Machine::ControlCenter::ArtifactInput.ansible_create(
+				  current_attributes(playbook).merge(changes.normalized)
+				)
+				return render_machine_validation_error(reservation, candidate.codes) unless candidate.valid?
+				validation = ::Assistant::DraftValidation::AnsibleStatic.call(candidate.normalized["source"])
+				return render_machine_validation_error(reservation, validation.codes) unless validation.valid?
+
+				persist = persist_and_audit_machine_authoring(
+				  reservation: reservation,
+				  event: "machine.edit", operation: "edit_ansible_playbook",
+				  target_type: "control_center_ansible_playbook"
+				) do
+				  ::ControlCenter::Ansible::Playbooks::Persist.call(
+				    record: playbook, attributes: persistence_attributes(candidate.normalized, validation.normalized),
+				    user: machine_user, expected_lock_version: expected_lock_version
+				  )
+				end
+				return render_machine_persist_error(reservation, persist.errors) unless persist.success?
+				machine_edit_response(reservation, key: :playbook, record: persist.record)
+			  end
+
+			  private
+
+			  def persistence_attributes(attributes, normalized_source)
+				{
+				  name: attributes["name"], description: attributes["description"],
+				  yaml_content: normalized_source,
+				  variable_set_ids: attributes["variable_set_ids"]
+				}.compact
+			  end
+
+			  def current_attributes(playbook)
+				attributes = {
+				  "name" => playbook.name,
+				  "source" => playbook.yaml_content,
+				  "variable_set_ids" => playbook.variable_sets.map(&:id)
+				}
+				attributes["description"] = playbook.description if playbook.description
+				attributes
+			  end
             end
           end
         end

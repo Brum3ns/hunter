@@ -128,13 +128,19 @@ internal networks.
 
 ### Draft-to-execution escalation
 
-Model-facing components cannot persist, send, schedule, cancel, or execute.
+Model-facing components cannot send, schedule, cancel, delete, or execute.
 Whiterabbit validation fails closed without a command allowlist. Assistant
 Ansible validation fails closed without a module allowlist and rejects local
 execution, shell-like modules, roles, includes, imports, plugins, collections,
-lookups, credential injection, and unsafe paths. A separate current-session
-CSRF confirmation performs final validation and calls shared Control Center
-persistence. It creates no job, run, or executor task.
+lookups, credential injection, and unsafe paths. The approved Control Center
+authoring delta permits only dedicated create and explicit-edit tools for
+Whiterabbit templates and Ansible playbooks. Both run the fail-closed validators
+and shared persistence services. Create never overwrites; edit requires an ID
+and current optimistic lock version and validates the complete merged artifact.
+The independently revocable switch, non-wildcard scopes, human attribution,
+and metadata-only audit apply to every write. No job, run, or executor task is
+created. See
+`docs/superpowers/specs/2026-07-30-assistant-mcp-full-access-authoring-design.md`.
 
 ### Resource exhaustion
 
@@ -160,7 +166,8 @@ The adversarial suite must prove refusal of:
 - URLs supplied as context or tool destinations
 - unknown tools and extra JSON properties
 - requests for prompts, keys, tokens, credentials, variables, or logs
-- attempts to write, delete, send, schedule, cancel, or execute
+- attempts to perform any unlisted write, blind overwrite, delete, send,
+  schedule, cancel, or execute
 - provider fallback or profile change during a conversation
 - embedded private keys, bearer tokens, URL userinfo, and vault content
 - oversized, recursive, malformed, deceptive, or partial provider output

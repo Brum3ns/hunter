@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"hunter.local/assistant/mcp/internal/limits"
 	"hunter.local/assistant/mcp/internal/redact"
+	"hunter.local/assistant/mcp/internal/transport"
 )
 
 var (
@@ -32,7 +34,7 @@ type Runner struct {
 
 func New(backend Backend, registry *Registry, checker *redact.Checker) *Runner {
 	if checker == nil {
-		checker = redact.NewChecker(64 << 10)
+		checker = redact.NewChecker(512 << 10)
 	}
 	return &Runner{backend: backend, registry: registry, checker: checker, budget: limits.NewBudget(8)}
 }
@@ -63,7 +65,11 @@ func (r *Runner) Dispatch(ctx context.Context, rawGrant, name string, args []byt
 	if !slices.Contains(grant.Tools, name) {
 		return nil, ErrToolDenied
 	}
-	if t.Scope != "" && !slices.Contains(grant.ReadScopes, t.Scope) {
+	grantedScopes := grant.ReadScopes
+	if t.WriteScope {
+		grantedScopes = grant.WriteScopes
+	}
+	if t.Scope != "" && !slices.Contains(grantedScopes, t.Scope) {
 		return nil, ErrScopeDenied
 	}
 	if req.Resource != nil && !slices.Contains(grant.Resources, *req.Resource) {
@@ -82,10 +88,25 @@ func (r *Runner) Dispatch(ctx context.Context, rawGrant, name string, args []byt
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, err
 		}
+		var hunterErr *transport.HunterError
+		if errors.As(err, &hunterErr) {
+			return nil, hunterErr
+		}
 		return nil, ErrResponseRejected
 	}
 	if r.checker.Check(payload) != nil || t.Validate(payload) != nil {
 		return nil, ErrResponseRejected
 	}
 	return payload, nil
+}
+
+func stableHunterCode(err error) (string, bool) {
+	var hunterErr *transport.HunterError
+	if !errors.As(err, &hunterErr) {
+		return "", false
+	}
+	if hunterErr.Code == "validation_failed" && len(hunterErr.Codes) > 0 {
+		return hunterErr.Code + ": " + strings.Join(hunterErr.Codes, ", "), true
+	}
+	return hunterErr.Code, true
 }

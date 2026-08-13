@@ -47,7 +47,7 @@ module Assistant
         return result(false, [ "ansible_schema_invalid" ]) unless generic.valid?
 
         codes = policy_codes(generic.document, allowlist)
-        secret = Assistant::Context::SecretDetector.detect(source)
+        secret = Assistant::Context::SecretDetector.detect(source, max_string_bytes: MAX_SOURCE_BYTES)
         codes << "ansible_secret_material_not_allowed" if secret
         codes.uniq!
         result(codes.empty?, codes, codes.empty? ? source : nil)

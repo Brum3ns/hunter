@@ -81,7 +81,8 @@ func TestGetJobOutputValidation(t *testing.T) {
 	tl := find(t, "get_job")
 	full := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","job":{` +
 		`"id":1,"template_name":"probe","status":"succeeded","queue_name":"test","target_count":3,"exit_status":0,"created_at":"2026-01-01",` +
-		`"stdout":"ok","stderr":"","updated_at":"2026-01-01"}}`
+		`"created_by":"hunter","target_chunk":100,"job_delay_ms":250,"selection_count":1,"manual_target_count":1,"selection_sources":["targets"],` +
+		`"stdout":"ok","stdout_redacted":false,"stderr":"","stderr_redacted":false,"updated_at":"2026-01-01"}}`
 	if err := tl.Validate([]byte(full)); err != nil {
 		t.Fatalf("valid full output rejected: %v", err)
 	}
@@ -91,7 +92,8 @@ func TestGetJobOutputValidation(t *testing.T) {
 	for _, forbidden := range []string{"template_snapshot", "selections", "manual_targets", "idempotency_key"} {
 		leaked := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","job":{` +
 			`"id":1,"template_name":"probe","status":"succeeded","queue_name":"test","target_count":3,"exit_status":0,"created_at":"2026-01-01",` +
-			`"stdout":"ok","stderr":"","updated_at":"2026-01-01","` + forbidden + `":"x"}}`
+			`"created_by":"hunter","target_chunk":100,"job_delay_ms":250,"selection_count":1,"manual_target_count":1,"selection_sources":["targets"],` +
+			`"stdout":"ok","stdout_redacted":false,"stderr":"","stderr_redacted":false,"updated_at":"2026-01-01","` + forbidden + `":"x"}}`
 		if tl.Validate([]byte(leaked)) == nil {
 			t.Fatalf("accepted output leaking %s", forbidden)
 		}

@@ -212,6 +212,34 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
     assert_equal 1, Assistant::TurnGrant.order(:id).last.reload.call_count
   end
 
+  test "an edit tool requires its exact edit scope" do
+    Assistant::Setting.instance.update!(control_center_write_enabled: true)
+    raw = Assistant::Grants::Issuer.call(
+      turn: assistant_turns(:created), resources: [], tools: [ "edit_whiterabbit_template" ]
+    )
+
+    assert Assistant::Grants::Authorizer.reserve!(
+      raw_grant: raw,
+      tool: "edit_whiterabbit_template",
+      scope: "control_center_templates_edit"
+    )
+  end
+
+  test "a write scope cannot be supplied through the read scope set" do
+    raw = issue_write_grant
+    grant = Assistant::TurnGrant.order(:id).last
+    grant.update_columns(
+      read_scopes: grant.read_scopes + [ "control_center_ansible_write" ],
+      write_scopes: []
+    )
+
+    assert_authorization_error("scope_not_allowed") do
+      Assistant::Grants::Authorizer.reserve!(
+        raw_grant: raw, tool: "create_ansible_playbook", scope: "control_center_ansible_write"
+      )
+    end
+  end
+
   private
 
   def issue_grant

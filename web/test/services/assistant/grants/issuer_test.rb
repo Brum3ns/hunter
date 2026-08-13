@@ -31,6 +31,7 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
       %w[targets cves vulnerabilities sitemap programs control_center_templates control_center_jobs control_center_ansible],
       grant.read_scopes
     )
+    assert_equal [], grant.write_scopes
   end
 
   test "Issuer.call grants the phase 2c read tools into the persisted grant" do
@@ -68,6 +69,22 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
     assert_equal Assistant::TurnGrant::WRITE_SCOPES, grant.write_scopes
     assert_includes grant.tools, "create_whiterabbit_template"
     assert_includes grant.tools, "create_ansible_playbook"
+  end
+
+  test "each authoring tool grants only its dedicated write scope" do
+    {
+      "create_whiterabbit_template" => "control_center_templates_write",
+      "edit_whiterabbit_template" => "control_center_templates_edit",
+      "create_ansible_playbook" => "control_center_ansible_write",
+      "edit_ansible_playbook" => "control_center_ansible_edit"
+    }.each do |tool, scope|
+      raw = Assistant::Grants::Issuer.call(
+        turn: assistant_turns(:created), resources: [], tools: [ tool ]
+      )
+      grant = Assistant::TurnGrant.find_by!(token_digest: Assistant::TurnGrant.digest(raw))
+
+      assert_equal [ scope ], grant.write_scopes
+    end
   end
 
   test "issued grant has no write scopes or create tools when the write toggle is off" do

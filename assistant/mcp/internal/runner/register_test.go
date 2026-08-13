@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"testing"
+
+	"hunter.local/assistant/mcp/internal/transport"
 )
 
 func TestPublicErrorMapping(t *testing.T) {
@@ -21,6 +23,16 @@ func TestPublicErrorMapping(t *testing.T) {
 		if got := PublicError(err); got != want {
 			t.Errorf("PublicError(%v)=%q want %q", err, got, want)
 		}
+	}
+}
+
+func TestPublicErrorIncludesOnlyBoundedStableValidationCodes(t *testing.T) {
+	err := &transport.HunterError{
+		Code:  "validation_failed",
+		Codes: []string{"whiterabbit_command_not_allowed", "artifact_secret_material_not_allowed"},
+	}
+	if got, want := PublicError(err), "validation_failed: whiterabbit_command_not_allowed, artifact_secret_material_not_allowed"; got != want {
+		t.Fatalf("PublicError = %q, want %q", got, want)
 	}
 }
 

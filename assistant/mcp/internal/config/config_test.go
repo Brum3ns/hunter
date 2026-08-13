@@ -74,6 +74,9 @@ func TestLoadReadsBothMachineTokensFromTheEnvironment(t *testing.T) {
 	if settings.HunterBaseURL != "http://web:5000" {
 		t.Fatalf("HunterBaseURL = %q, want the default", settings.HunterBaseURL)
 	}
+	if settings.MaxResponseBytes != 512<<10 {
+		t.Fatalf("MaxResponseBytes = %d, want room for a 64 KiB artifact plus JSON envelope", settings.MaxResponseBytes)
+	}
 }
 
 func TestLoadFailsWhenEitherMachineTokenAloneIsMissing(t *testing.T) {

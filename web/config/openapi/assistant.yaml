@@ -60,7 +60,7 @@ paths:
       security: [{ assistantServiceToken: [] }]
       parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
       responses:
-        "200": { description: "Exact tools, resources, expiry, correlation ID, and remaining budgets." }
+        "200": { description: "Exact tools, resources, read_scopes, write_scopes, expiry, correlation ID, and remaining budgets." }
         "401": { description: "Invalid assistant service identity." }
         "403": { description: "Invalid, expired, revoked, or mismatched turn grant." }
   /api/v1/assistant/machine/contexts/{resource_type}/{id}:
@@ -160,7 +160,7 @@ paths:
         - { $ref: "#/components/parameters/AssistantTurnGrant" }
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
-        "200": { description: "A bounded, projection-only, grant-scoped (targets) full target." }
+        "200": { description: "A bounded target including normalized probe data and sanitized response headers; scan IDs and secret header values are excluded." }
         "403": { description: "The tool is not granted." }
         "404": { $ref: "#/components/responses/NotFound" }
   /api/v1/assistant/machine/cves:
@@ -228,7 +228,7 @@ paths:
         - { $ref: "#/components/parameters/AssistantTurnGrant" }
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
-        "200": { description: "A bounded, projection-only, grant-scoped (vulnerabilities) full vulnerability, excluding raw request/response, poc, and operator PII." }
+        "200": { description: "A bounded vulnerability with sanitized request/response/curl/extracted evidence and redaction flags; scan IDs, internal reasoning, secrets, and operator PII are excluded." }
         "403": { description: "The tool is not granted." }
         "404": { $ref: "#/components/responses/NotFound" }
   /api/v1/assistant/machine/sitemap/endpoints:
@@ -274,8 +274,22 @@ paths:
         - { name: q, in: query, schema: { type: string } }
         - { name: status, in: query, schema: { type: string } }
         - { name: bounty, in: query, schema: { type: string } }
+        - { name: collaboration, in: query, schema: { type: string } }
+        - { name: favorites_only, in: query, schema: { type: string, enum: [yes, no] } }
+        - { name: trash_only, in: query, schema: { type: string, enum: [yes, no] } }
+        - { name: bounty_min_gte, in: query, schema: { type: string } }
+        - { name: bounty_max_gte, in: query, schema: { type: string } }
+        - { name: reports_gte, in: query, schema: { type: string } }
+        - { name: reports_24h_gte, in: query, schema: { type: string } }
+        - { name: reports_7d_gte, in: query, schema: { type: string } }
+        - { name: reports_month_gte, in: query, schema: { type: string } }
+        - { name: scope_count_gte, in: query, schema: { type: string } }
+        - { name: scope_count_lte, in: query, schema: { type: string } }
+        - { name: response_lte, in: query, schema: { type: string } }
         - { name: platforms, in: query, schema: { type: string } }
         - { name: scope_types, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string } }
+        - { name: dir, in: query, schema: { type: string, enum: [asc, desc] } }
         - { name: page, in: query, schema: { type: integer } }
         - { name: limit, in: query, schema: { type: integer } }
       responses:
@@ -311,7 +325,7 @@ paths:
     post:
       tags: ["Assistant Machine"]
       summary: "Create a Whiterabbit template"
-      description: "Approval-free create-only (no edit/delete/run), validated server-side; gated by the control_center_write_enabled toggle and the control_center_templates_write grant scope."
+      description: "Approval-free create (never overwrite/delete/run), validated server-side; gated by the control_center_write_enabled toggle and the control_center_templates_write grant scope."
       x-internal-machine: true
       security: [{ assistantServiceToken: [] }]
       parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
@@ -325,16 +339,20 @@ paths:
                 template:
                   type: object
                   properties:
-                    name: { type: string }
+                    name: { type: string, minLength: 1, maxLength: 200 }
                     kind: { type: string, enum: [cmdscript, workflow] }
-                    description: { type: string }
-                    commands: { type: array, items: { type: string } }
+                    tags: { type: array, maxItems: 50, items: { type: string, maxLength: 200 } }
+                    description: { type: string, maxLength: 4000 }
+                    output: { type: string, maxLength: 4000 }
+                    commands: { type: array, minItems: 1, maxItems: 50, items: { $ref: "#/components/schemas/AssistantWhiterabbitCommand" } }
+                    target: { $ref: "#/components/schemas/AssistantWhiterabbitTarget" }
                   required: [name, kind, commands]
                   additionalProperties: false
               required: [template]
               additionalProperties: false
       responses:
-        "201": { description: "Created; returns correlation_id and template:{id, name}." }
+        "201": { description: "Created; returns correlation_id and template:{id, name, lock_version}." }
+        "409": { description: "name_conflict; no existing template was changed." }
         "403": { description: "The write toggle is off or the grant lacks control_center_templates_write." }
         "422": { description: "Template validation or creation failed." }
         "429": { description: "The create rate limit was reached." }
@@ -351,6 +369,44 @@ paths:
         "200": { description: "A bounded, projection-only, grant-scoped (control_center_templates) full template." }
         "403": { description: "The tool is not granted." }
         "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Assistant Machine"]
+      summary: "Explicitly edit a Whiterabbit template"
+      description: "Approval-free only after an explicit user edit request. Requires the current lock version, validates the complete merged template, and cannot delete or run."
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_lock_version, changes]
+              properties:
+                expected_lock_version: { type: integer, minimum: 0 }
+                changes:
+                  type: object
+                  minProperties: 1
+                  properties:
+                    name: { type: string, minLength: 1, maxLength: 200 }
+                    kind: { type: string, enum: [cmdscript, workflow] }
+                    tags: { type: array, maxItems: 50, items: { type: string, maxLength: 200 } }
+                    description: { type: string, maxLength: 4000 }
+                    output: { type: string, maxLength: 4000 }
+                    commands: { type: array, minItems: 1, maxItems: 50, items: { $ref: "#/components/schemas/AssistantWhiterabbitCommand" } }
+                    target: { $ref: "#/components/schemas/AssistantWhiterabbitTarget" }
+                  additionalProperties: false
+              additionalProperties: false
+      responses:
+        "200": { description: "Updated; returns correlation_id and template:{id, name, lock_version}." }
+        "403": { description: "Authoring is disabled or the exact edit scope is absent." }
+        "404": { description: "artifact_not_found" }
+        "409": { description: "destination_stale or name_conflict; no edit was applied." }
+        "422": { description: "Closed input or complete-state validation failed." }
+        "429": { description: "The edit rate limit was reached." }
   /api/v1/assistant/machine/control_center/jobs:
     get:
       tags: ["Assistant Machine"]
@@ -375,7 +431,7 @@ paths:
         - { $ref: "#/components/parameters/AssistantTurnGrant" }
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
-        "200": { description: "A bounded, projection-only, grant-scoped (control_center_jobs) full job, excluding template_snapshot, selections, manual_targets, and idempotency_key." }
+        "200": { description: "A bounded job with safe attribution, selection/target counts and sources, execution parameters, and sanitized stdout/stderr; raw selectors, targets, snapshots, and idempotency keys are excluded." }
         "403": { description: "The tool is not granted." }
         "404": { $ref: "#/components/responses/NotFound" }
   /api/v1/assistant/machine/control_center/ansible/playbooks:
@@ -394,7 +450,7 @@ paths:
     post:
       tags: ["Assistant Machine"]
       summary: "Create an Ansible playbook"
-      description: "Approval-free create-only (no edit/delete/run), validated server-side; gated by the control_center_write_enabled toggle and the control_center_ansible_write grant scope."
+      description: "Approval-free create (never overwrite/delete/run), validated server-side; gated by the control_center_write_enabled toggle and the control_center_ansible_write grant scope."
       x-internal-machine: true
       security: [{ assistantServiceToken: [] }]
       parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
@@ -408,14 +464,17 @@ paths:
                 playbook:
                   type: object
                   properties:
-                    name: { type: string }
-                    source: { type: string }
+                    name: { type: string, minLength: 1, maxLength: 200 }
+                    description: { type: string, maxLength: 4000 }
+                    source: { type: string, minLength: 1, maxLength: 65536 }
+                    variable_set_ids: { type: array, maxItems: 100, uniqueItems: true, items: { type: integer, minimum: 1 } }
                   required: [name, source]
                   additionalProperties: false
               required: [playbook]
               additionalProperties: false
       responses:
-        "201": { description: "Created; returns correlation_id and playbook:{id, name}." }
+        "201": { description: "Created; returns correlation_id and playbook:{id, name, lock_version}." }
+        "409": { description: "name_conflict; no existing playbook was changed." }
         "403": { description: "The write toggle is off or the grant lacks control_center_ansible_write." }
         "422": { description: "Playbook validation or creation failed." }
         "429": { description: "The create rate limit was reached." }
@@ -432,6 +491,41 @@ paths:
         "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) full playbook." }
         "403": { description: "The tool is not granted." }
         "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Assistant Machine"]
+      summary: "Explicitly edit an Ansible playbook"
+      description: "Approval-free only after an explicit user edit request. Requires the current lock version, validates the complete merged playbook, and cannot delete or run."
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_lock_version, changes]
+              properties:
+                expected_lock_version: { type: integer, minimum: 0 }
+                changes:
+                  type: object
+                  minProperties: 1
+                  properties:
+                    name: { type: string, minLength: 1, maxLength: 200 }
+                    description: { type: string, maxLength: 4000 }
+                    source: { type: string, minLength: 1, maxLength: 65536 }
+                    variable_set_ids: { type: array, maxItems: 100, uniqueItems: true, items: { type: integer, minimum: 1 } }
+                  additionalProperties: false
+              additionalProperties: false
+      responses:
+        "200": { description: "Updated; returns correlation_id and playbook:{id, name, lock_version}." }
+        "403": { description: "Authoring is disabled or the exact edit scope is absent." }
+        "404": { description: "artifact_not_found" }
+        "409": { description: "destination_stale or name_conflict; no edit was applied." }
+        "422": { description: "Closed input or complete-state validation failed." }
+        "429": { description: "The edit rate limit was reached." }
   /api/v1/assistant/machine/control_center/ansible/run_groups:
     get:
       tags: ["Assistant Machine"]
@@ -711,6 +805,21 @@ paths:
       responses: { "200": { description: "Updated settings." }, "422": { description: "Retention is outside hard bounds." } }
 components:
   schemas:
+    AssistantWhiterabbitCommand:
+      type: object
+      properties:
+        command: { type: string, minLength: 1, maxLength: 255 }
+        args: { type: array, maxItems: 200, items: { type: string, maxLength: 4096 } }
+        operator: { type: string, enum: ["", "|", "&&", "||"] }
+      required: [command]
+      additionalProperties: false
+    AssistantWhiterabbitTarget:
+      type: object
+      properties:
+        type: { type: string, maxLength: 100 }
+        separator: { type: string, maxLength: 20 }
+        output: { type: string, maxLength: 4000 }
+      additionalProperties: false
     AssistantProviderProfileInput:
       type: object
       properties:
@@ -733,6 +842,7 @@ components:
           type: object
           properties:
             assistant_enabled: { type: boolean }
+            control_center_write_enabled: { type: boolean }
             transcript_retention_days: { type: integer, minimum: 1, maximum: 30 }
             audit_retention_days: { type: integer, minimum: 1, maximum: 365 }
           additionalProperties: false

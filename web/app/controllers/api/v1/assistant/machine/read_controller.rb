@@ -19,14 +19,14 @@ module Api
           end
 
           def list_response(reservation, count:, page:, limit:, items:)
-            complete_machine_response!(reservation, {
+            complete_read_response!(reservation, {
               correlation_id: machine_grant.turn.correlation_id,
               count: count, page: page, limit: limit, items: items
             })
           end
 
           def detail_response(reservation, key:, value:)
-            complete_machine_response!(reservation, {
+            complete_read_response!(reservation, {
               correlation_id: machine_grant.turn.correlation_id,
               key => value
             })
@@ -35,6 +35,20 @@ module Api
           def machine_not_found(reservation)
             reservation.fail!
             render json: { error: "not_found" }, status: :not_found
+          end
+
+          def complete_read_response!(reservation, payload)
+            sanitized = ::Assistant::Machine::SensitiveData.payload(payload)
+            residual = sanitized.value && ::Assistant::Context::SecretDetector.detect(
+              sanitized.value,
+              max_string_bytes: ::Assistant::Machine::SensitiveData::MAX_PAYLOAD_TEXT_BYTES
+            )
+            if sanitized.value.nil? || residual
+              reservation.fail!
+              return render json: { error: "result_rejected" }, status: :forbidden
+            end
+
+            complete_machine_response!(reservation, sanitized.value)
           end
         end
       end

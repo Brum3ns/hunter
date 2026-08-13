@@ -61,18 +61,21 @@ func TestHealthRejectsNonGETMethods(t *testing.T) {
 	}
 }
 
-func TestInstructionsStateReadOnlyAndDork(t *testing.T) {
+func TestInstructionsStateBoundedReadsAndDork(t *testing.T) {
 	lower := strings.ToLower(hunterInstructions)
-	for _, want := range []string{"read", "only", "count", "page", "limit", "dork", "id", "create"} {
+	for _, want := range []string{"read", "non-secret", "count", "page", "limit", "dork", "id", "create"} {
 		if !strings.Contains(lower, want) {
 			t.Fatalf("instructions missing %q", want)
 		}
 	}
 }
 
-func TestInstructionsStateCreateExceptionScope(t *testing.T) {
+func TestInstructionsStateNarrowAuthoringScope(t *testing.T) {
 	lower := strings.ToLower(hunterInstructions)
-	for _, want := range []string{"create_whiterabbit_template", "create_ansible_playbook", "validated", "never edit, update, delete, or run"} {
+	for _, want := range []string{
+		"four dedicated authoring tools", "create", "explicitly edit", "current lock version",
+		"never overwrites", "no tool deletes", "validated server-side",
+	} {
 		if !strings.Contains(lower, want) {
 			t.Fatalf("instructions missing %q", want)
 		}

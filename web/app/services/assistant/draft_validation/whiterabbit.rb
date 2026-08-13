@@ -8,6 +8,11 @@ module Assistant
       def call(attributes)
         parsed = Assistant::DraftEnvelope.whiterabbit(attributes)
         return result(false, parsed.codes, parsed.messages) unless parsed.valid?
+        if Assistant::Context::SecretDetector.detect(parsed.normalized)
+          return result(false,
+            [ "artifact_secret_material_not_allowed" ],
+            [ "Draft contains prohibited secret material." ])
+        end
 
         allowlist = Array(ControlCenter::TemplateValidator.allowlist).map(&:to_s).reject(&:blank?).uniq
         if allowlist.empty?

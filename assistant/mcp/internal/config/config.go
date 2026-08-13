@@ -50,7 +50,7 @@ func Load() (Config, error) {
 		AllowedHosts:       splitList(envOr("ASSISTANT_MCP_ALLOWED_HOSTS", "hunter-mcp:8080")),
 		AllowedOrigins:     splitList(os.Getenv("ASSISTANT_MCP_ALLOWED_ORIGINS")),
 		MaxRequestBytes:    1 << 20,
-		MaxResponseBytes:   64 << 10,
+		MaxResponseBytes:   512 << 10,
 		RequestTimeout:     15 * time.Second,
 	}, nil
 }

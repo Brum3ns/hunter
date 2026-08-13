@@ -135,6 +135,45 @@ test("latest-request tokens invalidate stale selections and in-flight polls", ()
   assert.equal(requests.current(second), false)
 })
 
+test("composer Enter submits while Shift+Enter and composition keep editing", () => {
+  assert.equal(
+    ui.composerSubmitIntent({ key: "Enter", shiftKey: false, isComposing: false }),
+    true,
+  )
+  assert.equal(
+    ui.composerSubmitIntent({ key: "Enter", shiftKey: true, isComposing: false }),
+    false,
+  )
+  assert.equal(
+    ui.composerSubmitIntent({ key: "Enter", shiftKey: false, isComposing: true }),
+    false,
+  )
+  assert.equal(
+    ui.composerSubmitIntent({ key: "Escape", shiftKey: false, isComposing: false }),
+    false,
+  )
+})
+
+test("conversation list renders an inert empty state and marks only the current chat", () => {
+  assert.equal(typeof ui.renderConversationList, "function")
+  const empty = new FakeElement("div")
+  ui.renderConversationList(fakeDocument, empty, [], {})
+  assert.match(empty.textContent, /No conversations yet/i)
+
+  const list = new FakeElement("div")
+  ui.renderConversationList(fakeDocument, list, [
+    { id: 7, title: '<script>Current</script>' },
+    { id: 8, title: "Older" },
+  ], { currentId: 7, onSelect() {} })
+
+  assert.equal(list.children.length, 2)
+  assert.equal(list.children[0].textContent, "<script>Current</script>")
+  assert.equal(list.children[0].querySelector("script"), null)
+  assert.equal(list.children[0].attributes["aria-current"], "true")
+  assert.match(list.children[0].className, /assistant-conversation-active/)
+  assert.equal(list.children[1].attributes["aria-current"], undefined)
+})
+
 test("message rendering preserves adversarial markup as text and neutralizes control characters", () => {
   assert.equal(typeof ui.appendMessage, "function")
   const container = new FakeElement("section")
@@ -147,6 +186,17 @@ test("message rendering preserves adversarial markup as text and neutralizes con
   assert.equal(container.textContent.includes("\u001b"), false)
   assert.equal(container.textContent.includes("\u0000"), false)
   assert.match(container.textContent, /Hunter assistant/)
+})
+
+test("message log scrolling follows the newest rendered content", () => {
+  assert.equal(typeof ui.scrollMessageLog, "function")
+  const container = new FakeElement("section")
+  container.scrollTop = 0
+  container.scrollHeight = 840
+
+  ui.scrollMessageLog(container)
+
+  assert.equal(container.scrollTop, 840)
 })
 
 test("selected context disclosure renders the sanitized preview as inert text", () => {

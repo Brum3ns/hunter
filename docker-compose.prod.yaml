@@ -129,8 +129,8 @@ services:
       ASSISTANT_GRANT_TTL_SECONDS: "300"
       ASSISTANT_MAX_RECORDS: "10"
       ASSISTANT_MAX_TOOL_CALLS: "8"
-      ASSISTANT_MAX_RESULT_BYTES: "65536"
-      ASSISTANT_MAX_TOTAL_BYTES: "262144"
+      ASSISTANT_MAX_RESULT_BYTES: "524288"
+      ASSISTANT_MAX_TOTAL_BYTES: "2097152"
       ASSISTANT_TURN_STARTS_PER_MINUTE: "10"
       ASSISTANT_TURN_STARTS_PER_HOUR: "60"
       ASSISTANT_MAX_CONCURRENT_TURNS: "2"
@@ -404,7 +404,7 @@ networks:
     internal: true
   assistant-rails-claude:
     internal: true
-  # assistant-claude's route to hunter-mcp (the read-only MCP tool broker).
+  # assistant-claude's route to hunter-mcp (reviewed reads + validated authoring).
   assistant-claude-mcp:
     internal: true
   # The gateway's one non-internal network — outbound only, for

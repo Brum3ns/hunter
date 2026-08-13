@@ -31,11 +31,13 @@ module Assistant
       control_center_ansible
     ].freeze
 
-    # The closed set of module slugs a grant may authorize for create-only
-    # writes. No wildcard is ever accepted. Grows as write modules ship.
+    # The closed set of independently revocable Control Center authoring
+    # scopes. No wildcard is ever accepted.
     WRITE_SCOPES = %w[
       control_center_templates_write
+      control_center_templates_edit
       control_center_ansible_write
+      control_center_ansible_edit
     ].freeze
 
     self.table_name = "assistant_turn_grants"

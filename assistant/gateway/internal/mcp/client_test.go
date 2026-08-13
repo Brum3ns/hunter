@@ -40,12 +40,31 @@ func TestAuthenticatedTransportAddsOnlyGatewayAndTurnCredentials(t *testing.T) {
 	}
 }
 
-func TestToolCatalogVerificationRejectsAnyExpansion(t *testing.T) {
+func TestToolCatalogVerificationAcceptsReviewedCatalogSuperset(t *testing.T) {
 	if err := verifyToolNames(FixedToolNames()); err != nil {
 		t.Fatal(err)
 	}
-	expanded := append(slices.Clone(FixedToolNames()), "shell")
-	if err := verifyToolNames(expanded); err == nil {
-		t.Fatal("accepted expanded MCP catalog")
+	expanded := append(slices.Clone(FixedToolNames()),
+		"list_targets", "create_whiterabbit_template", "edit_ansible_playbook")
+	if err := verifyToolNames(expanded); err != nil {
+		t.Fatalf("rejected modular catalog superset: %v", err)
+	}
+}
+
+func TestToolCatalogVerificationStillRequiresEachLegacyToolExactlyOnce(t *testing.T) {
+	missing := slices.Clone(FixedToolNames()[1:])
+	if err := verifyToolNames(missing); err == nil {
+		t.Fatal("accepted catalog missing a legacy tool")
+	}
+	duplicate := append(slices.Clone(FixedToolNames()), FixedToolNames()[0])
+	if err := verifyToolNames(duplicate); err == nil {
+		t.Fatal("accepted duplicate legacy tool")
+	}
+}
+
+func TestLegacySessionCannotCallAdvertisedAuthoringTool(t *testing.T) {
+	session := &Session{}
+	if _, err := session.Call(context.Background(), "create_whiterabbit_template", []byte(`{}`)); err == nil {
+		t.Fatal("legacy session accepted an authoring tool")
 	}
 }

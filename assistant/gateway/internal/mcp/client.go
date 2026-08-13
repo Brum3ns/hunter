@@ -124,10 +124,14 @@ func FixedToolNames() []string {
 }
 
 func verifyToolNames(names []string) error {
-	got := slices.Clone(names)
-	slices.Sort(got)
-	if !slices.Equal(got, FixedToolNames()) {
-		return ErrMCPRejected
+	counts := make(map[string]int, len(names))
+	for _, name := range names {
+		counts[name]++
+	}
+	for _, required := range FixedToolNames() {
+		if counts[required] != 1 {
+			return ErrMCPRejected
+		}
 	}
 	return nil
 }

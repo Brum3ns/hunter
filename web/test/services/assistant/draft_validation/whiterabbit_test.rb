@@ -54,7 +54,7 @@ class Assistant::DraftValidation::WhiterabbitTest < ActiveSupport::TestCase
     draft = VALID_DRAFT.deep_dup
     draft["commands"][0] = {
       "command" => "unapproved-secret-tool",
-      "args" => [ "--token=do-not-echo" ],
+      "args" => [ "--mode=fast" ],
       "operator" => ""
     }
 
@@ -64,7 +64,20 @@ class Assistant::DraftValidation::WhiterabbitTest < ActiveSupport::TestCase
       refute result.valid?
       assert_includes result.codes, "assistant_command_not_allowed"
       refute_includes result.messages.join(" "), "unapproved-secret-tool"
-      refute_includes result.messages.join(" "), "do-not-echo"
+      refute_includes result.messages.join(" "), "unapproved-secret-tool"
+    end
+  end
+
+  test "rejects inline HTTP credentials in an otherwise allowlisted command" do
+    draft = VALID_DRAFT.deep_dup
+    draft["commands"][0]["args"] = [ "-H", "Cookie: session=do-not-persist" ]
+
+    stub_methods(ControlCenter::TemplateValidator, allowlist: [ "httpx" ]) do
+      result = Assistant::DraftValidation::Whiterabbit.call(draft)
+
+      refute result.valid?
+      assert_includes result.codes, "artifact_secret_material_not_allowed"
+      refute_includes result.messages.join(" "), "do-not-persist"
     end
   end
 

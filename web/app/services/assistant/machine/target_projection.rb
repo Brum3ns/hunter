@@ -29,7 +29,21 @@ module Assistant
           "scheme" => target.scheme,
           "tech" => Array(target.tech),
           "seen_at" => target.seen_at,
-          "page_type" => target.page_type
+		  "page_type" => target.page_type,
+		  "input" => target.input,
+		  "ip" => target.ip,
+		  "path" => target.path,
+		  "method" => target.verb,
+		  "content_length" => target.content_length,
+		  "words" => target.words,
+		  "lines" => target.lines,
+		  "response_time" => target.response_time,
+		  "tool" => target.tool,
+		  "failed" => target.failed,
+		  "phash" => target.phash,
+		  "csp_fqdns" => Array(target.csp["fqdn"]),
+		  "csp_domains" => Array(target.csp["domains"]),
+		  "response_headers" => Assistant::Machine::SensitiveData.response_headers(target.headers)
         )
       end
     end

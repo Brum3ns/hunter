@@ -1,6 +1,7 @@
 package cc_playbooks
 
 import (
+	"strings"
 	"testing"
 
 	"hunter.local/assistant/mcp/internal/tool"
@@ -64,12 +65,12 @@ func TestGetPlaybookBuildsPathAndValidatesID(t *testing.T) {
 func TestListPlaybooksOutputValidation(t *testing.T) {
 	tl := find(t, "list_playbooks")
 	good := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":1,"page":1,"limit":50,` +
-		`"items":[{"id":1,"name":"Baseline","description":"d","checksum":"abc","updated_at":"2026-01-01"}]}`
+		`"items":[{"id":1,"name":"Baseline","description":"d","checksum":"abc","lock_version":0,"created_by":"operator","updated_at":"2026-01-01"}]}`
 	if err := tl.Validate([]byte(good)); err != nil {
 		t.Fatalf("valid output rejected: %v", err)
 	}
 	bad := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":1,"page":1,"limit":50,` +
-		`"items":[{"id":1,"name":"Baseline","description":"d","checksum":"abc","updated_at":"2026-01-01","yaml_content":"x"}]}`
+		`"items":[{"id":1,"name":"Baseline","description":"d","checksum":"abc","lock_version":0,"created_by":"operator","updated_at":"2026-01-01","yaml_content":"x"}]}`
 	if tl.Validate([]byte(bad)) == nil {
 		t.Fatal("accepted invalid output (yaml_content leaked in summary)")
 	}
@@ -78,13 +79,28 @@ func TestListPlaybooksOutputValidation(t *testing.T) {
 func TestGetPlaybookOutputValidation(t *testing.T) {
 	tl := find(t, "get_playbook")
 	full := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","playbook":{` +
-		`"id":1,"name":"Baseline","description":"d","checksum":"abc","updated_at":"2026-01-01",` +
+		`"id":1,"name":"Baseline","description":"d","checksum":"abc","lock_version":0,"created_by":"operator","updated_at":"2026-01-01",` +
 		`"yaml_content":"---","variable_set_ids":[],"created_at":"2026-01-01"}}`
 	if err := tl.Validate([]byte(full)); err != nil {
 		t.Fatalf("valid full output rejected: %v", err)
 	}
 	if tl.Validate([]byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","playbook":{"id":1}}`)) == nil {
 		t.Fatal("partial playbook accepted")
+	}
+}
+
+func TestGetPlaybookRejectsMalformedVariableSetIDs(t *testing.T) {
+	tl := find(t, "get_playbook")
+	base := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","playbook":{` +
+		`"id":1,"name":"safe","description":"d","checksum":"abc","lock_version":0,"created_by":"operator","updated_at":"2026-01-01",` +
+		`"yaml_content":"---\\n- hosts: all\\n","variable_set_ids":[1],"created_at":"2026-01-01"}}`
+	for _, malformed := range []string{
+		strings.Replace(base, `"variable_set_ids":[1]`, `"variable_set_ids":["1"]`, 1),
+		strings.Replace(base, `"variable_set_ids":[1]`, `"variable_set_ids":[-1]`, 1),
+	} {
+		if tl.Validate([]byte(malformed)) == nil {
+			t.Fatalf("accepted malformed variable-set IDs: %s", malformed)
+		}
 	}
 }
 

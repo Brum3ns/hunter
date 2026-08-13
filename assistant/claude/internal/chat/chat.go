@@ -26,13 +26,12 @@ type Config struct {
 	// (the same one the legacy gateway presents as ASSISTANT_GATEWAY_MCP_TOKEN).
 	MCPToken string
 	// AllowedTools is the --allowedTools allowlist passed to the CLI when MCP
-	// is enabled. It MUST contain only "mcp__hunter__*" read tool names —
-	// never a Claude Code built-in (Bash/Write/Edit/Read/WebFetch/...).
+	// is enabled. It MUST come from the reviewed Hunter catalog — never a
+	// Claude Code built-in (Bash/Write/Edit/Read/WebFetch/...).
 	AllowedTools []string
 	// SystemPrompt, when non-empty, is appended to the CLI's default system
 	// prompt (--append-system-prompt) on MCP-enabled turns. It carries the
-	// tool-use policy that keeps the model from calling a read tool unless the
-	// user explicitly asks for a Hunter data lookup. Empty disables the append.
+	// reviewed read/authoring policy. Empty disables the append.
 	SystemPrompt string
 }
 

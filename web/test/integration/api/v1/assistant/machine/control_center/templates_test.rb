@@ -26,7 +26,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
     names = body["items"].map { |i| i["name"] }
     assert_equal %w[aaa-probe zzz-probe], names
     item = body["items"].first
-    assert_equal %w[id name kind description tags updated_at], item.keys
+    assert_equal %w[id name kind description tags lock_version created_by updated_at], item.keys
   end
 
   test "list_templates is refused without the control_center_templates scope" do
@@ -51,7 +51,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
     assert_equal "b", body["items"].first["name"]
   end
 
-  test "get_template returns the full projection, excluding created_by" do
+  test "get_template returns the full projection with authoring metadata" do
     record = template(
       name: "probe", kind: "cmdscript", description: "d", output: "json", tags: %w[recon],
       commands: [{ "command" => "curl", "args" => [ "-silent" ], "operator" => "" }],
@@ -62,11 +62,35 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
 
     assert_response :success
     result = response.parsed_body["template"]
-    expected_keys = %w[id name kind description tags updated_at output commands target created_at]
+    expected_keys = %w[id name kind description tags lock_version created_by updated_at output commands target created_at]
     assert_equal expected_keys, result.keys
     assert_equal "probe", result["name"]
     assert_equal "json", result["output"]
-    refute result.key?("created_by")
+    assert_equal "someone", result["created_by"]
+    assert_equal 0, result["lock_version"]
+    assert_equal({ "type" => "host", "separator" => nil, "output" => nil }, result["target"])
+    assert_equal %w[command args operator], result["commands"].first.keys
+  end
+
+  test "get_template closes nested records and removes secret material" do
+    record = template(
+      name: "probe", description: "api_key=do-not-return", tags: [ "safe", "token=do-not-return" ],
+      commands: [ {
+        "command" => "curl", "args" => [ "-silent", "Authorization: Bearer do-not-return" ],
+        "operator" => "", "credential" => "do-not-return"
+      } ],
+      target: { "type" => "host", "separator" => "token=do-not-return", "unknown" => "do-not-return" }
+    )
+
+    get "/api/v1/assistant/machine/control_center/templates/#{record.id}", headers: headers(read_grant)
+
+    assert_response :success
+    result = response.parsed_body["template"]
+    refute_includes response.body, "do-not-return"
+    assert_equal "[REDACTED]", result["description"]
+    assert_equal [ "safe", "[REDACTED]" ], result["tags"]
+    assert_equal %w[command args operator], result["commands"].first.keys
+    assert_equal %w[type separator output], result["target"].keys
   end
 
   test "get_template releases the reservation on a miss" do

@@ -15,7 +15,7 @@ func TestAdversarialSelectedRecordFixturesStayUntrustedOrAreRejected(t *testing.
 	var document struct {
 		Cases []struct {
 			Name           string `json:"name"`
-			Value          string `json:"value"`
+			Value          any    `json:"value"`
 			Generator      string `json:"generator"`
 			PromptExpected string `json:"prompt_expected"`
 		} `json:"cases"`
@@ -29,12 +29,18 @@ func TestAdversarialSelectedRecordFixturesStayUntrustedOrAreRejected(t *testing.
 			continue
 		}
 		t.Run(testCase.Name, func(t *testing.T) {
-			value := testCase.Value
+			var value string
 			switch testCase.Generator {
 			case "oversized_string":
 				value = strings.Repeat("x", MaxUserMessageBytes+1)
 			case "malformed_utf8":
 				value = string([]byte{'b', 'a', 'd', 0xff})
+			default:
+				var ok bool
+				value, ok = testCase.Value.(string)
+				if !ok {
+					t.Fatal("prompt fixture value must be a string")
+				}
 			}
 			built, buildErr := Build(value, []ContextReference{{Type: "target", ID: "abc", Label: value}})
 			if testCase.PromptExpected == "invalid_untrusted_prompt" {

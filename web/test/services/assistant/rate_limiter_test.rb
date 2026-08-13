@@ -37,6 +37,21 @@ class Assistant::RateLimiterTest < ActiveSupport::TestCase
     assert_equal [ 2, 2 ], buckets.pluck(:count)
   end
 
+  test "edit authoring has independent minute and hour windows" do
+    now = Time.zone.parse("2026-07-26 12:34:30 UTC")
+
+    with_limits(max_creates_per_minute: 1, max_creates_per_hour: 2) do
+      Assistant::RateLimiter.consume!(user: users(:one), action: "edit", now: now)
+      error = assert_raises(Assistant::RateLimiter::LimitExceeded) do
+        Assistant::RateLimiter.consume!(user: users(:one), action: "edit", now: now)
+      end
+      assert_equal "authoring_rate_limited", error.code
+    end
+
+    assert_equal [ "edit.hour", "edit.minute" ],
+      Assistant::RateLimitBucket.where(user: users(:one)).order(:action).pluck(:action)
+  end
+
   test "hour limits roll the rejected minute increment back" do
     now = Time.zone.parse("2026-07-26 12:34:30 UTC")
 

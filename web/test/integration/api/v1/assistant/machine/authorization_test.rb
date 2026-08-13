@@ -71,10 +71,23 @@ class Api::V1::Assistant::Machine::AuthorizationTest < ActionDispatch::Integrati
 
   test "machine writes reject oversized request bodies" do
     post "/api/v1/assistant/machine/validations/whiterabbit_template",
-      params: { draft: "x" * 70_000 }, headers: machine_headers, as: :json
+      params: { draft: "x" * (Api::V1::Assistant::Machine::BaseController::MAX_REQUEST_BYTES + 1) },
+      headers: machine_headers, as: :json
 
     assert_response :content_too_large
     assert_equal "request_too_large", response.parsed_body["error"]
+  end
+
+  test "grant introspection returns the closed read and write scope sets" do
+    original = Assistant::Config.method(:enabled?)
+    Assistant::Config.define_singleton_method(:enabled?) { true }
+    get "/api/v1/assistant/machine/grant", headers: machine_headers
+
+    assert_response :success
+    assert_equal Assistant::TurnGrant::READ_SCOPES, response.parsed_body.fetch("read_scopes")
+    assert_equal [], response.parsed_body.fetch("write_scopes")
+  ensure
+    Assistant::Config.define_singleton_method(:enabled?, original) if original
   end
 
   private

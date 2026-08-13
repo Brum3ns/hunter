@@ -2,6 +2,9 @@
 package targets
 
 import (
+	"encoding/json"
+	"errors"
+
 	"hunter.local/assistant/mcp/internal/readmodule"
 	"hunter.local/assistant/mcp/internal/tool"
 )
@@ -24,7 +27,26 @@ func (Module) Tools() []tool.Tool {
 		FullKeys: []string{
 			"id", "host", "program", "status_code", "title",
 			"url", "status_family", "webserver", "content_type",
-			"port", "scheme", "tech", "seen_at", "page_type",
+			"port", "scheme", "tech", "seen_at", "page_type", "input", "ip", "path", "method",
+			"content_length", "words", "lines", "response_time", "tool", "failed", "phash",
+			"csp_fqdns", "csp_domains", "response_headers",
 		},
+		ValidateDetail: validateDetail,
 	})
+}
+
+func validateDetail(detail map[string]json.RawMessage) error {
+	headerKeys := []string{"name", "value", "redacted"}
+	if !readmodule.BoundedStringArray(detail["tech"], 500, 4_096) ||
+		!readmodule.BoundedStringArray(detail["csp_fqdns"], 500, 4_096) ||
+		!readmodule.BoundedStringArray(detail["csp_domains"], 500, 4_096) ||
+		!readmodule.TypedObjectArray(detail["response_headers"], headerKeys, 50,
+			func(header map[string]json.RawMessage) bool {
+				return readmodule.StringValue(header["name"], 200, false) &&
+					readmodule.StringValue(header["value"], 4_096, true) &&
+					readmodule.BooleanValue(header["redacted"], false)
+			}) {
+		return errors.New("invalid nested target projection")
+	}
+	return nil
 }

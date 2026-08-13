@@ -29,7 +29,8 @@ type Tool struct {
 	Description      string
 	InputSchema      json.RawMessage
 	OutputSchema     json.RawMessage
-	Scope            string // read scope required (Phase 2); "" = no scope gate
+	Scope            string // dedicated scope required; "" = no scope gate
+	WriteScope       bool   // true selects the grant's write scopes, never its read scopes
 	RequiresResource bool   // true iff an explicit resource grant is required
 
 	Decode       func(args []byte) (Request, error)

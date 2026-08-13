@@ -17,6 +17,10 @@ export function pollingDelay({ panelOpen, failureCount = 0 }) {
   return Math.min(3000 * (2 ** Math.max(0, failureCount)), 30000)
 }
 
+export function composerSubmitIntent(event) {
+  return event.key === "Enter" && event.shiftKey !== true && event.isComposing !== true
+}
+
 export function safeDisplayText(value) {
   return String(value ?? "").replace(CONTROL_CHARACTERS, "�")
 }
@@ -71,27 +75,59 @@ export function saveConfirmationText(draft) {
 export function appendMessage(documentRef, container, message) {
   const article = documentRef.createElement("article")
   article.className = message.role === "user"
-    ? "ml-8 rounded-lg bg-zinc-900 p-3 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
-    : "mr-8 rounded-lg bg-zinc-100 p-3 text-sm text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
+    ? "ml-auto max-w-[88%] rounded-2xl rounded-br-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm leading-6 text-zinc-800 shadow-sm dark:border-cyan-400/15 dark:bg-cyan-400/10 dark:text-zinc-100"
+    : "mr-auto max-w-[94%] rounded-2xl rounded-bl-md border border-zinc-200 bg-white px-4 py-3 text-sm leading-6 text-zinc-800 shadow-sm dark:border-white/10 dark:bg-zinc-900/80 dark:text-zinc-100"
   const label = documentRef.createElement("p")
-  label.className = "mb-1 text-xs font-semibold opacity-60"
+  label.className = message.role === "user"
+    ? "mb-1 text-[10px] font-semibold uppercase tracking-wider text-cyan-700/70 dark:text-cyan-300/60"
+    : "mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
   label.textContent = message.role === "user" ? "You" : "Hunter assistant"
   const body = documentRef.createElement(message.role === "assistant" ? "pre" : "p")
-  body.className = "whitespace-pre-wrap break-words font-sans"
+  body.className = "whitespace-pre-wrap break-words font-sans [overflow-wrap:anywhere]"
   body.textContent = safeDisplayText(message.body)
   article.append(label, body)
   container.appendChild(article)
   return article
 }
 
+export function scrollMessageLog(container) {
+  container.scrollTop = container.scrollHeight
+}
+
+export function renderConversationList(documentRef, container, conversations, options = {}) {
+  container.replaceChildren()
+  if (conversations.length === 0) {
+    const empty = documentRef.createElement("p")
+    empty.className = "px-2 py-4 text-center text-xs leading-5 text-zinc-500 dark:text-zinc-500"
+    empty.textContent = "No conversations yet"
+    container.appendChild(empty)
+    return
+  }
+
+  for (const conversation of conversations) {
+    const active = String(conversation.id) === String(options.currentId ?? "")
+    const button = documentRef.createElement("button")
+    button.type = "button"
+    button.dataset.conversationId = String(conversation.id)
+    button.className = active
+      ? "assistant-conversation-active w-full truncate rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-2 text-left text-xs font-medium text-cyan-100"
+      : "w-full truncate rounded-lg border border-transparent px-2.5 py-2 text-left text-xs text-zinc-400 transition hover:border-white/10 hover:bg-white/5 hover:text-zinc-100"
+    button.textContent = safeDisplayText(conversation.title)
+    button.title = safeDisplayText(conversation.title)
+    if (active) button.setAttribute("aria-current", "true")
+    button.addEventListener("click", (event) => options.onSelect?.(conversation, event))
+    container.appendChild(button)
+  }
+}
+
 export function appendContextDisclosure(documentRef, container, context, onRemove) {
   const card = documentRef.createElement("article")
-  card.className = "rounded border border-cyan-200 bg-cyan-50 p-2 text-xs dark:border-cyan-800 dark:bg-cyan-950/30"
+  card.className = "rounded-xl border border-cyan-200 bg-cyan-50/70 p-3 text-xs shadow-sm dark:border-cyan-400/15 dark:bg-cyan-400/[0.07]"
   const label = documentRef.createElement("p")
-  label.className = "font-semibold text-cyan-900 dark:text-cyan-100"
+  label.className = "font-semibold text-cyan-900 dark:text-cyan-200"
   label.textContent = `${safeDisplayText(context.type)} · ${safeDisplayText(context.label || context.id)}`
   const preview = documentRef.createElement("pre")
-  preview.className = "mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words"
+  preview.className = "slim-scroll mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white/70 p-2 font-mono text-[11px] leading-5 text-zinc-700 dark:bg-black/20 dark:text-zinc-300"
   preview.textContent = safeDisplayText(JSON.stringify(context.preview, null, 2))
   const remove = actionButton(documentRef, "Remove", () => onRemove?.(context))
   card.append(label, preview, remove)
@@ -101,7 +137,7 @@ export function appendContextDisclosure(documentRef, container, context, onRemov
 
 export function appendDraftCard(documentRef, container, draft, callbacks = {}) {
   const card = documentRef.createElement("article")
-  card.className = "rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+  card.className = "rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm shadow-sm dark:border-white/10 dark:bg-zinc-900"
 
   const heading = documentRef.createElement("h3")
   heading.className = "font-semibold text-zinc-900 dark:text-zinc-100"
@@ -114,7 +150,7 @@ export function appendDraftCard(documentRef, container, draft, callbacks = {}) {
   card.appendChild(type)
 
   const source = documentRef.createElement("pre")
-  source.className = "mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-zinc-950 p-3 text-xs text-zinc-100"
+  source.className = "slim-scroll mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-zinc-950 p-3 font-mono text-xs leading-5 text-zinc-100 ring-1 ring-white/10"
   source.textContent = safeDisplayText(draft.content)
   card.appendChild(source)
 
@@ -132,7 +168,7 @@ export function appendDraftCard(documentRef, container, draft, callbacks = {}) {
 
   if (draft.diff) {
     const diff = documentRef.createElement("pre")
-    diff.className = "mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-800"
+    diff.className = "slim-scroll mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-2 font-mono text-xs leading-5 ring-1 ring-zinc-200 dark:bg-black/20 dark:ring-white/10"
     diff.textContent = safeDisplayText(draft.diff)
     card.appendChild(diff)
   }
@@ -150,7 +186,7 @@ export function appendDraftCard(documentRef, container, draft, callbacks = {}) {
 function actionButton(documentRef, label, callback) {
   const button = documentRef.createElement("button")
   button.type = "button"
-  button.className = "mr-2 mt-3 rounded border border-zinc-300 px-2 py-1 text-xs font-medium dark:border-zinc-700"
+  button.className = "mr-2 mt-3 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:border-white/10 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
   button.textContent = label
   button.addEventListener("click", callback)
   return button

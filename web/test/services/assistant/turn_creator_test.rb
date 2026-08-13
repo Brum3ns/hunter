@@ -41,7 +41,7 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_equal "queued", @turn.reload.status
     grant = @turn.turn_grant
     assert_equal [ { "type" => "target", "id" => "target-1" } ], grant.resources
-    assert_equal Assistant::Grants::Issuer::TOOLS, grant.tools
+    assert_equal Assistant::Grants::Issuer::LEGACY_TOOLS, grant.tools
     assert_equal "example.test", @turn.context_references.sole.label
     assert_equal @turn.id, enqueued.fetch(:turn_id)
     refute_equal enqueued.dig(:envelope, "turn_grant"), grant.token_digest
@@ -73,8 +73,9 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     grant = @turn.turn_grant
     refute_nil grant, "the Claude Code path must now issue a TurnGrant bound to the turn"
     assert_equal [], grant.resources
-    assert_equal Assistant::Grants::Issuer::TOOLS, grant.tools
+    assert_equal Assistant::Grants::Issuer::CHAT_TOOLS, grant.tools
     assert_equal Assistant::TurnGrant::READ_SCOPES, grant.read_scopes
+    assert_equal Assistant::TurnGrant::WRITE_SCOPES, grant.write_scopes
 
     assert_equal @turn.id, enqueued.fetch(:turn_id)
     assert_equal true, enqueued.fetch(:claude)
@@ -82,6 +83,29 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     refute_nil enqueued.fetch(:turn_grant)
     refute_equal enqueued.fetch(:turn_grant), grant.token_digest
     assert_equal Assistant::TurnGrant.digest(enqueued.fetch(:turn_grant)), grant.token_digest
+  end
+
+
+  test "a Claude Code turn loses only authoring tools and scopes when Control Center writes are off" do
+    profile = assistant_provider_profiles(:claude_code)
+    conversation = Assistant::Conversation.start!(user: @user, provider_profile: profile)
+    Assistant::Setting.instance.update!(control_center_write_enabled: false)
+
+    with_enabled_assistant do
+      stub_methods(Assistant::TurnJob, perform_later: ->(**) { true }) do
+        @turn = Assistant::TurnCreator.call(
+          conversation: conversation,
+          user: @user,
+          body: "inspect without authoring",
+          context_refs: []
+        )
+      end
+    end
+
+    grant = @turn.turn_grant
+    assert_equal Assistant::Grants::Issuer::CHAT_READ_TOOLS, grant.tools
+    assert_equal Assistant::TurnGrant::READ_SCOPES, grant.read_scopes
+    assert_equal [], grant.write_scopes
   end
 
   test "invalid context rolls back the complete turn record set" do

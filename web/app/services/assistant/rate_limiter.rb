@@ -22,6 +22,7 @@ module Assistant
         case action.to_s
         when "turn_start" then consume_turn_start!(user, now.in_time_zone)
         when "create" then consume_create!(user, now.in_time_zone)
+        when "edit" then consume_edit!(user, now.in_time_zone)
         when /\Avalidation:(\d+)\z/ then check_validation!(user, Regexp.last_match(1), now.in_time_zone)
         else raise ArgumentError, "unsupported assistant rate-limit action"
         end
@@ -74,6 +75,26 @@ module Assistant
       )
     end
     private_class_method :consume_create!
+
+    def consume_edit!(user, now)
+      consume_window!(
+        user: user,
+        action: "edit.minute",
+        started_at: now.change(sec: 0),
+        limit: Assistant::Config.max_creates_per_minute,
+        code: "authoring_rate_limited",
+        retry_after: ->(start) { (start + 1.minute - now).ceil }
+      )
+      consume_window!(
+        user: user,
+        action: "edit.hour",
+        started_at: now.change(min: 0, sec: 0),
+        limit: Assistant::Config.max_creates_per_hour,
+        code: "authoring_rate_limited",
+        retry_after: ->(start) { (start + 1.hour - now).ceil }
+      )
+    end
+    private_class_method :consume_edit!
 
     def consume_window!(user:, action:, started_at:, limit:, code:, retry_after:)
       bucket = Assistant::RateLimitBucket.find_or_initialize_by(

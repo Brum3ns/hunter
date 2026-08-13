@@ -28,6 +28,26 @@
       "secret_expected": "credential_assignment"
     },
     {
+      "name": "inline cookie header",
+      "value": "curl -H 'Cookie: session=abcdefghijk' https://example.test",
+      "secret_expected": "cookie_header"
+    },
+    {
+      "name": "OAuth client secret assignment",
+      "value": "client_secret=abcdefghijk",
+      "secret_expected": "credential_assignment"
+    },
+    {
+      "name": "OAuth refresh token assignment",
+      "value": "refresh_token: abcdefghijk",
+      "secret_expected": "credential_assignment"
+    },
+    {
+      "name": "structured OAuth client secret",
+      "value": { "client_secret": "abcdefghijk" },
+      "secret_expected": "credential_assignment"
+    },
+    {
       "name": "terminal escape",
       "value": "safe prefix\u001b[31mforged terminal output",
       "secret_expected": "control_character",
