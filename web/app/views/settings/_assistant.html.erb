@@ -25,6 +25,11 @@
 	  <%= check_box_tag "settings[control_center_write_enabled]", "1", setting.control_center_write_enabled?, class: "rounded border-zinc-300" %>
 	  Enable permission-free Control Center template/playbook create and explicit edit
 	</label>
+	<%= hidden_field_tag "settings[conversation_management_enabled]", "0" %>
+	<label class="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+	  <%= check_box_tag "settings[conversation_management_enabled]", "1", setting.conversation_management_enabled?, class: "rounded border-zinc-300" %>
+	  Enable direct conversation rename and reorder for the signed-in administrator
+	</label>
     <div class="grid gap-4 sm:grid-cols-2">
       <label class="text-sm text-zinc-700 dark:text-zinc-300">
         Transcript retention (days)

@@ -137,4 +137,23 @@ class Api::V1::Assistant::ProviderProfilesTest < ActionDispatch::IntegrationTest
     assert_equal "control_center_write.disabled", event.event
     assert_equal @admin.id, event.user_id
   end
+
+  test "settings serialize and audit the independently revocable conversation management switch" do
+    setting = Assistant::Setting.instance
+    setting.enable_conversation_management!(user: @admin)
+
+    get "/api/v1/assistant/settings"
+    assert_response :success
+    assert_equal true, response.parsed_body.fetch("conversation_management_enabled")
+
+    patch "/api/v1/assistant/settings", params: {
+      settings: { conversation_management_enabled: false }
+    }, as: :json
+    assert_response :success
+    assert_equal false, response.parsed_body.fetch("conversation_management_enabled")
+    refute setting.reload.conversation_management_enabled?
+    event = Assistant::AuditEvent.order(:id).last
+    assert_equal "conversation_management.disabled", event.event
+    assert_equal @admin.id, event.user_id
+  end
 end

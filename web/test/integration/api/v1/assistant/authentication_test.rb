@@ -61,4 +61,46 @@ class Api::V1::Assistant::AuthenticationTest < ActionDispatch::IntegrationTest
   ensure
     ActionController::Base.allow_forgery_protection = previous
   end
+
+  test "conversation organization rejects bearer and non-administrator writes" do
+    conversation = assistant_conversations(:one)
+    Assistant::Setting.instance.update!(
+      assistant_enabled: true,
+      conversation_management_enabled: true
+    )
+    _record, raw = ApiToken.generate(user: @admin, name: "all", scopes: [ "*" ])
+
+    patch "/api/v1/assistant/conversations/#{conversation.id}",
+      params: { title: "Bearer" }, as: :json,
+      headers: { "Authorization" => "Bearer #{raw}" }
+    assert_response :unauthorized
+    assert_equal "session_required", response.parsed_body.fetch("error")
+
+    sign_in_as(users(:two))
+    patch "/api/v1/assistant/conversations/#{conversation.id}",
+      params: { title: "Other user" }, as: :json
+    assert_response :forbidden
+    assert_equal "assistant_admin_required", response.parsed_body.fetch("error")
+    assert_equal "First assistant conversation", conversation.reload.title
+  end
+
+  test "conversation organization preserves CSRF protection" do
+    sign_in_as(@admin)
+    Assistant::Setting.instance.update!(
+      assistant_enabled: true,
+      conversation_management_enabled: true
+    )
+    previous = ActionController::Base.allow_forgery_protection
+    ActionController::Base.allow_forgery_protection = true
+
+    stub_methods(Assistant::Config, enabled?: true) do
+      patch "/api/v1/assistant/conversations/#{assistant_conversations(:one).id}",
+        params: { title: "Forged" }, as: :json
+    end
+
+    assert_response :forbidden
+    assert_equal "invalid_csrf_token", response.parsed_body.fetch("error")
+  ensure
+    ActionController::Base.allow_forgery_protection = previous
+  end
 end

@@ -9,7 +9,7 @@ module Api
               serialize_provider_profile(profile)
             end,
             conversations: current_assistant_user.assistant_conversations
-              .includes(:provider_profile).order(updated_at: :desc).map do |conversation|
+              .includes(:provider_profile).history_ordered.map do |conversation|
                 serialize_conversation(conversation)
               end
           }

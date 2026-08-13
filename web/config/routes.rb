@@ -85,6 +85,8 @@ Rails.application.routes.draw do
         get "bootstrap", to: "bootstrap#show"
         get "context_options", to: "context_options#index"
         post "context_previews", to: "context_previews#create"
+        patch "conversations/order", to: "conversations#reorder"
+        patch "conversations/:id", to: "conversations#update", as: :conversation_rename
         resources :conversations, only: %i[index show create destroy] do
           resources :turns, only: %i[create show], shallow: true do
             post :cancel, on: :member

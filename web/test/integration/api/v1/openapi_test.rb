@@ -198,4 +198,35 @@ class Api::V1::OpenapiTest < ActionDispatch::IntegrationTest
     settings = doc.dig("components", "schemas", "AssistantSettingsInput", "properties", "settings", "properties")
     assert settings.key?("control_center_write_enabled")
   end
+
+  test "documents closed Assistant conversation organization inputs" do
+    sign_in_as(@user)
+    get "/api/v1/openapi.json"
+
+    assert_response :success
+    doc = JSON.parse(response.body)
+    rename = doc.dig(
+      "paths", "/api/v1/assistant/conversations/{id}", "patch",
+      "requestBody", "content", "application/json", "schema"
+    )
+    assert_equal false, rename.fetch("additionalProperties")
+    assert_equal [ "title" ], rename.fetch("required")
+    assert_equal [ "title" ], rename.fetch("properties").keys
+
+    reorder = doc.dig(
+      "paths", "/api/v1/assistant/conversations/order", "patch",
+      "requestBody", "content", "application/json", "schema"
+    )
+    assert_equal false, reorder.fetch("additionalProperties")
+    assert_equal [ "conversation_ids" ], reorder.fetch("required")
+    ids = reorder.dig("properties", "conversation_ids")
+    assert_equal 1_000, ids.fetch("maxItems")
+    assert_equal "integer", ids.dig("items", "type")
+
+    settings = doc.dig(
+      "components", "schemas", "AssistantSettingsInput", "properties",
+      "settings", "properties"
+    )
+    assert settings.key?("conversation_management_enabled")
+  end
 end

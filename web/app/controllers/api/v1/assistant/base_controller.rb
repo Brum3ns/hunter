@@ -33,6 +33,20 @@ module Api
           render json: { error: "assistant_disabled" }, status: :service_unavailable
         end
 
+        def require_conversation_management_enabled!
+          return if ::Assistant::Setting.instance.conversation_management_enabled?
+
+          render json: { error: "conversation_management_disabled" },
+            status: :service_unavailable
+        end
+
+        def exact_request_body!(keys)
+          attributes = request.request_parameters
+          return attributes if attributes.respond_to?(:keys) && attributes.keys.sort == keys.sort
+
+          raise ActionController::ParameterMissing, keys.join(", ")
+        end
+
         def current_assistant_user
           Current.session.user
         end
@@ -114,7 +128,8 @@ module Api
             assistant_enabled: setting.assistant_enabled?,
             infrastructure_enabled: state.active,
             effective_enabled: state.active && setting.assistant_enabled?,
-			control_center_write_enabled: setting.control_center_write_enabled?,
+            control_center_write_enabled: setting.control_center_write_enabled?,
+            conversation_management_enabled: setting.conversation_management_enabled?,
             disabled_reason: disabled_reason_for(setting, state),
             providers: ::Assistant::ProviderCredentials.statuses.map do |status|
               entry = ::Assistant::ProviderCatalog.fetch!(status.slug)

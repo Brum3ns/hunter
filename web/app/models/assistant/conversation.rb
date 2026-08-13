@@ -78,9 +78,26 @@ module Assistant
       end
     end
 
-    def destroy_with_content!
+    def destroy_with_content!(actor: nil)
+      if actor && actor.id != user_id
+        raise ActiveRecord::RecordNotFound
+      end
+
       self.class.transaction do
         lock!
+        if actor
+          Assistant::Audit.record!(
+            event: "conversation.deleted",
+            attributes: {
+              user_id: actor.id,
+              conversation_id: id,
+              target_type: "assistant_conversation",
+              target_id: id.to_s,
+              status: "accepted",
+              metadata: { operation: "conversation_delete", outcome: "accepted" }
+            }
+          )
+        end
         destroy!
       end
     end

@@ -618,6 +618,29 @@ paths:
       responses:
         "200": { description: "Conversation with decrypted messages for its owner." }
         "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Assistant"]
+      summary: "Rename one owned assistant conversation"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+              required: [title]
+              additionalProperties: false
+      responses:
+        "200": { description: "Renamed owned conversation." }
+        "400": { description: "The request body is not the exact closed rename shape." }
+        "403": { description: "Invalid CSRF token or administrator required." }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "The normalized title is blank or too long." }
+        "503": { description: "Assistant activation or conversation management is disabled." }
     delete:
       tags: ["Assistant"]
       summary: "Delete one owned assistant conversation"
@@ -628,6 +651,33 @@ paths:
         "204": { description: "Conversation content was hard-deleted." }
         "403": { description: "Invalid CSRF token or administrator required." }
         "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/assistant/conversations/order:
+    patch:
+      tags: ["Assistant"]
+      summary: "Reorder the complete owned assistant conversation history"
+      x-session-only: true
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversation_ids:
+                  type: array
+                  maxItems: 1000
+                  uniqueItems: true
+                  items: { type: integer, minimum: 1 }
+              required: [conversation_ids]
+              additionalProperties: false
+      responses:
+        "200": { description: "Authoritative reordered owned conversation list." }
+        "400": { description: "The request body is not the exact closed reorder shape." }
+        "403": { description: "Invalid CSRF token or administrator required." }
+        "409": { description: "The complete owned conversation set changed." }
+        "422": { description: "The order contains invalid or duplicate IDs." }
+        "503": { description: "Assistant activation or conversation management is disabled." }
   /api/v1/assistant/conversations/{conversation_id}/turns:
     post:
       tags: ["Assistant"]
@@ -843,6 +893,7 @@ components:
           properties:
             assistant_enabled: { type: boolean }
             control_center_write_enabled: { type: boolean }
+            conversation_management_enabled: { type: boolean }
             transcript_retention_days: { type: integer, minimum: 1, maximum: 30 }
             audit_retention_days: { type: integer, minimum: 1, maximum: 365 }
           additionalProperties: false
