@@ -2,6 +2,7 @@ import {
   renderMarkdownFragment,
   safeDisplayText,
 } from "#assistant-markdown"
+import { decorateCodeBlocks } from "lib/assistant_code_blocks"
 
 const TERMINAL_TURN_STATUSES = new Set(["completed", "failed", "canceled", "interrupted"])
 
@@ -123,6 +124,7 @@ export function appendMessage(documentRef, container, message, callbacks = {}) {
   const body = documentRef.createElement("div")
   body.className = "assistant-markdown min-w-0 break-words [overflow-wrap:anywhere]"
   body.appendChild(renderMarkdownFragment(documentRef, message.body))
+  decorateCodeBlocks(documentRef, body, { onCopy: callbacks.onCopyCode })
   article.append(heading, body)
 
   if (userMessage) {

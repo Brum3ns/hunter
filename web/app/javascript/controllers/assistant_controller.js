@@ -958,6 +958,7 @@ export default class extends Controller {
     if (message.id && this.renderedMessageIds.has(message.id)) return
     appendMessage(document, this.messagesTarget, message, {
       onCopy: (copiedMessage) => this.copyMessage(copiedMessage),
+      onCopyCode: (text) => this.copyCode(text),
     })
     if (message.id) this.renderedMessageIds.add(message.id)
     scrollMessageLog(this.messagesTarget)
@@ -969,6 +970,15 @@ export default class extends Controller {
       this.setStatus("Message copied.")
     } catch {
       this.setStatus("The message could not be copied.")
+    }
+  }
+
+  async copyCode(text) {
+    try {
+      await navigator.clipboard.writeText(String(text ?? ""))
+      this.setStatus("Code copied.")
+    } catch {
+      this.setStatus("The code could not be copied.")
     }
   }
 

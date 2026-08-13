@@ -44,6 +44,15 @@ class AssistantShellMarkupTest < Minitest::Test
     assert @document.at_css("[data-assistant-target='fontScaleStatus'][role='status'][aria-live='polite']")
   end
 
+  def test_history_toggle_controls_the_labelled_sidebar
+    sidebar = @document.at_css("#hunter-assistant-history[data-assistant-target='historySidebar']")
+    toggle = @document.at_css("button[data-assistant-target='historyToggle']")
+
+    assert sidebar
+    assert_equal "Assistant conversations", sidebar["aria-label"]
+    assert_equal sidebar["id"], toggle["aria-controls"]
+  end
+
   def test_delete_controls_share_the_explicit_retention_consequence
     disclosure = @document.at_css("#hunter-assistant-delete-consequence")
 

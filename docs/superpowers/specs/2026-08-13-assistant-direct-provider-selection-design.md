@@ -332,6 +332,21 @@ Implementation is test-driven. Required coverage includes:
   Zeitwerk, dependency/security checks, Docker builds, and authenticated live
   smoke through gateway port 5000.
 
+### Chat focus controls evidence (2026-08-13)
+
+The chat-focus subsystem is implemented and verified independently of the
+remaining direct-provider work. Browser-only history preference coverage checks
+the exact versioned storage key, both boolean values, and unavailable storage;
+the shell test checks the labelled `aria-controls` relationship. Sanitized
+fenced code is decorated after DOMPurify processing, leaves inline code alone,
+copies the complete source text, and reports clipboard rejection without an
+uncaught error. Verification passed with 112 JavaScript tests, 8 shell-markup
+runs and 60 assertions, the Tailwind CSS v4.3.1 build, and Rails importmap
+resolution for the focus-control modules.
+
+This evidence applies only to the history-focus and compact-code controls. It
+does not mark direct-provider selection complete or change production status.
+
 Production remains disabled until the Assistant production checklist records:
 the pinned Codex version and image digest, tool-schema capture, login persistence,
 network inspection, credential non-disclosure, real Codex and Claude turns,
@@ -367,4 +382,3 @@ reviewed profiles behind misleading logos, directly contradicting the request.
 - OpenAI documents permission and configuration controls used for defense in
   depth:
   <https://learn.chatgpt.com/docs/permissions>
-

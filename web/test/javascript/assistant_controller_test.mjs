@@ -1,7 +1,14 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { register } from "node:module"
+import { JSDOM } from "jsdom"
 import { assistantApi } from "../../app/javascript/lib/assistant_api.js"
+
+const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+  url: "https://hunter.test/",
+})
+globalThis.window = dom.window
+globalThis.document = dom.window.document
 
 register("./support/assistant_controller_loader.mjs", import.meta.url)
 const ui = await import("../../app/javascript/lib/assistant_ui.js").catch(() => ({}))
@@ -278,18 +285,18 @@ test("conversation rows expose pointer keyboard menu and drag callbacks without 
 
 test("messages render safe Markdown cards with profile bubbles and original-body copy", () => {
   assert.equal(typeof ui.appendMessage, "function")
-  const container = new FakeElement("section")
+  const container = dom.window.document.createElement("section")
   const attack = '<script>alert("x")</script>\u001b[31m\u0000'
   const copied = []
 
   ui.appendMessage(
-    fakeDocument,
+    dom.window.document,
     container,
     { role: "assistant", body: attack },
     { onCopy: (message) => copied.push(message.body) },
   )
   ui.appendMessage(
-    fakeDocument,
+    dom.window.document,
     container,
     { role: "user", body: "**my question**" },
     { onCopy: (message) => copied.push(message.body) },
@@ -303,19 +310,40 @@ test("messages render safe Markdown cards with profile bubbles and original-body
   const assistantRow = container.children[0]
   const userRow = container.children[1]
   assert.equal(assistantRow.children[0].dataset.avatarRole, "assistant")
-  assert.equal(assistantRow.children[1].tagName, "article")
-  assert.equal(userRow.children[0].tagName, "article")
+  assert.equal(assistantRow.children[1].tagName, "ARTICLE")
+  assert.equal(userRow.children[0].tagName, "ARTICLE")
   assert.equal(userRow.children[1].dataset.avatarRole, "user")
-  assert.equal(findElements(assistantRow, (element) => element.className?.includes("assistant-markdown")).length, 1)
+  assert.equal(assistantRow.querySelectorAll(".assistant-markdown").length, 1)
 
-  const copyButtons = findElements(
-    container,
-    (element) => element.tagName === "button" && element.textContent === "Copy",
-  )
+  const copyButtons = [...container.querySelectorAll("button")]
+    .filter((element) => element.textContent === "Copy")
   assert.equal(copyButtons.length, 2)
-  copyButtons[0].onclick()
-  copyButtons[1].onclick()
+  copyButtons[0].click()
+  copyButtons[1].click()
   assert.deepEqual(copied, [attack, "**my question**"])
+})
+
+test("fenced message code renders one compact toolbar and copies the complete source", () => {
+  const source = Array.from(
+    { length: 13 },
+    (_, index) => index === 0 ? 'puts "<tag>"' : `puts ${index}`,
+  ).join("\n")
+  const container = dom.window.document.createElement("section")
+  const copied = []
+
+  ui.appendMessage(
+    dom.window.document,
+    container,
+    { role: "assistant", body: `Use \`inline\`\n\n\`\`\`ruby\n${source}\n\`\`\`` },
+    { onCopyCode: (text) => copied.push(text) },
+  )
+
+  const block = container.querySelector(".assistant-code-block")
+  assert.equal(container.querySelectorAll(".assistant-code-toolbar").length, 1)
+  assert.equal(block.dataset.compact, "true")
+  assert.equal(container.querySelector("p code").closest(".assistant-code-block"), null)
+  block.querySelector('[data-code-action="copy"]').click()
+  assert.equal(copied[0], `${source}\n`)
 })
 
 test("conversation deletion confirmation names the effect without changing title text", () => {

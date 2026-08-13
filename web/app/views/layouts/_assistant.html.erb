@@ -74,12 +74,12 @@
 
     <div data-assistant-target="historyWorkspace" data-history-collapsed="false"
          class="assistant-workspace-grid grid min-h-0 flex-1">
-      <aside data-assistant-target="historySidebar" aria-label="Assistant conversations"
+      <aside id="hunter-assistant-history" data-assistant-target="historySidebar" aria-label="Assistant conversations"
              class="assistant-history-sidebar slim-scroll min-h-0 overflow-y-auto border-r border-white/10 bg-[#0a0a0a] p-2 text-zinc-100">
         <div class="flex items-center justify-between gap-1 px-1 pb-2 pt-1">
           <p data-history-expanded-only class="min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Conversations</p>
           <button type="button" data-assistant-target="historyToggle" data-action="assistant#toggleHistory"
-                  aria-expanded="true" aria-label="Collapse conversation history"
+                  aria-controls="hunter-assistant-history" aria-expanded="true" aria-label="Collapse conversation history"
                   class="grid h-8 min-w-8 shrink-0 place-items-center rounded-md text-zinc-400 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white">
             <svg aria-hidden="true" viewBox="0 0 20 20" class="assistant-history-toggle-icon h-4 w-4 transition-transform" fill="none" stroke="currentColor" stroke-width="1.8">
               <path stroke-linecap="round" stroke-linejoin="round" d="m12 5-5 5 5 5" />

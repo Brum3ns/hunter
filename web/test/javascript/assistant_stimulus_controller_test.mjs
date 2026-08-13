@@ -65,8 +65,8 @@ function fixture() {
         <button data-assistant-target="resizeHandle"></button>
         <span data-assistant-target="resizeStatus"></span>
         <div data-assistant-target="historyWorkspace" data-history-collapsed="false">
-          <aside data-assistant-target="historySidebar">
-            <button data-assistant-target="historyToggle" aria-expanded="true">
+          <aside id="hunter-assistant-history" data-assistant-target="historySidebar">
+            <button data-assistant-target="historyToggle" aria-controls="hunter-assistant-history" aria-expanded="true">
               <span data-assistant-target="historyToggleLabel">Collapse</span>
             </button>
           </aside>
@@ -158,6 +158,37 @@ test("history toggle gives the chat width and persists the preference", async ()
   assert.deepEqual(JSON.parse(window.localStorage.getItem("hunter:assistant-history-rail:v1")), {
     collapsed: true,
   })
+  application.stop()
+})
+
+test("message code copy routes complete text through the controller", async () => {
+  const { application, controller } = await harness()
+  const copied = []
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { async writeText(text) { copied.push(text) } },
+  })
+  const source = Array.from({ length: 13 }, (_, index) => `line ${index}`).join("\n")
+
+  controller.appendMessage({ role: "assistant", body: `\`\`\`text\n${source}\n\`\`\`` })
+  controller.messagesTarget.querySelector('[data-code-action="copy"]').click()
+  await tick()
+
+  assert.equal(copied[0], `${source}\n`)
+  assert.equal(controller.statusTarget.textContent, "Code copied.")
+  application.stop()
+})
+
+test("code clipboard rejection reports a polite failure without throwing", async () => {
+  const { application, controller } = await harness()
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { async writeText() { throw new Error("denied") } },
+  })
+
+  await assert.doesNotReject(() => controller.copyCode("complete source"))
+
+  assert.equal(controller.statusTarget.textContent, "The code could not be copied.")
   application.stop()
 })
 
