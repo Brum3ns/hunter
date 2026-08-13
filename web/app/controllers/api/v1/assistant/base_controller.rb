@@ -79,6 +79,7 @@ module Api
         end
 
         def serialize_conversation(conversation, messages: false)
+          backend = ::Assistant::ChatBackend.slug_for(conversation.provider_profile)
           payload = {
             id: conversation.id,
             status: conversation.status,
@@ -86,7 +87,9 @@ module Api
             expires_at: conversation.expires_at.iso8601,
             created_at: conversation.created_at.iso8601,
             updated_at: conversation.updated_at.iso8601,
-            provider_profile: serialize_provider_profile(conversation.provider_profile)
+            backend: backend,
+            brand: backend && ::Assistant::ChatBackend::BRANDS.fetch(backend),
+            legacy: backend.nil?
           }
           if messages
             payload[:messages] = conversation.messages.order(:sequence).map do |message|
@@ -131,16 +134,6 @@ module Api
             control_center_write_enabled: setting.control_center_write_enabled?,
             conversation_management_enabled: setting.conversation_management_enabled?,
             disabled_reason: disabled_reason_for(setting, state),
-            providers: ::Assistant::ProviderCredentials.statuses.map do |status|
-              entry = ::Assistant::ProviderCatalog.fetch!(status.slug)
-              {
-                slug: status.slug,
-                model: entry.model,
-                retention_posture: entry.retention_posture,
-                available: status.available,
-                reason: status.reason
-              }
-            end,
             transcript_retention_days: setting.transcript_retention_days,
             audit_retention_days: setting.audit_retention_days,
             disabled_at: setting.disabled_at&.iso8601,

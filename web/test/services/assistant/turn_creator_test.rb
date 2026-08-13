@@ -3,7 +3,10 @@ require "test_helper"
 class Assistant::TurnCreatorTest < ActiveSupport::TestCase
   setup do
     @user = users(:one)
-    @conversation = assistant_conversations(:one)
+    @conversation = Assistant::Conversation.start!(
+      user: @user,
+      provider_profile: assistant_provider_profiles(:codex)
+    )
     Assistant::Setting.instance.enable!
     @target = Target.new(
       "id" => "target-1",
@@ -11,10 +14,10 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     )
   end
 
-  test "persists the disclosed context grant and audit before enqueuing the turn job" do
+  test "persists direct chat authority and audit before enqueuing without resolving browser context" do
     enqueued = nil
     with_enabled_assistant do
-      stub_methods(Assistant::Context::Resolver, find: @target) do
+      stub_methods(Assistant::Context::Resolver, find: ->(**) { flunk "direct chat resolved context" }) do
         stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
           enqueued = attributes
           # The job is enqueued only after TurnCreator's own transaction has
@@ -24,8 +27,7 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
           persisted = Assistant::Turn.find(attributes.fetch(:turn_id))
           assert_equal "queued", persisted.status
           assert_equal "Draft a safe probe", persisted.user_message.body
-          assert_equal [ [ "target", "target-1" ] ],
-            persisted.context_references.order(:id).pluck(:resource_type, :resource_id)
+          assert_empty persisted.context_references
           assert Assistant::AuditEvent.exists?(event: "turn.created", turn_id: persisted.id)
         }) do
           @turn = Assistant::TurnCreator.call(
@@ -40,9 +42,8 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
 
     assert_equal "queued", @turn.reload.status
     grant = @turn.turn_grant
-    assert_equal [ { "type" => "target", "id" => "target-1" } ], grant.resources
-    assert_equal Assistant::Grants::Issuer::LEGACY_TOOLS, grant.tools
-    assert_equal "example.test", @turn.context_references.sole.label
+    assert_empty grant.resources
+    assert_equal Assistant::Grants::Issuer::CHAT_TOOLS, grant.tools
     assert_equal @turn.id, enqueued.fetch(:turn_id)
     refute_equal enqueued.dig(:envelope, "turn_grant"), grant.token_digest
   end
@@ -108,25 +109,39 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_equal [], grant.write_scopes
   end
 
-  test "invalid context rolls back the complete turn record set" do
+  test "a legacy profile is rejected before rate authority audit context or enqueue side effects" do
+    legacy = assistant_conversations(:one)
     counts = record_counts
+    rate_consumed = false
+    context_resolved = false
+    enqueued = false
 
-    error = assert_raises(Assistant::TurnCreator::InvalidContext) do
+    error = assert_raises(Assistant::TurnCreator::Rejected) do
       with_enabled_assistant do
-        stub_methods(Assistant::Context::Resolver, find: nil) do
-          Assistant::TurnCreator.call(
-            conversation: @conversation,
-            user: @user,
-            body: "Draft a probe",
-            context_refs: [ { type: "target", id: "missing" } ]
-          )
+        stub_methods(Assistant::RateLimiter, consume!: ->(**) { rate_consumed = true }) do
+          stub_methods(Assistant::Context::Resolver, find: lambda { |**|
+            context_resolved = true
+            nil
+          }) do
+            stub_methods(Assistant::TurnJob, perform_later: ->(**) { enqueued = true }) do
+              Assistant::TurnCreator.call(
+                conversation: legacy,
+                user: @user,
+                body: "Do not revive this provider",
+                context_refs: [ { type: "target", id: "target-1" } ]
+              )
+            end
+          end
         end
       end
     end
 
-    assert_equal "not_found", error.code
-    assert_equal 0, error.index
+    assert_instance_of Assistant::TurnCreator::Rejected, error
+    assert_equal "legacy_provider_retired", error.code
     assert_equal counts, record_counts
+    refute rate_consumed
+    refute context_resolved
+    refute enqueued
   end
 
   test "an enqueue failure interrupts the persisted turn and revokes its grant" do
@@ -177,6 +192,32 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
       end
     end
     assert_equal "provider_profile_unavailable", error.code
+  end
+
+  test "the database administrator kill switch rejects every direct backend" do
+    Assistant::Setting.instance.disable!(user: @user)
+
+    %i[codex claude_code].each do |fixture_name|
+      conversation = Assistant::Conversation.start!(
+        user: @user,
+        provider_profile: assistant_provider_profiles(fixture_name)
+      )
+      counts = record_counts
+
+      error = assert_raises(Assistant::TurnCreator::Rejected) do
+        stub_methods(Assistant::Config, { enabled?: true, max_records: 10 }) do
+          Assistant::TurnCreator.call(
+            conversation: conversation,
+            user: @user,
+            body: "Database-disabled",
+            context_refs: []
+          )
+        end
+      end
+
+      assert_equal "assistant_disabled", error.code
+      assert_equal counts, record_counts
+    end
   end
 
   test "settings and provider review rows are locked through the dispatch claim" do

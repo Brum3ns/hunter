@@ -1,7 +1,6 @@
 module Assistant
-  # Activation is derived: a valid provider key environment variable means
-  # that provider is on. ASSISTANT_ENABLED is a kill override only, never an
-  # opt-in.
+  # Activation is provider-key independent. ASSISTANT_ENABLED remains a kill
+  # override, while required configuration must still be complete.
   module Activation
     State = Data.define(:active, :available_slugs, :reason)
 
@@ -13,12 +12,7 @@ module Assistant
       reasons = Config.configuration_reasons
       return State.new(active: false, available_slugs: [], reason: reasons.first) if reasons.any?
 
-      slugs = ProviderCredentials.available_slugs
-      if slugs.empty?
-        State.new(active: false, available_slugs: [], reason: "no_provider_credentials")
-      else
-        State.new(active: true, available_slugs: slugs, reason: "active")
-      end
+      State.new(active: true, available_slugs: ChatBackend::SLUGS, reason: "active")
     end
 
     # Metadata-only summary for callers to fold into their own audit event; it

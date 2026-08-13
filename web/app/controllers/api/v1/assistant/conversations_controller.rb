@@ -19,7 +19,12 @@ module Api
         end
 
         def create
-          profile = ::Assistant::ProviderProfile.find_by(id: params[:provider_profile_id])
+          attributes = exact_request_body!(%w[backend])
+          unless attributes["backend"].is_a?(String)
+            raise ActionController::ParameterMissing, "backend"
+          end
+
+          profile = ::Assistant::ChatBackend.fetch(attributes.fetch("backend"))
           return render_not_found unless profile
 
           conversation = ::Assistant::Conversation.start!(

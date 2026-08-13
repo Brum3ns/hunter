@@ -199,12 +199,21 @@ class Api::V1::OpenapiTest < ActionDispatch::IntegrationTest
     assert settings.key?("control_center_write_enabled")
   end
 
-  test "documents closed Assistant conversation organization inputs" do
+  test "documents closed Assistant conversation creation and organization inputs" do
     sign_in_as(@user)
     get "/api/v1/openapi.json"
 
     assert_response :success
     doc = JSON.parse(response.body)
+    create = doc.dig(
+      "paths", "/api/v1/assistant/conversations", "post",
+      "requestBody", "content", "application/json", "schema"
+    )
+    assert_equal false, create.fetch("additionalProperties")
+    assert_equal [ "backend" ], create.fetch("required")
+    assert_equal [ "backend" ], create.fetch("properties").keys
+    assert_equal %w[codex claude_code], create.dig("properties", "backend", "enum")
+
     rename = doc.dig(
       "paths", "/api/v1/assistant/conversations/{id}", "patch",
       "requestBody", "content", "application/json", "schema"

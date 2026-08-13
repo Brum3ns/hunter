@@ -103,6 +103,7 @@ module Api
         def render_rejected(code)
           status = case code
           when "conversation_not_found" then :not_found
+          when "legacy_provider_retired" then :conflict
           when "assistant_disabled" then :service_unavailable
           else :unprocessable_entity
           end

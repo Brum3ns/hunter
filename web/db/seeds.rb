@@ -75,15 +75,15 @@ else
   puts "[assistant] Installed hunter-mcp service identity ##{identity.id}."
 end
 
-# The Assistant chat runs through the Claude Code service (the legacy provider
-# gateway is disconnected). A conversation still binds to a provider profile ROW,
-# so seed exactly one synthetic "Claude Code" profile — it carries no API secret.
-# find_or_create_by keeps it idempotent and never re-enables one an administrator
-# disabled.
-claude_profile = Assistant::ProviderProfile.find_or_create_by!(catalog_slug: "claude_code") do |profile|
-  profile.name = "Claude Code"
-  profile.created_by = user
-  profile.enabled = true
-  profile.reviewed_at = Time.current
+# Direct Assistant conversations still bind to immutable synthetic profile rows.
+# find_or_create_by! keeps this idempotent and never re-enables a row an
+# administrator disabled.
+{ "codex" => "Codex", "claude_code" => "Claude Code" }.each do |slug, name|
+  profile = Assistant::ProviderProfile.find_or_create_by!(catalog_slug: slug) do |record|
+    record.name = name
+    record.created_by = user
+    record.enabled = true
+    record.reviewed_at = Time.current
+  end
+  puts "[assistant] #{name} provider profile ##{profile.id} present."
 end
-puts "[assistant] Claude Code provider profile ##{claude_profile.id} present."

@@ -5,9 +5,7 @@ module Api
         def show
           render json: {
             settings: serialize_setting(::Assistant::Setting.instance),
-            provider_profiles: ::Assistant::ProviderProfile.order(:name).map do |profile|
-              serialize_provider_profile(profile)
-            end,
+            chat_backends: ::Assistant::ChatBackend.descriptors,
             conversations: current_assistant_user.assistant_conversations
               .includes(:provider_profile).history_ordered.map do |conversation|
                 serialize_conversation(conversation)

@@ -6,7 +6,7 @@ paths:
       x-session-only: true
       security: [{ sessionCookie: [] }]
       responses:
-        "200": { description: "Assistant settings, safe profiles, and owned conversations." }
+        "200": { description: "Assistant settings, direct chat backends, and owned conversations." }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { description: "The session user is not the configured assistant administrator." }
   /api/v1/assistant/context_options:
@@ -601,12 +601,15 @@ paths:
           application/json:
             schema:
               type: object
-              properties: { provider_profile_id: { type: integer } }
-              required: [provider_profile_id]
+              properties:
+                backend: { type: string, enum: [codex, claude_code] }
+              required: [backend]
               additionalProperties: false
       responses:
-        "201": { description: "Created conversation pinned to the selected profile." }
+        "201": { description: "Created conversation pinned to the selected direct backend." }
+        "400": { description: "The request body is not exactly one string backend." }
         "403": { description: "Invalid CSRF token or administrator required." }
+        "404": { description: "The direct backend is unknown, disabled, or unreviewed." }
         "503": { description: "The assistant kill switch is off." }
   /api/v1/assistant/conversations/{id}:
     get:
@@ -707,6 +710,7 @@ paths:
         "202": { description: "The persisted turn is queued; no raw grant is returned." }
         "403": { description: "Invalid CSRF token or administrator required." }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "The conversation uses a retired legacy provider." }
         "422": { description: "The turn or an exact context reference is invalid." }
         "429": { description: "The per-user turn-start or concurrency limit was reached." }
         "503": { description: "The assistant is disabled or dispatch was interrupted." }

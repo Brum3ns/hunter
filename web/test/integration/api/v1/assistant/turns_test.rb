@@ -3,7 +3,10 @@ require "test_helper"
 class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
   setup do
     @admin = users(:one)
-    @conversation = assistant_conversations(:one)
+    @conversation = Assistant::Conversation.start!(
+      user: @admin,
+      provider_profile: assistant_provider_profiles(:codex)
+    )
     @original_admin_username = ENV["ADMIN_USERNAME"]
     ENV["ADMIN_USERNAME"] = @admin.username
     sign_in_as(@admin)
@@ -14,12 +17,11 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
     ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
-  test "turn creation resolves disclosure before issuing a grant and never returns the raw grant" do
-    target = Target.new("id" => "target-1", "target" => { "host" => "example.test" })
+  test "direct turn creation ignores browser context and never returns the raw grant" do
     delivery = nil
 
     with_enabled_assistant do
-      stub_methods(Assistant::Context::Resolver, find: target) do
+      stub_methods(Assistant::Context::Resolver, find: ->(**) { flunk "direct chat resolved browser context" }) do
         stub_methods(Assistant::TurnJob, perform_later: ->(turn_id:, envelope:) { delivery = envelope.deep_dup }) do
           post "/api/v1/assistant/conversations/#{@conversation.id}/turns", params: {
             message: "Draft a safe probe",
@@ -32,11 +34,9 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
     assert_response :accepted
     turn = Assistant::Turn.find(response.parsed_body.fetch("id"))
     assert_equal "queued", turn.status
-    assert_equal [ { "type" => "target", "id" => "target-1" } ], turn.turn_grant.resources
-    assert_equal({
-      "type" => "target", "id" => "target-1", "label" => "example.test",
-      "serializer_version" => "v1"
-    }, response.parsed_body.fetch("context_references").sole)
+    assert_empty turn.turn_grant.resources
+    assert_equal Assistant::Grants::Issuer::CHAT_TOOLS, turn.turn_grant.tools
+    assert_empty response.parsed_body.fetch("context_references")
     raw_grant = delivery["turn_grant"]
     assert raw_grant.present?
     refute_includes response.body, raw_grant
@@ -50,24 +50,36 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
     refute_includes response.body, raw_grant
   end
 
-  test "turn creation rejects missing context without persisting or dispatching" do
+  test "a legacy conversation is retired before rate authority audit or enqueue side effects" do
+    legacy = assistant_conversations(:one)
     dispatched = false
+    rate_consumed = false
+    counts = {
+      turns: Assistant::Turn.count,
+      messages: Assistant::Message.count,
+      grants: Assistant::TurnGrant.count,
+      audits: Assistant::AuditEvent.count
+    }
 
-    assert_no_difference -> { Assistant::Turn.count } do
-      with_enabled_assistant do
-        stub_methods(Assistant::Context::Resolver, find: nil) do
-          stub_methods(Assistant::TurnJob, perform_later: ->(**) { dispatched = true }) do
-            post "/api/v1/assistant/conversations/#{@conversation.id}/turns", params: {
-              message: "Draft a probe", contexts: [ { type: "target", id: "missing" } ]
-            }, as: :json
-          end
+    with_enabled_assistant do
+      stub_methods(Assistant::RateLimiter, consume!: ->(**) { rate_consumed = true }) do
+        stub_methods(Assistant::TurnJob, perform_later: ->(**) { dispatched = true }) do
+          post "/api/v1/assistant/conversations/#{legacy.id}/turns", params: {
+            message: "Do not revive this provider", contexts: []
+          }, as: :json
         end
       end
     end
 
-    assert_response :unprocessable_entity
-    assert_equal "context_invalid", response.parsed_body.fetch("error")
-    assert_equal({ "index" => 0, "code" => "not_found" }, response.parsed_body.fetch("errors").sole)
+    assert_response :conflict
+    assert_equal "legacy_provider_retired", response.parsed_body.fetch("error")
+    assert_equal counts, {
+      turns: Assistant::Turn.count,
+      messages: Assistant::Message.count,
+      grants: Assistant::TurnGrant.count,
+      audits: Assistant::AuditEvent.count
+    }
+    refute rate_consumed
     refute dispatched
   end
 
@@ -137,9 +149,13 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
   end
 
   test "draft disclosure is owner scoped and derives save eligibility from current server validation" do
+    draft_turn = @conversation.turns.create!(
+      user: @admin,
+      provider_profile: @conversation.provider_profile
+    )
     valid = Assistant::Draft.create!(
       conversation: @conversation,
-      turn: assistant_turns(:created),
+      turn: draft_turn,
       artifact_type: "whiterabbit_template",
       name: "<img src=x onerror=alert(1)>",
       content: "<script>alert(1)</script>\e[31m",
@@ -158,7 +174,7 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
 
     stale = Assistant::Draft.create!(
       conversation: @conversation,
-      turn: assistant_turns(:created),
+      turn: draft_turn,
       artifact_type: "whiterabbit_template",
       name: "Stale",
       content: "commands: []",

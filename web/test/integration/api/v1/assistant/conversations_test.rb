@@ -12,62 +12,63 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
     ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
-  # Every input Assistant::Activation.state consults is pinned here, in the order it
-  # consults them: the kill override, then the required settings, then the retention
-  # window, then the provider credential variables. Two of these must be pinned rather
-  # than inherited or the assertion below is decided by a path this test does not
-  # control: docker-compose defaults ASSISTANT_ENABLED to "false" (short-circuiting to
-  # disabled_by_environment inside the operator's own container), and an out-of-range
-  # ASSISTANT_TRANSCRIPT_DAYS or ASSISTANT_AUDIT_DAYS makes
-  # Assistant::Config.configuration_reasons return invalid_retention_window, which
-  # Activation.state reports before it ever consults credentials.
-  test "the bootstrap payload discloses the disabled reason without leaking secrets" do
-    original_enabled = ENV["ASSISTANT_ENABLED"]
-    original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
-    original_ansible_allowlist = ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"]
-    original_transcript_days = ENV["ASSISTANT_TRANSCRIPT_DAYS"]
-    original_audit_days = ENV["ASSISTANT_AUDIT_DAYS"]
-    original_anthropic_key = ENV["ASSISTANT_ANTHROPIC_API_KEY"]
-    original_openai_key = ENV["ASSISTANT_OPENAI_API_KEY"]
-    ENV["ASSISTANT_ENABLED"] = nil
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
-    ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
-    ENV["ASSISTANT_TRANSCRIPT_DAYS"] = "7"
-    ENV["ASSISTANT_AUDIT_DAYS"] = "90"
-    ENV.delete("ASSISTANT_ANTHROPIC_API_KEY")
-    ENV.delete("ASSISTANT_OPENAI_API_KEY")
+  test "the bootstrap payload exposes only reviewed direct chat backends" do
+    state = Assistant::Activation::State.new(
+      active: true,
+      available_slugs: %w[codex claude_code],
+      reason: "active"
+    )
 
-    begin
+    stub_methods(Assistant::Activation, state: state) do
       get "/api/v1/assistant/bootstrap", headers: { "Accept" => "application/json" }
-    ensure
-      ENV["ASSISTANT_ENABLED"] = original_enabled
-      ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original_command_allowlist
-      ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = original_ansible_allowlist
-      ENV["ASSISTANT_TRANSCRIPT_DAYS"] = original_transcript_days
-      ENV["ASSISTANT_AUDIT_DAYS"] = original_audit_days
-      ENV["ASSISTANT_ANTHROPIC_API_KEY"] = original_anthropic_key
-      ENV["ASSISTANT_OPENAI_API_KEY"] = original_openai_key
     end
 
     assert_response :success
-    payload = response.parsed_body.fetch("settings")
-    assert_equal "no_provider_credentials", payload.fetch("disabled_reason")
-    assert_equal %w[anthropic_primary openai_primary], payload.fetch("providers").map { |p| p["slug"] }.sort
-    refute_match(%r{/run/secrets}, response.body, "a secret path leaked to the browser")
+    payload = response.parsed_body
+    assert payload.key?("chat_backends"), "bootstrap omitted chat_backends"
+    assert_equal %w[codex claude_code], payload.fetch("chat_backends").map { |item| item.fetch("slug") }
+    assert_equal %w[openai anthropic], payload.fetch("chat_backends").map { |item| item.fetch("brand") }
+    refute payload.key?("provider_profiles")
+    refute payload.fetch("settings").key?("providers")
+    refute_match(/secret_ref|provider key|session_id/i, response.body)
   end
 
-  test "conversation pins an enabled profile owned by the admin session" do
+  test "one backend slug creates a pinned direct conversation" do
     Assistant::Setting.instance.enable!
 
     stub_methods(Assistant::Config, enabled?: true) do
       post "/api/v1/assistant/conversations",
-        params: { provider_profile_id: assistant_provider_profiles(:openai).id }, as: :json
+        params: { backend: "codex" }, as: :json
     end
 
     assert_response :created
     body = response.parsed_body
-    assert_equal assistant_provider_profiles(:openai).id, body.dig("provider_profile", "id")
-    assert_equal @admin.id, Assistant::Conversation.find(body.fetch("id")).user_id
+    assert_equal "codex", body.fetch("backend")
+    assert_equal "openai", body.fetch("brand")
+    assert_equal false, body.fetch("legacy")
+    refute body.key?("provider_profile")
+    conversation = Assistant::Conversation.find(body.fetch("id"))
+    assert_equal @admin.id, conversation.user_id
+    assert_equal assistant_provider_profiles(:codex), conversation.provider_profile
+  end
+
+  test "profile ids unknown keys non-string values and legacy slugs cannot create conversations" do
+    Assistant::Setting.instance.enable!
+    bodies = [
+      { provider_profile_id: assistant_provider_profiles(:openai).id },
+      { backend: "openai_primary" },
+      { backend: "codex", model: "anything" },
+      { backend: 123 }
+    ]
+
+    bodies.each do |body|
+      assert_no_difference -> { Assistant::Conversation.count } do
+        stub_methods(Assistant::Config, enabled?: true) do
+          post "/api/v1/assistant/conversations", params: body, as: :json
+        end
+      end
+      assert_includes [ 400, 404 ], response.status
+    end
   end
 
   test "conversation creation fails closed when either kill switch is off" do
@@ -75,7 +76,7 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
 
     stub_methods(Assistant::Config, enabled?: false) do
       post "/api/v1/assistant/conversations",
-        params: { provider_profile_id: assistant_provider_profiles(:openai).id }, as: :json
+        params: { backend: "codex" }, as: :json
     end
     assert_response :service_unavailable
     assert_equal "assistant_disabled", response.parsed_body["error"]
@@ -83,21 +84,21 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
     Assistant::Setting.instance.disable!(user: @admin)
     stub_methods(Assistant::Config, enabled?: true) do
       post "/api/v1/assistant/conversations",
-        params: { provider_profile_id: assistant_provider_profiles(:openai).id }, as: :json
+        params: { backend: "codex" }, as: :json
     end
     assert_response :service_unavailable
   end
 
-  test "conversation creation rejects a disabled profile" do
+  test "conversation creation hides an unavailable direct profile" do
     Assistant::Setting.instance.enable!
+    assistant_provider_profiles(:codex).update!(enabled: false)
 
     stub_methods(Assistant::Config, enabled?: true) do
       post "/api/v1/assistant/conversations",
-        params: { provider_profile_id: assistant_provider_profiles(:anthropic).id }, as: :json
+        params: { backend: "codex" }, as: :json
     end
 
-    assert_response :unprocessable_entity
-    assert_includes response.parsed_body.fetch("errors").fetch("provider_profile"), "must be enabled"
+    assert_response :not_found
   end
 
   test "rename accepts only an owned bounded title and audits no title content" do
@@ -278,12 +279,19 @@ class Api::V1::Assistant::ConversationsTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal [ assistant_conversations(:one).id ],
       response.parsed_body.fetch("conversations").map { |item| item.fetch("id") }
-    refute_includes response.body, "secret_ref"
+    legacy = response.parsed_body.fetch("conversations").sole
+    assert legacy.key?("backend"), "conversation omitted backend"
+    assert_nil legacy.fetch("backend")
+    assert_nil legacy.fetch("brand")
+    assert_equal true, legacy.fetch("legacy")
+    refute legacy.key?("provider_profile")
+    refute_match(/secret_ref|session_id/i, response.body)
 
     get "/api/v1/assistant/conversations"
     assert_response :success
     assert_equal [ assistant_conversations(:one).id ],
       response.parsed_body.fetch("conversations").map { |item| item.fetch("id") }
+    assert_equal true, response.parsed_body.fetch("conversations").sole.fetch("legacy")
   end
 
   private

@@ -1,47 +1,49 @@
 require "test_helper"
 
 class Assistant::ActivationTest < ActiveSupport::TestCase
-  # These tests exercise the credential-derived path in isolation, so they stub
-  # Config.configuration_reasons to empty — Assistant::ConfigTest already covers
-  # the configuration-reasons gate taking precedence over credentials.
-  def test_a_valid_provider_key_activates_the_assistant
-    with_keys("ASSISTANT_ANTHROPIC_API_KEY" => "sk-live") do
-      stub_methods(Assistant::Config, configuration_reasons: -> { [] }) do
+  def test_complete_configuration_activates_every_direct_backend_without_provider_keys
+    stub_methods(Assistant::Config, {
+      configured: ->(_key) { nil },
+      configuration_reasons: -> { [] }
+    }) do
+      stub_methods(Assistant::ProviderCredentials, {
+        available_slugs: -> { flunk "activation consulted provider credentials" }
+      }) do
         state = Assistant::Activation.state
 
         assert_predicate state, :active
-        assert_equal [ "anthropic_primary" ], state.available_slugs
+        assert_equal "active", state.reason
+        assert_equal %w[codex claude_code], state.available_slugs
       end
     end
   end
 
-  def test_empty_keys_leave_the_assistant_inactive_with_a_reason
-    with_keys("ASSISTANT_ANTHROPIC_API_KEY" => "", "ASSISTANT_OPENAI_API_KEY" => "") do
-      stub_methods(Assistant::Config, configuration_reasons: -> { [] }) do
-        state = Assistant::Activation.state
+  def test_a_configuration_reason_still_disables_the_assistant
+    stub_methods(Assistant::Config, {
+      configured: ->(_key) { nil },
+      configuration_reasons: -> { [ "missing_admin_username" ] }
+    }) do
+      state = Assistant::Activation.state
 
-        refute_predicate state, :active
-        assert_equal "no_provider_credentials", state.reason
-        assert_empty state.available_slugs
-      end
+      refute_predicate state, :active
+      assert_equal "missing_admin_username", state.reason
+      assert_empty state.available_slugs
     end
   end
 
   def test_the_environment_kill_override_forces_the_assistant_off
-    with_keys("ASSISTANT_ANTHROPIC_API_KEY" => "sk-live") do
-      stub_methods(Assistant::Config, configured: ->(key) { key == "ASSISTANT_ENABLED" ? "false" : nil }) do
-        state = Assistant::Activation.state
+    stub_methods(Assistant::Config, configured: ->(key) { key == "ASSISTANT_ENABLED" ? "false" : nil }) do
+      state = Assistant::Activation.state
 
-        refute_predicate state, :active
-        assert_equal "disabled_by_environment", state.reason
-      end
+      refute_predicate state, :active
+      assert_equal "disabled_by_environment", state.reason
     end
   end
 
-  def test_an_administrator_disable_survives_a_valid_key
+  def test_an_administrator_disable_remains_an_independent_database_kill_switch
     Assistant::Setting.instance.disable!(user: users(:one))
 
-    with_keys("ASSISTANT_ANTHROPIC_API_KEY" => "sk-live") do
+    stub_methods(Assistant::Config, enabled?: true) do
       refute Assistant::Config.enabled? && Assistant::Setting.instance.assistant_enabled?
     end
   end
@@ -53,29 +55,14 @@ class Assistant::ActivationTest < ActiveSupport::TestCase
   end
 
   def test_activation_audit_carries_no_secret_material
-    with_keys("ASSISTANT_ANTHROPIC_API_KEY" => "sk-live-canary") do
-      stub_methods(Assistant::Config, configuration_reasons: -> { [] }) do
-        event = Assistant::Activation.audit_payload(Assistant::Activation.state)
+    stub_methods(Assistant::Config, {
+      configured: ->(_key) { nil },
+      configuration_reasons: -> { [] }
+    }) do
+      event = Assistant::Activation.audit_payload(Assistant::Activation.state)
 
-        refute_includes event.to_json, "sk-live-canary"
-        assert_equal [ "anthropic_primary" ], event[:available_slugs]
-      end
+      refute_match(/api_key|secret_ref|credential/i, event.to_json)
+      assert_equal %w[codex claude_code], event[:available_slugs]
     end
-  end
-
-  private
-
-  # Isolates every catalog provider variable, not just the ones given: a bare
-  # tmpdir used to guarantee an unmentioned provider's key file was absent, and
-  # an unmentioned env var must be unset the same way or a value already
-  # present in this process's environment would silently join available_slugs.
-  def with_keys(values)
-    all_vars = Assistant::ProviderCatalog.entries.values.map(&:secret_env)
-    originals = all_vars.to_h { |key| [ key, ENV[key] ] }
-    all_vars.each { |key| ENV.delete(key) }
-    values.each { |key, value| ENV[key] = value }
-    yield
-  ensure
-    originals.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
   end
 end

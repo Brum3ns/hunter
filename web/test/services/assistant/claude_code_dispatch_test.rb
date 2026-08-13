@@ -1,14 +1,15 @@
 require "test_helper"
 
 # Task 10: a turn on the Claude Code profile is dispatched to ClaudeCodeClient
-# (no context resolution, no gateway envelope, no activation gate) and
-# completes. Path B (task PB2): the dispatch now also issues a per-turn grant
+# (no context resolution or gateway envelope) and completes. Path B (task PB2):
+# the dispatch now also issues a per-turn grant
 # and threads its raw token through to ClaudeCodeClient, so these stubs must
 # accept the `turn_grant:` keyword too.
 class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
   setup do
     @user = users(:one)
     @profile = assistant_provider_profiles(:claude_code)
+    Assistant::Setting.instance.enable!
   end
 
   test "a Claude Code turn dispatches to ClaudeCodeClient and completes with an assistant message" do
@@ -33,10 +34,14 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
       ]
     end
 
-    stub_methods(Assistant::ClaudeCodeClient, run_turn: fake) do
-      turn = Assistant::TurnCreator.call(conversation: conv, user: @user, body: "hi there", context_refs: [])
-      assert_equal "completed", turn.reload.status
-      assert_nil turn.error_code
+    stub_methods(Assistant::Config, enabled?: true) do
+      stub_methods(Assistant::ClaudeCodeClient, run_turn: fake) do
+        turn = Assistant::TurnCreator.call(
+          conversation: conv, user: @user, body: "hi there", context_refs: []
+        )
+        assert_equal "completed", turn.reload.status
+        assert_nil turn.error_code
+      end
     end
 
     assert_equal "hi there", captured[:prompt]
@@ -52,23 +57,34 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
     ActiveJob::Base.queue_adapter = :test
   end
 
-  test "verify_dispatch does not gate the Claude Code path on activation" do
-    # With no provider API keys, Config.enabled? is false; a Claude Code turn must
-    # still dispatch (fails loudly later if the backend is down, not here).
-    ActiveJob::Base.queue_adapter = :inline
+  test "verify_dispatch gates the Claude Code path on activation" do
     conv = Assistant::Conversation.start!(user: @user, provider_profile: @profile)
+    called = false
+    counts = {
+      turns: Assistant::Turn.count,
+      messages: Assistant::Message.count,
+      grants: Assistant::TurnGrant.count,
+      audits: Assistant::AuditEvent.count
+    }
+
     stub_methods(Assistant::Config, enabled?: false) do
       stub_methods(Assistant::ClaudeCodeClient,
-        run_turn: ->(turn:, prompt:, turn_grant: nil) { [ { "schema_version" => 1, "event_id" => SecureRandom.uuid,
-          "correlation_id" => turn.correlation_id, "turn_id" => turn.id,
-          "provider_profile_id" => turn.provider_profile_id, "kind" => "error",
-          "data" => { "code" => "claude_not_configured" } } ] }) do
-        turn = Assistant::TurnCreator.call(conversation: conv, user: @user, body: "hi", context_refs: [])
-        assert_equal "failed", turn.reload.status
-        assert_equal "claude_not_configured", turn.error_code
+        run_turn: ->(**) { called = true }) do
+        error = assert_raises(Assistant::TurnCreator::Rejected) do
+          Assistant::TurnCreator.call(
+            conversation: conv, user: @user, body: "hi", context_refs: []
+          )
+        end
+        assert_equal "assistant_disabled", error.code
       end
     end
-  ensure
-    ActiveJob::Base.queue_adapter = :test
+
+    assert_equal counts, {
+      turns: Assistant::Turn.count,
+      messages: Assistant::Message.count,
+      grants: Assistant::TurnGrant.count,
+      audits: Assistant::AuditEvent.count
+    }
+    refute called
   end
 end

@@ -28,30 +28,15 @@ module Assistant
         setting = Assistant::Setting.lock.first || Assistant::Setting.instance.lock!
         profile = Assistant::ProviderProfile.lock.find(conversation.provider_profile_id)
         conversation.lock!
-        verify_dispatch!(conversation, user, setting, profile)
+        backend = Assistant::ChatBackend.slug_for(profile)
+        verify_dispatch!(conversation, user, setting, profile, backend)
         Assistant::RateLimiter.consume!(user: user, action: "turn_start", now: Time.current)
-        if profile.claude_code?
-          # Claude Code path: no context resolution and no gateway envelope, but
-          # (Path B) a per-turn grant is issued so the backend can present it to
-          # the reviewed chat MCP catalog.
-          turn = conversation.append_user_turn!(body: body, context_refs: [])
-          raw_grant = Assistant::Grants::Issuer.call(
-            turn: turn,
-            resources: [],
-            tools: Assistant::Grants::Issuer::CHAT_TOOLS
-          )
-        else
-          contexts = resolve_contexts!(context_refs, user)
-          turn = conversation.append_user_turn!(
-            body: body,
-            context_refs: contexts.map { |context| context.fetch(:reference) }
-          )
-          raw_grant = Assistant::Grants::Issuer.call(
-            turn: turn,
-            resources: contexts.map { |context| context.fetch(:resource) },
-            tools: Assistant::Grants::Issuer::LEGACY_TOOLS
-          )
-        end
+        turn = conversation.append_user_turn!(body: body, context_refs: [])
+        raw_grant = Assistant::Grants::Issuer.call(
+          turn: turn,
+          resources: [],
+          tools: Assistant::Grants::Issuer::CHAT_TOOLS
+        )
         Assistant::Audit.record!(
           event: "turn.created",
           attributes: audit_attributes(turn, status: "created", operation: "turn_create")
@@ -63,15 +48,11 @@ module Assistant
       raw_grant&.clear
     end
 
-    def verify_dispatch!(conversation, user, setting, profile)
+    def verify_dispatch!(conversation, user, setting, profile, backend)
       raise Rejected, "conversation_not_found" unless user && conversation.user_id == user.id
-      # The Claude Code chat has no activation/on-off state: it is always
-      # available and fails loudly with a specific claude_* code on the turn if
-      # the backend is not ready. Only the legacy gateway path checks activation.
-      unless profile.claude_code?
-        raise Rejected, "assistant_disabled" unless
-          Assistant::Config.enabled? && setting.assistant_enabled?
-      end
+      raise Rejected, "legacy_provider_retired" unless backend
+      raise Rejected, "assistant_disabled" unless
+        Assistant::Config.enabled? && setting.assistant_enabled?
       raise Rejected, "conversation_unavailable" unless
         conversation.status == "active" && conversation.expires_at.future?
       raise Rejected, "provider_profile_unavailable" unless profile.enabled? && profile.reviewed_at.present?
