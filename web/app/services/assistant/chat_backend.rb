@@ -9,7 +9,8 @@ module Assistant
       value = slug.to_s
       return unless SLUGS.include?(value)
 
-      Assistant::ProviderProfile.find_by(catalog_slug: value)
+      Assistant::ProviderProfile.where(enabled: true).where.not(reviewed_at: nil)
+        .find_by(catalog_slug: value)
     end
 
     def slug_for(profile)

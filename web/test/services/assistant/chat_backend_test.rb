@@ -8,6 +8,20 @@ class Assistant::ChatBackendTest < ActiveSupport::TestCase
     assert_nil Assistant::ChatBackend.fetch("../codex")
   end
 
+  test "fetch and descriptors reject a disabled direct profile" do
+    assistant_provider_profiles(:codex).update!(enabled: false)
+
+    assert_nil Assistant::ChatBackend.fetch("codex")
+    assert_equal [ "claude_code" ], Assistant::ChatBackend.descriptors.pluck(:slug)
+  end
+
+  test "fetch and descriptors reject a direct profile without review approval" do
+    assistant_provider_profiles(:claude_code).update_column(:reviewed_at, nil)
+
+    assert_nil Assistant::ChatBackend.fetch("claude_code")
+    assert_equal [ "codex" ], Assistant::ChatBackend.descriptors.pluck(:slug)
+  end
+
   test "slug for resolves only direct backend catalog bindings" do
     assert_equal "codex", Assistant::ChatBackend.slug_for(assistant_provider_profiles(:codex))
     assert_equal "claude_code", Assistant::ChatBackend.slug_for(assistant_provider_profiles(:claude_code))

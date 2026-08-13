@@ -79,4 +79,44 @@ class Assistant::ProviderProfileTest < ActiveSupport::TestCase
     refute legacy.direct_chat?
     assert_nil legacy.chat_backend_slug
   end
+
+  test "persisted direct profile cannot be reclassified to a vacant legacy catalog binding" do
+    assistant_provider_profiles(:anthropic).destroy!
+    profile = assistant_provider_profiles(:codex)
+
+    profile.catalog_slug = "anthropic_primary"
+
+    refute profile.valid?
+    assert_includes profile.errors[:catalog_slug], "cannot be changed"
+    assert_equal "codex", profile.reload.catalog_slug
+  end
+
+  test "persisted legacy profile cannot claim a vacant direct backend binding" do
+    assistant_conversations(:codex).destroy!
+    assistant_provider_profiles(:codex).destroy!
+    profile = assistant_provider_profiles(:openai)
+
+    profile.catalog_slug = "codex"
+
+    refute profile.valid?
+    assert_includes profile.errors[:catalog_slug], "cannot be changed"
+    assert_equal "openai_primary", profile.reload.catalog_slug
+  end
+
+  test "catalog binding remains assignable when a profile is created" do
+    assistant_conversations(:codex).destroy!
+    assistant_provider_profiles(:codex).destroy!
+
+    profile = Assistant::ProviderProfile.new(
+      name: "Replacement Codex",
+      catalog_slug: "codex",
+      retention_posture: "standard",
+      reviewed_at: Time.current,
+      enabled: true,
+      created_by: users(:one)
+    )
+
+    assert profile.valid?
+    assert_empty profile.errors[:catalog_slug]
+  end
 end
