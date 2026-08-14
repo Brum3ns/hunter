@@ -86,6 +86,32 @@ class Assistant::ClaudeCodeClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "a whitespace-only session id is rejected before continuity changes" do
+    with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
+      events = Assistant::ClaudeCodeClient.run_turn(
+        turn: @turn,
+        prompt: "hello",
+        poster: ->(_request) { { "session_id" => " \t", "reply" => "Hi" } }
+      )
+
+      assert_equal "claude_malformed_response", events.first.dig("data", "code")
+      assert_nil @turn.conversation.reload.claude_session_id
+    end
+  end
+
+  test "a whitespace-only reply is rejected before continuity changes" do
+    with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
+      events = Assistant::ClaudeCodeClient.run_turn(
+        turn: @turn,
+        prompt: "hello",
+        poster: ->(_request) { { "session_id" => "sess_9", "reply" => " \n" } }
+      )
+
+      assert_equal "claude_malformed_response", events.first.dig("data", "code")
+      assert_nil @turn.conversation.reload.claude_session_id
+    end
+  end
+
   test "wrong-type and oversized success fields are rejected before continuity changes" do
     malformed_bodies = [
       { "session_id" => 123, "reply" => "Hi" },

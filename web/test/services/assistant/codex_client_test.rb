@@ -144,6 +144,32 @@ class Assistant::CodexClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "a whitespace-only thread id is rejected before continuity changes" do
+    with_codex_env do
+      events = Assistant::CodexClient.run_turn(
+        turn: @turn,
+        prompt: "hello",
+        poster: ->(_request) { { "thread_id" => " \t", "reply" => "Hi" } }
+      )
+
+      assert_error_code "codex_malformed_response", events
+      assert_nil @turn.conversation.reload.codex_thread_id
+    end
+  end
+
+  test "a whitespace-only reply is rejected before continuity changes" do
+    with_codex_env do
+      events = Assistant::CodexClient.run_turn(
+        turn: @turn,
+        prompt: "hello",
+        poster: ->(_request) { { "thread_id" => "thr_9", "reply" => " \n" } }
+      )
+
+      assert_error_code "codex_malformed_response", events
+      assert_nil @turn.conversation.reload.codex_thread_id
+    end
+  end
+
   test "wrong-type and oversized success fields are rejected before continuity changes" do
     malformed_bodies = [
       { "thread_id" => 123, "reply" => "Hi" },

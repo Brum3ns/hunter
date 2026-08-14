@@ -100,7 +100,7 @@ module Assistant
     private_class_method :capped_body
 
     def bounded_string?(value, max_length)
-      value.is_a?(String) && value.length.between?(1, max_length)
+      value.is_a?(String) && value.present? && value.length <= max_length
     end
     private_class_method :bounded_string?
 
