@@ -93,4 +93,49 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
     }
     refute called
   end
+
+  test "a Claude Code client exception fails the turn with a closed code and revokes its grant" do
+    previous_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
+    conversation = Assistant::Conversation.start!(user: @user, provider_profile: @profile)
+    turn = nil
+
+    stub_methods(Assistant::Config, enabled?: true) do
+      turn = Assistant::TurnCreator.call(
+        conversation: conversation,
+        user: @user,
+        body: "secret prompt canary",
+        context_refs: []
+      )
+    end
+    grant = turn.turn_grant
+    assert_equal "queued", turn.status
+    assert_nil grant.revoked_at
+
+    sensitive = "persistence failed with session secret and raw grant canary"
+    escaped = nil
+    stub_methods(Assistant::ClaudeCodeClient,
+      run_turn: ->(**) { raise ActiveRecord::RecordNotSaved, sensitive }) do
+      begin
+        Assistant::TurnJob.new.perform(
+          turn_id: turn.id,
+          backend: "claude_code",
+          prompt: "secret prompt canary",
+          turn_grant: "raw grant canary"
+        )
+      rescue StandardError => error
+        escaped = error
+      end
+    end
+
+    assert_equal "failed", turn.reload.status
+    assert_equal "claude_error", turn.error_code
+    refute_nil grant.reload.revoked_at
+    assert_nil escaped
+    refute_includes turn.error_code, sensitive
+    refute_includes turn.error_code, "secret prompt canary"
+    refute_includes turn.error_code, "raw grant canary"
+  ensure
+    ActiveJob::Base.queue_adapter = previous_adapter
+  end
 end

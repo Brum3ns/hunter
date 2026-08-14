@@ -86,6 +86,49 @@ class Assistant::ClaudeCodeClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "wrong-type and oversized success fields are rejected before continuity changes" do
+    malformed_bodies = [
+      { "session_id" => 123, "reply" => "Hi" },
+      { "session_id" => "sess_9", "reply" => [ "Hi" ] },
+      { "session_id" => "s" * 256, "reply" => "Hi" },
+      { "session_id" => "sess_9", "reply" => "x" * 65_537 }
+    ]
+
+    malformed_bodies.each do |body|
+      @turn.conversation.update!(claude_session_id: nil)
+      with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
+        events = Assistant::ClaudeCodeClient.run_turn(
+          turn: @turn, prompt: "hello", poster: ->(_request) { body }
+        )
+
+        assert_equal "claude_malformed_response", events.first.dig("data", "code")
+        assert_nil @turn.conversation.reload.claude_session_id
+      end
+    end
+  end
+
+  test "an oversized HTTP response is rejected while streaming without buffering body" do
+    payload = JSON.generate(
+      "session_id" => "sess_9",
+      "reply" => "Hi",
+      "padding" => "x" * (Assistant::GatewayClient::MAX_RESPONSE_BYTES + 1)
+    )
+    response, body_called = streaming_response(payload)
+
+    with_env(
+      "ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083",
+      "ASSISTANT_CLAUDE_INGRESS_TOKEN" => "ingress-token"
+    ) do
+      with_http_response(response) do
+        events = Assistant::ClaudeCodeClient.run_turn(turn: @turn, prompt: "hello")
+
+        assert_equal "claude_malformed_response", events.first.dig("data", "code")
+        refute body_called.call, "the untrusted response was buffered through response.body"
+        assert_nil @turn.conversation.reload.claude_session_id
+      end
+    end
+  end
+
   test "turn_grant is included in the request body when present" do
     with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
       seen = nil
@@ -104,5 +147,33 @@ class Assistant::ClaudeCodeClientTest < ActiveSupport::TestCase
       Assistant::ClaudeCodeClient.run_turn(turn: @turn, prompt: "hello", poster: poster)
       refute seen.key?("turn_grant")
     end
+  end
+
+  private
+
+  def streaming_response(body)
+    body_called = false
+    response = Object.new
+    response.define_singleton_method(:body) do
+      body_called = true
+      body
+    end
+    response.define_singleton_method(:read_body) do |&block|
+      offset = 0
+      while offset < body.bytesize
+        block.call(body.byteslice(offset, 16_384))
+        offset += 16_384
+      end
+    end
+    [ response, -> { body_called } ]
+  end
+
+  def with_http_response(response)
+    http = Object.new
+    http.define_singleton_method(:request) do |_request, &block|
+      block ? block.call(response) : response
+    end
+    stub_methods(Net::HTTP,
+      start: ->(*, **, &block) { block.call(http) }) { yield }
   end
 end

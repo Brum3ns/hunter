@@ -144,11 +144,51 @@ class Assistant::CodexClientTest < ActiveSupport::TestCase
     end
   end
 
-  test "invalid JSON yields codex_malformed_response" do
-    response = Struct.new(:body).new("not-json")
+  test "wrong-type and oversized success fields are rejected before continuity changes" do
+    malformed_bodies = [
+      { "thread_id" => 123, "reply" => "Hi" },
+      { "thread_id" => "thr_9", "reply" => [ "Hi" ] },
+      { "thread_id" => "t" * 256, "reply" => "Hi" },
+      { "thread_id" => "thr_9", "reply" => "x" * 65_537 }
+    ]
+
+    malformed_bodies.each do |body|
+      @turn.conversation.update!(codex_thread_id: nil)
+      with_codex_env do
+        events = Assistant::CodexClient.run_turn(
+          turn: @turn, prompt: "hello", poster: ->(_request) { body }
+        )
+
+        assert_error_code "codex_malformed_response", events
+        assert_nil @turn.conversation.reload.codex_thread_id
+      end
+    end
+  end
+
+  test "an oversized HTTP response is rejected while streaming without buffering body" do
+    payload = JSON.generate(
+      "thread_id" => "thr_9",
+      "reply" => "Hi",
+      "padding" => "x" * (Assistant::GatewayClient::MAX_RESPONSE_BYTES + 1)
+    )
+    response, body_called = streaming_response(payload)
 
     with_codex_env do
-      stub_methods(Net::HTTP, start: ->(*) { response }) do
+      with_http_response(response) do
+        events = Assistant::CodexClient.run_turn(turn: @turn, prompt: "hello")
+
+        assert_error_code "codex_malformed_response", events
+        refute body_called.call, "the untrusted response was buffered through response.body"
+        assert_nil @turn.conversation.reload.codex_thread_id
+      end
+    end
+  end
+
+  test "invalid JSON yields codex_malformed_response" do
+    response, = streaming_response("not-json")
+
+    with_codex_env do
+      with_http_response(response) do
         events = Assistant::CodexClient.run_turn(turn: @turn, prompt: "hello")
 
         assert_error_code "codex_malformed_response", events
@@ -206,6 +246,32 @@ class Assistant::CodexClientTest < ActiveSupport::TestCase
         refute_includes events.to_json, "secret prompt"
       end
     end
+  end
+
+  def streaming_response(body)
+    body_called = false
+    response = Object.new
+    response.define_singleton_method(:body) do
+      body_called = true
+      body
+    end
+    response.define_singleton_method(:read_body) do |&block|
+      offset = 0
+      while offset < body.bytesize
+        block.call(body.byteslice(offset, 16_384))
+        offset += 16_384
+      end
+    end
+    [ response, -> { body_called } ]
+  end
+
+  def with_http_response(response)
+    http = Object.new
+    http.define_singleton_method(:request) do |_request, &block|
+      block ? block.call(response) : response
+    end
+    stub_methods(Net::HTTP,
+      start: ->(*, **, &block) { block.call(http) }) { yield }
   end
 
   def assert_error_code(expected, events)

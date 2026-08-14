@@ -11,6 +11,13 @@ module Assistant
   # turn is recorded, never stranded. There is no activation/on-off state — an
   # unconfigured backend simply yields `claude_not_configured` on the turn.
   module ClaudeCodeClient
+    class ResponseTooLarge < StandardError; end
+    private_constant :ResponseTooLarge
+
+    MAX_RESPONSE_BYTES = 300_000
+    MAX_CONTINUITY_ID_LENGTH = 255
+    MAX_REPLY_LENGTH = 65_536
+
     ERROR_CODES = %w[
       claude_not_configured
       claude_login_required
@@ -39,7 +46,9 @@ module Assistant
       end
       session_id = body["session_id"] if body.is_a?(Hash)
       reply = body["reply"] if body.is_a?(Hash)
-      return [ error_event(turn, "claude_malformed_response") ] if session_id.blank? || reply.blank?
+      return [ error_event(turn, "claude_malformed_response") ] if
+        !bounded_string?(session_id, MAX_CONTINUITY_ID_LENGTH) ||
+          !bounded_string?(reply, MAX_REPLY_LENGTH)
 
       turn.conversation.update!(claude_session_id: session_id)
       [ assistant_message_event(turn, reply), completed_event(turn) ]
@@ -59,13 +68,14 @@ module Assistant
       request["Content-Type"] = "application/json"
       request["Authorization"] = "Bearer #{ENV.fetch('ASSISTANT_CLAUDE_INGRESS_TOKEN')}"
       request.body = JSON.generate(request_body)
-      response = Net::HTTP.start(uri.host, uri.port, open_timeout: 5, read_timeout: read_timeout_seconds) do |http|
-        http.request(request)
+      response_body = nil
+      Net::HTTP.start(uri.host, uri.port, open_timeout: 5, read_timeout: read_timeout_seconds) do |http|
+        http.request(request) { |response| response_body = capped_body(response) }
       end
-      JSON.parse(response.body.to_s)
+      JSON.parse(response_body)
     rescue Net::OpenTimeout, Net::ReadTimeout, Timeout::Error
       { "error" => { "code" => "claude_timeout" } }
-    rescue JSON::ParserError
+    rescue JSON::ParserError, ResponseTooLarge
       { "error" => { "code" => "claude_malformed_response" } }
     rescue SocketError
       { "error" => { "code" => "claude_dns_failure" } }
@@ -77,6 +87,21 @@ module Assistant
       { "error" => { "code" => "claude_not_configured" } }
     end
     private_class_method :post
+
+    def capped_body(response)
+      buffer = +""
+      response.read_body do |chunk|
+        buffer << chunk
+        raise ResponseTooLarge if buffer.bytesize > MAX_RESPONSE_BYTES
+      end
+      buffer
+    end
+    private_class_method :capped_body
+
+    def bounded_string?(value, max_length)
+      value.is_a?(String) && value.length.between?(1, max_length)
+    end
+    private_class_method :bounded_string?
 
     # A little past the service's own turn ceiling so Rails never abandons a turn
     # the CLI is still legitimately producing.

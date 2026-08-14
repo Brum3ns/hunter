@@ -1,6 +1,7 @@
 require "minitest/autorun"
 require_relative "../../../config/environment"
 require "active_job/test_helper"
+require "stringio"
 
 # Standalone: no reachable Postgres here, so `test_helper` (fixtures :all) is
 # unusable. TurnJob's own body never has to touch a real database if every AR
@@ -76,6 +77,25 @@ class Assistant::TurnJobTest < Minitest::Test
       end
     end
     assert_equal 0, calls
+  end
+
+  def test_enqueue_logging_never_includes_the_prompt_or_raw_turn_grant
+    log_output = StringIO.new
+    previous_logger = ActiveJob::Base.logger
+    ActiveJob::Base.logger = ActiveSupport::TaggedLogging.new(ActiveSupport::Logger.new(log_output))
+
+    Assistant::TurnJob.perform_later(
+      turn_id: @turn.id,
+      backend: "codex",
+      prompt: "logging-canary-secret-prompt",
+      turn_grant: "logging-canary-secret-grant"
+    )
+
+    assert_includes log_output.string, "Enqueued Assistant::TurnJob"
+    refute_includes log_output.string, "logging-canary-secret-prompt"
+    refute_includes log_output.string, "logging-canary-secret-grant"
+  ensure
+    ActiveJob::Base.logger = previous_logger
   end
 
   def test_no_op_when_turn_is_not_queued

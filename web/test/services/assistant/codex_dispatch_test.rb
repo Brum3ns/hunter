@@ -52,6 +52,48 @@ class Assistant::CodexDispatchTest < ActiveSupport::TestCase
     assert_equal Assistant::TurnGrant.digest(captured.fetch(:turn_grant)), grant.token_digest
   end
 
+  test "a Codex client exception fails the turn with a closed code and revokes its grant" do
+    ActiveJob::Base.queue_adapter = :test
+    conversation = Assistant::Conversation.start!(user: @user, provider_profile: @profile)
+    turn = nil
+
+    stub_methods(Assistant::Config, enabled?: true) do
+      turn = Assistant::TurnCreator.call(
+        conversation: conversation,
+        user: @user,
+        body: "secret prompt canary",
+        context_refs: []
+      )
+    end
+    grant = turn.turn_grant
+    assert_equal "queued", turn.status
+    assert_nil grant.revoked_at
+
+    sensitive = "invalid endpoint contained secret prompt canary and raw grant canary"
+    escaped = nil
+    stub_methods(Assistant::CodexClient,
+      run_turn: ->(**) { raise URI::InvalidURIError, sensitive }) do
+      begin
+        Assistant::TurnJob.new.perform(
+          turn_id: turn.id,
+          backend: "codex",
+          prompt: "secret prompt canary",
+          turn_grant: "raw grant canary"
+        )
+      rescue StandardError => error
+        escaped = error
+      end
+    end
+
+    assert_equal "failed", turn.reload.status
+    assert_equal "codex_error", turn.error_code
+    refute_nil grant.reload.revoked_at
+    assert_nil escaped
+    refute_includes turn.error_code, sensitive
+    refute_includes turn.error_code, "secret prompt canary"
+    refute_includes turn.error_code, "raw grant canary"
+  end
+
   private
 
   def successful_events(turn, reply)

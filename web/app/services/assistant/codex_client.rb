@@ -6,6 +6,13 @@ module Assistant
   # Transport and service failures are collapsed to a closed set of stable
   # codes; provider output and exception messages never enter an error event.
   module CodexClient
+    class ResponseTooLarge < StandardError; end
+    private_constant :ResponseTooLarge
+
+    MAX_RESPONSE_BYTES = 300_000
+    MAX_CONTINUITY_ID_LENGTH = 255
+    MAX_REPLY_LENGTH = 65_536
+
     ERROR_CODES = %w[
       codex_not_configured
       codex_login_required
@@ -38,7 +45,8 @@ module Assistant
       thread_id = body["thread_id"] if body.is_a?(Hash)
       reply = body["reply"] if body.is_a?(Hash)
       return [ error_event(turn, "codex_malformed_response") ] if
-        thread_id.blank? || reply.blank?
+        !bounded_string?(thread_id, MAX_CONTINUITY_ID_LENGTH) ||
+          !bounded_string?(reply, MAX_REPLY_LENGTH)
 
       turn.conversation.update!(codex_thread_id: thread_id)
       [ assistant_message_event(turn, reply), completed_event(turn) ]
@@ -56,16 +64,19 @@ module Assistant
       request["Authorization"] =
         "Bearer #{ENV.fetch('ASSISTANT_CODEX_INGRESS_TOKEN')}"
       request.body = JSON.generate(request_body)
-      response = Net::HTTP.start(
+      response_body = nil
+      Net::HTTP.start(
         uri.host,
         uri.port,
         open_timeout: 5,
         read_timeout: read_timeout_seconds
-      ) { |http| http.request(request) }
-      JSON.parse(response.body.to_s)
+      ) do |http|
+        http.request(request) { |response| response_body = capped_body(response) }
+      end
+      JSON.parse(response_body)
     rescue Net::OpenTimeout, Net::ReadTimeout, Timeout::Error
       { "error" => { "code" => "codex_timeout" } }
-    rescue JSON::ParserError
+    rescue JSON::ParserError, ResponseTooLarge
       { "error" => { "code" => "codex_malformed_response" } }
     rescue SocketError
       { "error" => { "code" => "codex_dns_failure" } }
@@ -77,6 +88,21 @@ module Assistant
       { "error" => { "code" => "codex_not_configured" } }
     end
     private_class_method :post
+
+    def capped_body(response)
+      buffer = +""
+      response.read_body do |chunk|
+        buffer << chunk
+        raise ResponseTooLarge if buffer.bytesize > MAX_RESPONSE_BYTES
+      end
+      buffer
+    end
+    private_class_method :capped_body
+
+    def bounded_string?(value, max_length)
+      value.is_a?(String) && value.length.between?(1, max_length)
+    end
+    private_class_method :bounded_string?
 
     def read_timeout_seconds
       330

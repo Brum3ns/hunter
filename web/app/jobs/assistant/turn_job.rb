@@ -18,6 +18,8 @@ module Assistant
   # `perform` back into itself runs the backend call exactly once, with no
   # extra guard needed.
   class TurnJob < ApplicationJob
+    self.log_arguments = false
+
     NO_EVENTS_CODES = {
       nil => "gateway_returned_no_events",
       "codex" => "codex_returned_no_events",
@@ -35,13 +37,21 @@ module Assistant
       events =
         case backend
         when "codex"
-          Assistant::CodexClient.run_turn(
-            turn: turn, prompt: prompt, turn_grant: turn_grant
-          )
+          begin
+            Assistant::CodexClient.run_turn(
+              turn: turn, prompt: prompt, turn_grant: turn_grant
+            )
+          rescue StandardError
+            [ error_event(turn, "codex_error") ]
+          end
         when "claude_code"
-          Assistant::ClaudeCodeClient.run_turn(
-            turn: turn, prompt: prompt, turn_grant: turn_grant
-          )
+          begin
+            Assistant::ClaudeCodeClient.run_turn(
+              turn: turn, prompt: prompt, turn_grant: turn_grant
+            )
+          rescue StandardError
+            [ error_event(turn, "claude_error") ]
+          end
         when nil
           begin
             Assistant::GatewayClient.run_turn(envelope)
