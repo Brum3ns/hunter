@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -160,8 +161,17 @@ func newChatHandler(token string, allowedHosts []string, codexBin string, cfg ch
 }
 
 func authorizedBearer(header, token string) bool {
+	return authorizedBearerWithComparator(header, token, subtle.ConstantTimeCompare)
+}
+
+func authorizedBearerWithComparator(header, token string, compare func([]byte, []byte) int) bool {
 	presented, hasScheme := strings.CutPrefix(header, "Bearer ")
-	return token != "" && hasScheme && subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1
+	if token == "" || !hasScheme {
+		return false
+	}
+	presentedDigest := sha256.Sum256([]byte(presented))
+	configuredDigest := sha256.Sum256([]byte(token))
+	return compare(presentedDigest[:], configuredDigest[:]) == 1
 }
 
 func decodeExactJSON(payload []byte, destination any) bool {

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -71,6 +73,61 @@ func TestChatRejectsEmptyConfiguredBearer(t *testing.T) {
 	newChatHandler("", []string{testHost}, "unused", chat.Config{}).ServeHTTP(response, request)
 
 	assertErrorResponse(t, response, http.StatusUnauthorized, "unauthorized")
+}
+
+func TestBearerComparisonHashesVariableLengthTokensBeforeConstantTimeBoundary(t *testing.T) {
+	presented := "short"
+	configured := "configured-token-with-a-different-length"
+	comparisonCalled := false
+
+	matched := authorizedBearerWithComparator("Bearer "+presented, configured, func(left, right []byte) int {
+		comparisonCalled = true
+		if len(left) != 32 || len(right) != 32 {
+			t.Fatalf("constant-time boundary received variable lengths %d and %d", len(left), len(right))
+		}
+		if got := hex.EncodeToString(left); got != "f9b0078b5df596d2ea19010c001bbd009e651de2c57e8fb7e355f31eb9d3f739" {
+			t.Fatalf("presented operand is not its SHA-256 digest: %s", got)
+		}
+		if got := hex.EncodeToString(right); got != "e621fa5d656b8249586a722699b4326eef5593ea7470e6ff2472d8be8569ce9a" {
+			t.Fatalf("configured operand is not its SHA-256 digest: %s", got)
+		}
+		if bytes.Equal(left, right) {
+			return 1
+		}
+		return 0
+	})
+
+	if !comparisonCalled {
+		t.Fatal("constant-time comparison boundary was not called")
+	}
+	if matched {
+		t.Fatal("different bearer tokens matched")
+	}
+}
+
+func TestAuthorizedBearerKeepsExactSchemeEmptyAndEqualityBehaviorClosed(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		token  string
+		want   bool
+	}{
+		{name: "exact match", header: "Bearer ingress-secret", token: "ingress-secret", want: true},
+		{name: "empty configured token", header: "Bearer ", token: "", want: false},
+		{name: "missing scheme", header: "ingress-secret", token: "ingress-secret", want: false},
+		{name: "lowercase scheme", header: "bearer ingress-secret", token: "ingress-secret", want: false},
+		{name: "same length mismatch", header: "Bearer ingress-secreu", token: "ingress-secret", want: false},
+		{name: "shorter mismatch", header: "Bearer short", token: "ingress-secret", want: false},
+		{name: "longer mismatch", header: "Bearer ingress-secret-extra", token: "ingress-secret", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := authorizedBearer(test.header, test.token); got != test.want {
+				t.Fatalf("authorizedBearer(%q, configured token) = %v, want %v", test.header, got, test.want)
+			}
+		})
+	}
 }
 
 func TestChatBoundsBodyOnlyAfterAuthenticatedGates(t *testing.T) {
