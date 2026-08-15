@@ -35,6 +35,8 @@ class Settings::AssistantTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "codex login --device-auth"
     assert_includes response.body, "claude login"
     assert_includes response.body, "Hunter MCP gateway"
+    assert_includes response.body, "provider-owned internal utility and discovery tools"
+    assert_includes response.body, "no direct Hunter or host access"
     assert_includes response.body, "subscription"
     assert_includes response.body, "API-key provider profiles are retired"
     assert_select "section#assistant form[action='/api/v1/assistant/provider_profiles']", count: 0
