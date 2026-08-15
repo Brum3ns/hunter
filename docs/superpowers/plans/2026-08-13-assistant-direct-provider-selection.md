@@ -14,8 +14,9 @@
 - Provider API keys and legacy provider availability never activate, select, create, or continue a chat.
 - Legacy transcripts stay readable/manageable but new turns return `409 legacy_provider_retired` before grant/job creation.
 - Codex uses ChatGPT login only; no `OPENAI_API_KEY`, `CODEX_API_KEY`, or API-key login path.
-- Codex built-in shell, unified execution, patch/file change, web/browser/computer, apps/plugins/skills, image generation, permission request, and multi-agent tools are absent.
-- Model-visible tools equal the current `Assistant::Grants::Issuer::CHAT_TOOLS` catalog after the Control Center write toggle narrows it; no generic or wildcard tool.
+- Codex 0.144.4 model-visible built-ins equal exactly `list_mcp_resources`, `list_mcp_resource_templates`, `read_mcp_resource`, `update_plan`, `request_user_input`, `apply_patch`, `view_image`, and `tool_search`; any ninth or changed built-in blocks the pin.
+- Every Hunter read/effect, including a future API-backed feature, traverses the sole authenticated `hunter` MCP source, whose deferred catalog equals the current `Assistant::Grants::Issuer::CHAT_TOOLS` catalog after the Control Center write toggle narrows it.
+- Shell/unified execution, web/browser/computer use, apps/plugins/skills, image generation, permission request, and multi-agent tools remain absent; `apply_patch` is non-effectful under the read-only sandbox and immutable empty workspace, proven by a real-binary adversarial test.
 - Runner failures are one-shot, namespaced stable codes and never include raw CLI output, prompt/reply bodies, credentials, tool arguments, session/thread IDs, or argv.
 - Codex and Claude credentials, ingress tokens, volumes, and internal networks remain isolated and independently revocable.
 - Production remains disabled until the Assistant production checklist records the new evidence.
@@ -416,6 +417,8 @@ git commit -m "Add the hardened Codex Assistant service"
 - Modify: `web/test/config/assistant_compose_test.rb`
 - Modify: `web/app/services/assistant/preflight.rb`
 - Modify: `web/test/services/assistant/preflight_test.rb`
+- Modify: `docs/superpowers/specs/2026-08-13-assistant-direct-provider-selection-design.md`
+- Create: `docs/superpowers/specs/2026-08-15-assistant-codex-mcp-boundary-design.md`
 
 **Interfaces:**
 - New service: `assistant-codex:8084`
@@ -443,23 +446,88 @@ network, seccomp, tmpfs, non-root user, caps, pids/memory/CPU limits, healthchec
 and Rails environment. Replace gateway/validator preflight targets with Codex
 and Claude direct endpoints; health remains advisory and token-free.
 
-- [ ] **Step 4: Build the real tool-schema contract test**
+- [ ] **Step 4: Revise the failing real-binary contract for the approved boundary**
 
-Start a loopback fake OpenAI-compatible endpoint, invoke the pinned real Codex
-binary with service flags/config and a fake Hunter MCP catalog, capture the
-outbound request's `tools`, and compare literal sorted names/schema categories
-to the reviewed catalog. Explicitly reject prefixes/names for shell, exec,
-patch, file, web, browser, computer, app, plugin, skill, image, multi-agent, and
-permission tooling. Skip only when the exact pinned binary is unavailable; CI
-and production evidence run it mandatorily in the built image.
+Keep the current failure from `TestRealCodexExposesOnlyReviewedHunterTools` as
+the RED result: it reports the eight real built-ins instead of the obsolete
+direct Hunter catalog. Rename the test to
+`TestRealCodexEnforcesApprovedHunterMCPBoundary` and make the fake provider serve
+two responses. The first response emits a client `tool_search_call` with call ID
+`hunter-catalog`, query `hunter`, and limit `24`; the second emits the final
+single-word assistant message. Capture both provider request bodies.
 
-- [ ] **Step 5: Verify contracts**
+Assert the first request's sorted top-level names equal exactly:
 
-Run Go tool-schema tests, Rails compose/preflight tests, `docker compose config`,
-and both dev/prod image builds. Expected: exact catalog only; no configuration
-warning or secret in rendered config output.
+```text
+apply_patch
+list_mcp_resource_templates
+list_mcp_resources
+read_mcp_resource
+request_user_input
+tool_search
+update_plan
+view_image
+```
 
-- [ ] **Step 6: Commit**
+Also serialize and compare their complete stable type/name/schema categories so
+a same-name schema change fails. In the second request, locate the sole
+`tool_search_output` for `hunter-catalog`; assert `status=completed`,
+`execution=client`, one namespace named `mcp__hunter`, and exactly the 24
+reviewed child tool names/input-schema categories already listed in the test.
+Assert the fake MCP request sequence remains `initialize`,
+`notifications/initialized`, `tools/list`, with the exact bearer and turn-grant
+headers. Remove the obsolete assertion that `apply_patch` and
+`request_user_input` are forbidden; retain explicit rejection of shell/exec,
+web/browser/computer, apps/plugins/skills, image generation, multi-agent, and
+permission tools. Skip only when the exact pinned binary is unavailable; CI and
+production evidence run it mandatorily in the built image.
+
+- [ ] **Step 5: Add the real-binary immutable-workspace adversarial test**
+
+Add `TestRealCodexApplyPatchCannotMutateReadOnlyWorkspace`. Reuse the production
+invocation and fake provider configuration with no MCP server. Make the first
+SSE response emit this custom call and complete:
+
+```text
+name: apply_patch
+call_id: forbidden-patch
+input: *** Begin Patch\n*** Add File: forbidden.txt\n+written\n*** End Patch
+```
+
+Make the second response return a final message. Use an otherwise writable
+temporary working directory so the Codex sandbox—not Unix test-fixture
+permissions—is the control under test. After Codex exits, assert
+`forbidden.txt` does not exist and the second provider request contains the
+failed `custom_tool_call_output` for `forbidden-patch`. This test must fail if
+the production invocation loses `sandbox_mode="read-only"`. The separate image
+inspection proves that `/workspace` is also immutable at the container layer.
+
+- [ ] **Step 6: Verify contracts**
+
+Run:
+
+```bash
+cd assistant/codex
+gofmt -w internal/chat/tool_schema_contract_test.go
+PATH=/usr/local/go/bin:$PATH go test ./internal/chat -run 'TestRealCodex(EnforcesApprovedHunterMCPBoundary|ApplyPatchCannotMutateReadOnlyWorkspace)' -count=1 -v
+PATH=/usr/local/go/bin:$PATH go test ./...
+cd ../../web
+bin/rails test test/config/assistant_compose_test.rb test/services/assistant/preflight_test.rb
+cd ..
+docker compose config >/dev/null
+docker compose -f docker-compose.prod.yaml config >/dev/null
+docker build -t hunter-assistant-codex-task5 -f assistant/codex/Dockerfile assistant/codex
+docker run --rm --entrypoint /bin/sh hunter-assistant-codex-task5 -c 'test "$(codex --version)" = "codex-cli 0.144.4" && test "$(id -u)" = "1000" && test ! -w /workspace'
+git diff --check
+```
+
+Expected: both real-binary gates run rather than skip and pass; all Go and
+focused Rails tests pass; both Compose files render without warning; the image
+contains exact Codex 0.144.4, runs as uid 1000, and has an immutable workspace.
+If Docker is unavailable, record the image/runtime commands as pending
+production evidence without claiming them complete.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add assistant/codex ops/assistant/seccomp/codex.json docker-compose.yaml docker-compose.prod.yaml .env.example web/app/services/assistant/preflight.rb web/test/config/assistant_compose_test.rb web/test/services/assistant/preflight_test.rb
@@ -566,7 +634,8 @@ git commit -m "Add one-click direct Assistant provider selection"
 - [ ] **Step 1: Add checklist and runbook evidence fields**
 
 Document exact login persistence, forced ChatGPT method, version/digest, network
-inspection, real tool-schema capture, stable error demonstrations, legacy
+inspection, the exact eight built-ins, the deferred Hunter MCP catalog capture,
+the immutable-workspace patch denial, stable error demonstrations, legacy
 rejection, metadata-only audit queries, real OpenAI/Anthropic turns, and rollback
 that re-enables dormant gateway services without rewriting history.
 
@@ -619,4 +688,3 @@ not mark production enabled unless every checklist item has actual evidence.
 git add docs README.md
 git commit -m "Complete direct Assistant provider documentation"
 ```
-
