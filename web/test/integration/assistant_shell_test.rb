@@ -42,8 +42,14 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     assert_select "[data-assistant-resize-label]", text: /Drag to resize/i
     assert_select "button[aria-label='Close Hunter assistant']"
     assert_select "details[data-assistant-target='capabilityDisclosure'] > summary", text: /Data access & actions/i
-    assert_select "form[data-action*='assistant#startConversation'] select[data-assistant-target='providerSelect']"
-    assert_select "[data-assistant-target='retentionNotice']", text: /retention/i
+    assert_select "button[data-assistant-target='providerButton'][data-action='assistant#startConversation'][data-backend]", count: 2
+    assert_select "button[data-assistant-target='providerButton'][data-backend='codex'][aria-label*='OpenAI'][title]"
+    assert_select "button[data-assistant-target='providerButton'][data-backend='claude_code'][aria-label*='Anthropic'][title]"
+    assert_select "button[data-backend='codex'] img[src*='assistant/openai']"
+    assert_select "button[data-backend='claude_code'] img[src*='assistant/anthropic']"
+    assert_select "[data-assistant-target='providerStatus']", text: /retention/i
+    assert_select "select[data-assistant-target='providerSelect']", count: 0
+    assert_select "button[data-assistant-target='startButton']", count: 0
     assert_select "form[data-action*='assistant#submitMessage'] textarea"
     assert_select "details[data-assistant-target='contextDisclosure'] > summary", text: /Add Hunter context/i
     assert_select "[data-assistant-target='disclosurePreview']"

@@ -7,8 +7,6 @@ class SettingsController < ApplicationController
     @assistant_admin = Assistant::AdminPolicy.allowed?(Current.user)
     if @assistant_admin
       @assistant_setting = Assistant::Setting.instance
-      @assistant_profiles = Assistant::ProviderProfile.order(:name)
-      @assistant_catalog_entries = Assistant::ProviderCatalog.entries.values
     end
   end
 end

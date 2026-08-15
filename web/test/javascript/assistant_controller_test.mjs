@@ -283,7 +283,7 @@ test("conversation rows expose pointer keyboard menu and drag callbacks without 
   ])
 })
 
-test("messages render safe Markdown cards with profile bubbles and original-body copy", () => {
+test("messages render safe Markdown cards with immutable provider identity and original-body copy", () => {
   assert.equal(typeof ui.appendMessage, "function")
   const container = dom.window.document.createElement("section")
   const attack = '<script>alert("x")</script>\u001b[31m\u0000'
@@ -293,7 +293,10 @@ test("messages render safe Markdown cards with profile bubbles and original-body
     dom.window.document,
     container,
     { role: "assistant", body: attack },
-    { onCopy: (message) => copied.push(message.body) },
+    {
+      assistantIdentity: { label: "OpenAI", assetUrl: "/assets/assistant/openai.svg" },
+      onCopy: (message) => copied.push(message.body),
+    },
   )
   ui.appendMessage(
     dom.window.document,
@@ -306,10 +309,12 @@ test("messages render safe Markdown cards with profile bubbles and original-body
   assert.match(container.textContent, /<script>alert\("x"\)<\/script>/)
   assert.equal(container.textContent.includes("\u001b"), false)
   assert.equal(container.textContent.includes("\u0000"), false)
-  assert.match(container.textContent, /Hunter assistant/)
+  assert.match(container.textContent, /OpenAI/)
   const assistantRow = container.children[0]
   const userRow = container.children[1]
   assert.equal(assistantRow.children[0].dataset.avatarRole, "assistant")
+  assert.equal(assistantRow.children[0].querySelector("img").getAttribute("src"), "/assets/assistant/openai.svg")
+  assert.equal(assistantRow.children[0].querySelector("img").getAttribute("alt"), "")
   assert.equal(assistantRow.children[1].tagName, "ARTICLE")
   assert.equal(userRow.children[0].tagName, "ARTICLE")
   assert.equal(userRow.children[1].dataset.avatarRole, "user")
@@ -321,6 +326,21 @@ test("messages render safe Markdown cards with profile bubbles and original-body
   copyButtons[0].click()
   copyButtons[1].click()
   assert.deepEqual(copied, [attack, "**my question**"])
+})
+
+test("legacy assistant messages use archive identity without a provider image", () => {
+  const container = dom.window.document.createElement("section")
+
+  ui.appendMessage(
+    dom.window.document,
+    container,
+    { role: "assistant", body: "Historical reply" },
+    { assistantIdentity: { label: "Archived assistant", assetUrl: null } },
+  )
+
+  assert.match(container.textContent, /Archived assistant/)
+  assert.equal(container.querySelector("img"), null)
+  assert.equal(container.children[0].children[0].textContent, "A")
 })
 
 test("fenced message code renders one compact toolbar and copies the complete source", () => {

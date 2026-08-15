@@ -24,6 +24,10 @@ import {
   savePanelSize,
 } from "lib/assistant_panel_size"
 import {
+  chatBackendChoices,
+  conversationIdentity,
+} from "lib/assistant_provider_picker"
+import {
   appendContextDisclosure,
   appendDraftCard,
   appendMessage,
@@ -41,9 +45,9 @@ import {
 
 export default class extends Controller {
   static targets = [
-    "bubble", "panel", "startScreen", "conversationScreen", "providerSelect",
-    "retentionNotice", "conversationList", "profileName", "messages", "messageInput",
-    "startButton", "sendButton", "cancelButton", "contextType", "contextQuery",
+    "bubble", "panel", "startScreen", "conversationScreen", "providerButton",
+    "providerStatus", "conversationList", "profileName", "messages", "messageInput",
+    "sendButton", "cancelButton", "contextType", "contextQuery",
     "contextResults", "disclosurePreview", "drafts", "status", "notice",
     "resizeHandle", "resizeStatus", "capabilityDisclosure", "contextDisclosure",
     "historyMenu", "historyMenuRename", "historyMenuMoveUp", "historyMenuMoveDown",
@@ -51,6 +55,11 @@ export default class extends Controller {
     "renameDialog", "renameInput", "renameSubmit", "renameCancel",
     "fontDecrease", "fontIncrease", "fontScaleStatus",
   ]
+
+  static values = {
+    openaiAsset: String,
+    anthropicAsset: String,
+  }
 
   connect() {
     this.bootstrap = null
@@ -80,6 +89,8 @@ export default class extends Controller {
     this.activeSelectionToken = null
     this.resumePollingAfterHistoryMutation = false
     this.renameInFlight = false
+    this.conversationCreateInFlight = null
+    this.availableChatBackends = []
     this.fontScaleIndex = loadFontScaleIndex(this.panelStorage())
     this.historyCollapsed = loadHistoryRailCollapsed(this.panelStorage())
     this.boundResizeMove = (event) => this.resizePanel(event)
@@ -297,7 +308,7 @@ export default class extends Controller {
       if (!response.ok) return this.showRequestError(response)
 
       this.bootstrap = response.data
-      this.populateProviders(response.data.provider_profiles || [])
+      this.renderProviderButtons(response.data.chat_backends || [])
       this.renderConversationList(response.data.conversations || [])
       this.showStartScreen()
       this.renderDisabledState(response.data.settings || {})
@@ -346,32 +357,59 @@ export default class extends Controller {
     if (settings.effective_enabled) {
       this.noticeTarget.hidden = true
       this.noticeTarget.textContent = ""
+      this.renderProviderButtons(this.bootstrap?.chat_backends || [])
       return
     }
 
     renderDisabledNotice(this.noticeTarget, this.messageInputTarget, settings.disabled_reason)
     this.noticeTarget.hidden = false
+    this.renderProviderButtons(this.bootstrap?.chat_backends || [])
   }
 
-  updateRetentionNotice() {
-    const selected = this.selectedProfile()
+  renderProviderButtons(descriptors) {
+    this.availableChatBackends = chatBackendChoices(descriptors)
+    const choices = new Map(this.availableChatBackends.map((choice) => [choice.backend, choice]))
+    const locked = this.conversationCreateInFlight !== null
+    const assistantEnabled = this.effectiveEnabled()
+
+    for (const button of this.providerButtonTargets) {
+      const backend = button.dataset.backend
+      const choice = choices.get(backend)
+      const loading = locked && this.conversationCreateInFlight === backend
+      button.hidden = !choice
+      button.disabled = !choice || !assistantEnabled || locked
+      button.setAttribute("aria-busy", String(loading))
+      const label = button.querySelector("[data-provider-label]")
+      const loadingLabel = button.querySelector("[data-provider-loading]")
+      if (label) label.hidden = loading
+      if (loadingLabel) loadingLabel.hidden = !loading
+    }
+
     const days = this.bootstrap?.settings?.transcript_retention_days
-    const posture = selected?.retention_posture?.replaceAll("_", " ") || "not available"
-    this.retentionNoticeTarget.textContent =
-      `Hunter retains this encrypted conversation for ${days || "the configured number of"} days. ` +
-      `Provider retention posture: ${posture}. Local deletion cannot erase provider or backup copies.`
+    const postures = this.availableChatBackends.map((choice) =>
+      `${choice.label}: ${choice.retentionPosture.replaceAll("_", " ")}`
+    ).join("; ")
+    this.providerStatusTarget.textContent = this.availableChatBackends.length > 0
+      ? `Hunter retains encrypted conversations for ${days || "the configured number of"} days. ` +
+        `Provider retention posture — ${postures}. Local deletion cannot erase provider or backup copies.`
+      : "No enabled reviewed direct chat backends are available."
   }
 
   async startConversation(event) {
-    event.preventDefault()
-    const profileId = this.providerSelectTarget.value
-    if (!profileId) return this.setStatus("Select an enabled provider profile.")
+    event?.preventDefault()
+    if (this.conversationCreateInFlight !== null) return
+    const backend = event?.currentTarget?.dataset?.backend
+    if (!this.availableChatBackends.some((choice) => choice.backend === backend)) {
+      return this.setStatus("That direct chat backend is unavailable.")
+    }
     const mutationToken = this.beginHistoryMutation()
     if (!mutationToken) return
 
+    this.conversationCreateInFlight = backend
+    this.renderProviderButtons(this.bootstrap?.chat_backends || [])
     this.setStatus("Starting conversation…")
     try {
-      const response = await assistantApi.createConversation(profileId, { signal: this.requestSignal() })
+      const response = await assistantApi.createConversation(backend, { signal: this.requestSignal() })
       if (response.aborted) return
       if (!response.ok) return this.showRequestError(response)
 
@@ -380,6 +418,8 @@ export default class extends Controller {
       await this.refreshConversationList()
       this.messageInputTarget.focus()
     } finally {
+      this.conversationCreateInFlight = null
+      this.renderProviderButtons(this.bootstrap?.chat_backends || [])
       this.finishHistoryMutation(mutationToken)
     }
   }
@@ -419,7 +459,7 @@ export default class extends Controller {
     this.currentTurnStatus = null
     this.showStartScreen()
     this.renderConversationList(this.conversations || [])
-    this.providerSelectTarget.focus()
+    this.focusFirstProviderButton()
   }
 
   async submitMessage(event) {
@@ -568,7 +608,7 @@ export default class extends Controller {
       await this.refreshConversationList()
       this.setStatus("Conversation deleted.")
       if (deletedCurrent) {
-        this.providerSelectTarget.focus()
+        this.focusFirstProviderButton()
       } else {
         this.focusConversationControl(this.currentConversation?.id)
       }
@@ -578,28 +618,11 @@ export default class extends Controller {
     }
   }
 
-  populateProviders(profiles) {
-    this.providerSelectTarget.replaceChildren()
-    const enabledProfiles = profiles.filter((profile) => profile.enabled && profile.reviewed_at)
-    const assistantEnabled = this.effectiveEnabled()
-    const prompt = document.createElement("option")
-    prompt.value = ""
-    if (!assistantEnabled) {
-      prompt.textContent = "Assistant is disabled"
-    } else {
-      prompt.textContent = enabledProfiles.length ? "Select a reviewed profile" : "No enabled profiles"
-    }
-    this.providerSelectTarget.appendChild(prompt)
-
-    enabledProfiles.forEach((profile) => {
-      const option = document.createElement("option")
-      option.value = String(profile.id)
-      option.textContent = `${profile.name} · ${profile.provider} ${profile.model}`
-      this.providerSelectTarget.appendChild(option)
-    })
-    this.providerSelectTarget.disabled = !assistantEnabled || enabledProfiles.length === 0
-    this.startButtonTarget.disabled = this.providerSelectTarget.disabled
-    this.updateRetentionNotice()
+  focusFirstProviderButton() {
+    const button = this.providerButtonTargets.find((candidate) =>
+      !candidate.hidden && !candidate.disabled
+    )
+    button?.focus()
   }
 
   renderConversationList(conversations) {
@@ -928,10 +951,11 @@ export default class extends Controller {
   }
 
   renderConversation(conversation) {
+    this.currentConversation = conversation
+    const identity = conversationIdentity(conversation)
     this.startScreenTarget.hidden = true
     this.conversationScreenTarget.hidden = false
-    this.profileNameTarget.textContent =
-      `${conversation.provider_profile.name} · ${conversation.provider_profile.provider} ${conversation.provider_profile.model}`
+    this.renderConversationIdentity(identity)
     this.messagesTarget.replaceChildren()
     this.renderedMessageIds = new Set()
     for (const message of conversation.messages || []) this.appendMessage(message)
@@ -942,7 +966,9 @@ export default class extends Controller {
     this.draftSignature = null
     this.renderDrafts(conversation.drafts || [])
     applyComposerAvailability(
-      this.messageInputTarget, this.sendButtonTarget, this.effectiveEnabled()
+      this.messageInputTarget,
+      this.sendButtonTarget,
+      this.effectiveEnabled() && identity.legacy !== true,
     )
 
     const turns = conversation.turns || []
@@ -956,7 +982,12 @@ export default class extends Controller {
 
   appendMessage(message) {
     if (message.id && this.renderedMessageIds.has(message.id)) return
+    const identity = conversationIdentity(this.currentConversation)
     appendMessage(document, this.messagesTarget, message, {
+      assistantIdentity: {
+        label: identity.label,
+        assetUrl: this.brandAsset(identity.assetKey),
+      },
       onCopy: (copiedMessage) => this.copyMessage(copiedMessage),
       onCopyCode: (text) => this.copyCode(text),
     })
@@ -1129,7 +1160,7 @@ export default class extends Controller {
   showStartScreen() {
     this.startScreenTarget.hidden = false
     this.conversationScreenTarget.hidden = true
-    this.updateRetentionNotice()
+    this.renderProviderButtons(this.bootstrap?.chat_backends || [])
   }
 
   async refreshConversationList() {
@@ -1139,9 +1170,39 @@ export default class extends Controller {
     if (response.ok) this.renderConversationList(response.data.conversations || [])
   }
 
-  selectedProfile() {
-    const id = Number(this.providerSelectTarget.value)
-    return this.bootstrap?.provider_profiles?.find((profile) => profile.id === id)
+  renderConversationIdentity(identity) {
+    const assetUrl = this.brandAsset(identity.assetKey)
+    this.profileNameTarget.replaceChildren()
+
+    if (assetUrl) {
+      const logoFrame = document.createElement("span")
+      logoFrame.className = "grid h-6 w-6 shrink-0 place-items-center rounded-md bg-zinc-950"
+      logoFrame.setAttribute("aria-hidden", "true")
+      const logo = document.createElement("img")
+      logo.src = assetUrl
+      logo.alt = ""
+      logo.className = "h-4 w-4 object-contain"
+      logoFrame.appendChild(logo)
+      this.profileNameTarget.appendChild(logoFrame)
+    }
+
+    const text = document.createElement("span")
+    text.className = "truncate"
+    text.textContent = identity.legacy
+      ? "Legacy conversation · read-only"
+      : `${identity.label} · ${identity.product}`
+    this.profileNameTarget.appendChild(text)
+  }
+
+  brandAsset(assetKey) {
+    const assets = Object.freeze({
+      openai: this.openaiAssetValue,
+      anthropic: this.anthropicAssetValue,
+    })
+    const candidate = assets[assetKey]
+    return typeof candidate === "string" && candidate.startsWith("/assets/assistant/")
+      ? candidate
+      : null
   }
 
   showRequestError(response) {

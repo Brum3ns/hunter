@@ -34,9 +34,7 @@
     <%= render "settings/ansible_credentials", credentials: @ansible_credentials %>
     <% if @assistant_admin %>
       <%= render "settings/assistant",
-        setting: @assistant_setting,
-        profiles: @assistant_profiles,
-        catalog_entries: @assistant_catalog_entries %>
+        setting: @assistant_setting %>
     <% end %>
     <%= render "settings/credentials" %>
     <%= render "settings/schedule", schedule: @schedule %>

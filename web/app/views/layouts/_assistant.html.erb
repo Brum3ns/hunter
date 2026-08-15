@@ -1,4 +1,6 @@
 <div data-controller="assistant"
+     data-assistant-openai-asset-value="<%= asset_path('assistant/openai.svg') %>"
+     data-assistant-anthropic-asset-value="<%= asset_path('assistant/anthropic.svg') %>"
      data-action="keydown@window->assistant#handleKeydown">
   <button type="button"
           data-assistant-target="bubble"
@@ -107,28 +109,37 @@
               <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v3m0 12v3M3 12h3m12 0h3M5.64 5.64l2.12 2.12m8.48 8.48 2.12 2.12m0-12.72-2.12 2.12M7.76 16.24l-2.12 2.12" /><circle cx="12" cy="12" r="4" /></svg>
             </span>
             <h3 class="mt-4 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-100">Start a conversation</h3>
-            <p class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-400">Choose a reviewed provider and model. Your selection stays pinned for the life of this conversation.</p>
+            <p class="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-400">Choose a subscription-backed provider. One click creates a conversation pinned to that provider, with Hunter features available only through the Hunter MCP gateway.</p>
 
-            <form data-action="submit->assistant#startConversation" class="mt-6 space-y-4">
-              <label class="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                Provider and model
-                <select data-assistant-target="providerSelect" data-action="change->assistant#updateRetentionNotice"
-                        required class="mt-2 block w-full rounded-lg border-zinc-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-zinc-500 focus:ring-zinc-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"></select>
-              </label>
-              <div data-assistant-target="retentionNotice" class="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs leading-5 text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/[0.08] dark:text-amber-200">
-                Retention details load before conversation creation. Local deletion cannot erase provider or backup copies.
-              </div>
-              <button type="submit" data-assistant-target="startButton"
-                      class="w-full rounded-lg bg-zinc-950 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white dark:focus:ring-offset-[#0d0d0e]">
-                Start conversation
+            <div role="group" class="mt-6 grid grid-cols-2 gap-3" aria-label="Choose an assistant provider">
+              <button type="button" data-assistant-target="providerButton" data-action="assistant#startConversation"
+                      data-backend="codex" aria-label="Start an OpenAI conversation" title="Start an OpenAI conversation"
+                      class="group flex min-h-28 flex-col items-center justify-center gap-3 rounded-xl border border-zinc-300 bg-white px-4 py-4 text-sm font-semibold text-zinc-900 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-500 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-500 dark:focus:ring-offset-[#0d0d0e]">
+                <span class="grid h-12 w-12 place-items-center rounded-xl bg-zinc-950 shadow-sm ring-1 ring-zinc-800">
+                  <%= image_tag "assistant/openai.svg", alt: "", aria: { hidden: true }, class: "h-8 w-8 object-contain" %>
+                </span>
+                <span data-provider-label>OpenAI</span>
+                <span data-provider-loading hidden>Starting…</span>
               </button>
-            </form>
+              <button type="button" data-assistant-target="providerButton" data-action="assistant#startConversation"
+                      data-backend="claude_code" aria-label="Start an Anthropic conversation" title="Start an Anthropic conversation"
+                      class="group flex min-h-28 flex-col items-center justify-center gap-3 rounded-xl border border-zinc-300 bg-white px-4 py-4 text-sm font-semibold text-zinc-900 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-500 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-500 dark:focus:ring-offset-[#0d0d0e]">
+                <span class="grid h-12 w-12 place-items-center rounded-xl bg-zinc-950 shadow-sm ring-1 ring-zinc-800">
+                  <%= image_tag "assistant/anthropic.svg", alt: "", aria: { hidden: true }, class: "h-7 w-9 object-contain" %>
+                </span>
+                <span data-provider-label>Anthropic</span>
+                <span data-provider-loading hidden>Starting…</span>
+              </button>
+            </div>
+            <p data-assistant-target="providerStatus" role="status" aria-live="polite" class="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs leading-5 text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/[0.08] dark:text-amber-200">
+              Retention details load before conversation creation. Local deletion cannot erase provider or backup copies.
+            </p>
           </div>
         </div>
 
         <div data-assistant-target="conversationScreen" hidden class="min-h-0 flex-1 flex flex-col">
           <div class="flex min-h-10 items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-[#0d0d0e]">
-            <p data-assistant-target="profileName" class="truncate text-[11px] font-medium text-zinc-500 dark:text-zinc-500"></p>
+            <p data-assistant-target="profileName" class="flex min-w-0 items-center gap-2 truncate text-[11px] font-medium text-zinc-500 dark:text-zinc-500"></p>
             <div class="flex items-center gap-2">
               <div role="group" aria-label="Chat text size" class="flex items-center rounded-md border border-zinc-300 bg-zinc-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-900">
                 <button type="button" data-assistant-target="fontDecrease" data-action="assistant#decreaseFontScale"

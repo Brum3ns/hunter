@@ -23,14 +23,14 @@ function installBrowserDoubles() {
 test("assistantApi sends same-origin JSON with the CSRF token", async () => {
   const requests = installBrowserDoubles()
 
-  await assistantApi.createConversation(7)
+  await assistantApi.createConversation("codex")
 
   const request = requests[0]
   assert.equal(request.url, "/api/v1/assistant/conversations")
   assert.equal(request.options.headers["X-CSRF-Token"], "csrf-test")
   assert.equal(request.options.credentials, "same-origin")
   assert.equal(request.options.method, "POST")
-  assert.deepEqual(JSON.parse(request.options.body), { provider_profile_id: 7 })
+  assert.deepEqual(JSON.parse(request.options.body), { backend: "codex" })
 })
 
 test("assistantApi reads bootstrap without a CSRF header and forwards abort signals", async () => {

@@ -50,7 +50,9 @@ function conversation(id, title) {
   return {
     id,
     title,
-    provider_profile: { name: "Reviewed", provider: "openai", model: "test" },
+    backend: "codex",
+    brand: "openai",
+    legacy: false,
     messages: [],
     turns: [],
     drafts: [],
@@ -59,7 +61,9 @@ function conversation(id, title) {
 
 function fixture() {
   return `
-    <div data-controller="assistant">
+    <div data-controller="assistant"
+         data-assistant-openai-asset-value="/assets/assistant/openai.svg"
+         data-assistant-anthropic-asset-value="/assets/assistant/anthropic.svg">
       <button data-assistant-target="bubble"></button>
       <section data-assistant-target="panel" hidden>
         <button data-assistant-target="resizeHandle"></button>
@@ -73,13 +77,17 @@ function fixture() {
         </div>
         <div data-assistant-target="startScreen"></div>
         <div data-assistant-target="conversationScreen" hidden></div>
-        <select data-assistant-target="providerSelect"><option value="1">Profile</option></select>
-        <div data-assistant-target="retentionNotice"></div>
+        <button data-assistant-target="providerButton" data-action="assistant#startConversation" data-backend="codex">
+          <span data-provider-label>OpenAI</span><span data-provider-loading hidden>Starting…</span>
+        </button>
+        <button data-assistant-target="providerButton" data-action="assistant#startConversation" data-backend="claude_code">
+          <span data-provider-label>Anthropic</span><span data-provider-loading hidden>Starting…</span>
+        </button>
+        <div data-assistant-target="providerStatus"></div>
         <div data-assistant-target="conversationList"></div>
         <div data-assistant-target="profileName"></div>
         <div data-assistant-target="messages"></div>
         <textarea data-assistant-target="messageInput"></textarea>
-        <button data-assistant-target="startButton"></button>
         <button data-assistant-target="sendButton"></button>
         <button data-assistant-target="cancelButton"></button>
         <select data-assistant-target="contextType"></select>
@@ -140,10 +148,78 @@ async function harness(fetchImpl = async () => response({})) {
   assert.ok(controller, "Stimulus controller connected")
   controller.bootstrap = {
     settings: { effective_enabled: true, conversation_management_enabled: true },
-    provider_profiles: [],
+    chat_backends: [
+      { slug: "codex", brand: "openai", enabled: true, reviewed_at: "2026-08-13T00:00:00Z", retention_posture: "standard" },
+      { slug: "claude_code", brand: "anthropic", enabled: true, reviewed_at: "2026-08-13T00:00:00Z", retention_posture: "standard" },
+    ],
   }
   return { application, controller, dom }
 }
+
+test("one-click creation sends one closed backend request and locks both controls", async () => {
+  const create = deferred()
+  const requests = []
+  const { application, controller, dom } = await harness((url, options = {}) => {
+    requests.push({ url, options })
+    if (url === "/api/v1/assistant/conversations") {
+      if (options.method === "POST") return create.promise
+      return response({ conversations: [conversation(7, "New conversation")] })
+    }
+    throw new Error(`Unexpected request: ${options.method || "GET"} ${url}`)
+  })
+  controller.renderProviderButtons(controller.bootstrap.chat_backends)
+  const [codexButton, claudeButton] = controller.providerButtonTargets
+
+  const first = controller.startConversation({ preventDefault() {}, currentTarget: codexButton })
+  const duplicate = controller.startConversation({ preventDefault() {}, currentTarget: codexButton })
+  await tick()
+
+  assert.equal(codexButton.disabled, true)
+  assert.equal(claudeButton.disabled, true)
+  assert.equal(codexButton.getAttribute("aria-busy"), "true")
+  assert.equal(codexButton.querySelector("[data-provider-loading]").hidden, false)
+  assert.equal(requests.filter(({ options }) => options.method === "POST").length, 1)
+  assert.deepEqual(JSON.parse(requests[0].options.body), { backend: "codex" })
+
+  create.resolve(response(conversation(7, "New conversation"), 201))
+  await Promise.all([first, duplicate])
+
+  assert.equal(dom.window.document.activeElement, controller.messageInputTarget)
+  assert.equal(controller.currentConversation.backend, "codex")
+  application.stop()
+})
+
+test("failed one-click creation restores both provider controls", async () => {
+  const { application, controller } = await harness(async (url, options = {}) => {
+    assert.equal(url, "/api/v1/assistant/conversations")
+    assert.equal(options.method, "POST")
+    return response({ error: "not_found" }, 404)
+  })
+  controller.renderProviderButtons(controller.bootstrap.chat_backends)
+  const [codexButton, claudeButton] = controller.providerButtonTargets
+
+  await controller.startConversation({ preventDefault() {}, currentTarget: claudeButton })
+
+  assert.equal(codexButton.disabled, false)
+  assert.equal(claudeButton.disabled, false)
+  assert.equal(claudeButton.getAttribute("aria-busy"), "false")
+  assert.equal(claudeButton.querySelector("[data-provider-loading]").hidden, true)
+  application.stop()
+})
+
+test("legacy conversations remain readable with an archive identity and disabled composer", async () => {
+  const { application, controller } = await harness()
+  const legacy = { ...conversation(8, "Historical"), backend: null, brand: null, legacy: true }
+
+  controller.renderConversation(legacy)
+
+  assert.match(controller.profileNameTarget.textContent, /Legacy conversation/)
+  assert.match(controller.profileNameTarget.textContent, /read-only/)
+  assert.equal(controller.profileNameTarget.querySelector("img"), null)
+  assert.equal(controller.messageInputTarget.disabled, true)
+  assert.equal(controller.sendButtonTarget.disabled, true)
+  application.stop()
+})
 
 test("history toggle gives the chat width and persists the preference", async () => {
   const { application, controller } = await harness()

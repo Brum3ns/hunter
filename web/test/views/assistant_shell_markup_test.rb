@@ -60,6 +60,20 @@ class AssistantShellMarkupTest < Minitest::Test
     assert_equal "New chat", new_chat["aria-label"]
   end
 
+  def test_direct_provider_controls_are_one_click_accessible_and_model_free
+    buttons = @document.css("button[data-assistant-target='providerButton'][data-action='assistant#startConversation']")
+
+    assert_equal %w[codex claude_code], buttons.map { |button| button["data-backend"] }
+    assert_equal [ "Start an OpenAI conversation", "Start an Anthropic conversation" ],
+      buttons.map { |button| button["aria-label"] }
+    assert buttons.all? { |button| !button["title"].to_s.empty? }
+    assert_equal [ "assistant/openai.svg", "assistant/anthropic.svg" ],
+      buttons.map { |button| button.inner_html[/assistant\/(?:openai|anthropic)\.svg/] }
+    refute @document.at_css("[data-assistant-target='providerSelect']")
+    refute @document.at_css("[data-assistant-target='startButton']")
+    refute_match(/provider and model/i, @document.text)
+  end
+
   def test_delete_controls_share_the_explicit_retention_consequence
     disclosure = @document.at_css("#hunter-assistant-delete-consequence")
 

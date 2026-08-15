@@ -90,6 +90,8 @@ export function conversationDeletionText(conversation) {
 
 export function appendMessage(documentRef, container, message, callbacks = {}) {
   const userMessage = message.role === "user"
+  const assistantLabel = callbacks.assistantIdentity?.label || "Archived assistant"
+  const assistantAssetUrl = callbacks.assistantIdentity?.assetUrl || null
   const row = documentRef.createElement("div")
   row.className = userMessage
     ? "assistant-message-row flex items-start justify-end gap-2.5"
@@ -99,9 +101,19 @@ export function appendMessage(documentRef, container, message, callbacks = {}) {
   avatar.dataset.avatarRole = userMessage ? "user" : "assistant"
   avatar.className = userMessage
     ? "grid h-8 w-8 shrink-0 place-items-center rounded-full border border-zinc-400 bg-zinc-200 text-[10px] font-bold text-zinc-700 shadow-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
-    : "grid h-8 w-8 shrink-0 place-items-center rounded-full border border-zinc-700 bg-zinc-950 text-[11px] font-bold text-white shadow-sm dark:border-zinc-500 dark:bg-zinc-100 dark:text-zinc-950"
+    : "grid h-8 w-8 shrink-0 place-items-center rounded-full border border-zinc-700 bg-zinc-950 text-[11px] font-bold text-white shadow-sm dark:border-zinc-500 dark:bg-zinc-950 dark:text-white"
   avatar.setAttribute("aria-hidden", "true")
-  avatar.textContent = userMessage ? "Y" : "H"
+  if (userMessage) {
+    avatar.textContent = "Y"
+  } else if (assistantAssetUrl) {
+    const image = documentRef.createElement("img")
+    image.src = assistantAssetUrl
+    image.alt = ""
+    image.className = "h-5 w-5 object-contain"
+    avatar.appendChild(image)
+  } else {
+    avatar.textContent = "A"
+  }
 
   const article = documentRef.createElement("article")
   article.className = userMessage
@@ -112,11 +124,11 @@ export function appendMessage(documentRef, container, message, callbacks = {}) {
   heading.className = "mb-1.5 flex items-center justify-between gap-3"
   const label = documentRef.createElement("p")
   label.className = "text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400"
-  label.textContent = userMessage ? "You" : "Hunter assistant"
+  label.textContent = userMessage ? "You" : assistantLabel
   const copy = documentRef.createElement("button")
   copy.type = "button"
   copy.className = "shrink-0 rounded-md border border-transparent px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 transition hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-white"
-  copy.setAttribute("aria-label", `Copy ${userMessage ? "your" : "Hunter assistant"} message`)
+  copy.setAttribute("aria-label", `Copy ${userMessage ? "your" : assistantLabel} message`)
   copy.textContent = "Copy"
   copy.addEventListener("click", () => callbacks.onCopy?.(message))
   heading.append(label, copy)

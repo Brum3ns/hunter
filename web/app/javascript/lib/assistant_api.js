@@ -39,10 +39,10 @@ export const assistantApi = Object.freeze({
     return request(`/api/v1/assistant/conversations/${encodeURIComponent(id)}`, { signal })
   },
 
-  createConversation(providerProfileId, { signal } = {}) {
+  createConversation(backend, { signal } = {}) {
     return request("/api/v1/assistant/conversations", {
       method: "POST",
-      body: { provider_profile_id: providerProfileId },
+      body: { backend },
       signal,
     })
   },
