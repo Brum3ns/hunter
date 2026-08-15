@@ -48,15 +48,17 @@ gitleaks dir --redact --no-banner --config "$configuration" "$temporary_dir/work
 
 docker compose config > "$temporary_dir/development-compose.yml"
 docker compose -f docker-compose.prod.yaml config > "$temporary_dir/production-compose.yml"
-docker compose --profile assistant logs --no-color > "$temporary_dir/assistant.log"
+docker compose logs --no-color \
+  web hunter-mcp assistant-codex assistant-claude \
+  > "$temporary_dir/assistant.log"
 chmod 0600 "$temporary_dir"/*
 
 images_file="$temporary_dir/images"
 : > "$images_file"
 for service in \
-  hunter-mcp assistant-validator assistant-gateway
+  web hunter-mcp assistant-codex assistant-claude
 do
-  container_id=$(docker compose --profile assistant ps -q "$service")
+  container_id=$(docker compose ps -q "$service")
   [ -n "$container_id" ] || skip "required running Assistant service is unavailable: $service"
   image=$(docker inspect --format '{{.Image}}' "$container_id")
   grep -Fqx "$image" "$images_file" || printf '%s\n' "$image" >> "$images_file"

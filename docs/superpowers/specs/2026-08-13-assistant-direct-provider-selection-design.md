@@ -2,6 +2,11 @@
 
 **Status:** APPROVED FOR IMPLEMENTATION
 
+**Implementation status (2026-08-15):** Tasks 1–6 are implemented in commits
+`6e29293` through `53b5be8`. The local implementation evidence is recorded
+below; production remains disabled pending the candidate-specific container,
+login, browser, canary, and rollback evidence in the production checklist.
+
 **Date:** 2026-08-13
 
 **Approval record:** The operator requested a logo-only OpenAI/Anthropic chooser,
@@ -351,6 +356,33 @@ resolution for the focus-control modules.
 
 This evidence applies only to the history-focus and compact-code controls. It
 does not mark direct-provider selection complete or change production status.
+
+### Direct-provider implementation evidence (2026-08-15)
+
+The closed backend domain, legacy retirement, direct Rails dispatch, hardened
+Codex wrapper, exact real-binary MCP boundary, Compose isolation contracts,
+one-click chooser, provider identity, and Settings retirement are implemented.
+The final implementation commits are `795ffd1`, `b69b7a7`, `a788ed4`,
+`2fbf725`, `788ed9c`, `e98ea4d`, and `53b5be8`.
+
+Local verification passed 127 JavaScript tests; the Codex, Claude, MCP,
+gateway, and validator Go race suites; both mandatory real Codex 0.144.4
+boundary tests; Zeitwerk; the Tailwind CSS v4.3.1 build; `bundle-audit`; and
+27 direct-provider release/Compose gate runs with 1,056 assertions. The release
+workflow and live security scripts now enumerate both direct runner images.
+The production-confidence Brakeman gate passed with no warnings; its broader
+default scan reports one pre-existing medium `permit!` warning in the
+intentionally schemaless vulnerability document endpoint. A full Rails run
+reached 1,361 runs and 7,166 assertions before one documentation assertion
+failed; that assertion was corrected and its focused suite passed, but
+PostgreSQL then became unavailable before a fresh full run.
+
+This is implementation evidence, not release approval. This host has no Docker
+or compatible container runtime, so image builds, resolved Compose inspection,
+live subscription logins, authenticated browser turns, canary review, and the
+rollback drill remain operator-only evidence pending against a fixed candidate.
+The Assistant must remain disabled until those results and an independent
+enable decision are recorded in the production checklist.
 
 Production remains disabled until the Assistant production checklist records:
 the pinned Codex version and image digest, tool-schema capture, login persistence,

@@ -5,6 +5,7 @@ require "pathname"
 class AssistantReleaseGateTest < Minitest::Test
   ROOT = Pathname.new(__dir__).join("../../..").expand_path.freeze
   SCRIPTS = %w[
+    ops/assistant/verify_compose_security.sh
     ops/assistant/test_network_denials.sh
     ops/assistant/check_secret_leaks.sh
   ].freeze
@@ -25,9 +26,19 @@ class AssistantReleaseGateTest < Minitest::Test
     assert_includes script, "assert_denied_host"
     assert_includes script, "service_addresses"
     assert_includes script, "169.254.169.254"
-    assert_includes script, "assistant-gateway"
     assert_includes script, "hunter-mcp"
-    assert_includes script, "assistant-validator"
+    assert_includes script, "assistant-codex"
+    assert_includes script, "assistant-claude"
+    assert_includes script, "assert_connects assistant-codex hunter-mcp 8080"
+    assert_includes script, "assert_connects assistant-claude hunter-mcp 8080"
+  end
+
+  def test_compose_security_gate_checks_active_direct_seccomp_profiles
+    script = ROOT.join("ops/assistant/verify_compose_security.sh").read
+
+    assert_includes script, '"assistant-codex" => "codex"'
+    assert_includes script, '"assistant-claude" => "claude"'
+    assert_includes script, '"hunter-mcp" => "mcp"'
   end
 
   def test_secret_gate_does_not_print_secret_values
@@ -35,8 +46,10 @@ class AssistantReleaseGateTest < Minitest::Test
 
     assert_includes secret_gate, "gitleaks git --redact"
     assert_includes secret_gate, "git rev-list --all"
-    assert_includes secret_gate, "docker compose --profile assistant logs --no-color"
+    assert_includes secret_gate, "docker compose logs --no-color"
     assert_includes secret_gate, "docker image save"
+    assert_includes secret_gate, "assistant-codex"
+    assert_includes secret_gate, "assistant-claude"
     refute_match(/cat\s+.*secret/i, secret_gate)
   end
 
@@ -48,11 +61,19 @@ class AssistantReleaseGateTest < Minitest::Test
     end
     assert_includes workflow, "check_secret_leaks.sh"
     assert_includes workflow, "test_network_denials.sh"
+    assert_includes workflow, "ASSISTANT_CODEX_IMAGE"
+    assert_includes workflow, "ASSISTANT_CLAUDE_IMAGE"
+    assert_includes workflow, "context: assistant/codex"
+    assert_includes workflow, "context: assistant/claude"
+    assert_includes workflow, "assistant/codex assistant/claude assistant/gateway assistant/mcp assistant/validator"
+    assert_includes workflow, "@openai/codex@0.144.4"
+    assert_includes workflow, "TestRealCodex(EnforcesApprovedHunterMCPBoundary|ApplyPatchCannotMutateReadOnlyWorkspace)"
   end
 
   def test_project_context_and_production_checklist_record_the_enablement_boundary
     agents = ROOT.join("AGENTS.md").read
     checklist = ROOT.join("docs/security/hunter-assistant-production-checklist.md").read
+    direct_runbook = ROOT.join("docs/runbooks/assistant-codex-mcp-smoke-test.md").read
 
     assert_includes agents, "## Assistant capability change rule"
     assert_includes agents, "approved threat-model delta"
@@ -67,8 +88,26 @@ class AssistantReleaseGateTest < Minitest::Test
       rotation
       ASSISTANT_ENABLED=false
       enable decision
+      assistant-codex
+      assistant-claude
+      immutable-workspace
+      legacy_provider_retired
+      metadata-only
     ].each do |term|
       assert_includes checklist, term
     end
+
+    %w[
+      codex-cli\ 0.144.4
+      codex\ login\ --device-auth
+      claude\ login
+      tool_search
+      forbidden.txt
+      legacy-gateway
+      ASSISTANT_ENABLED=false
+    ].each do |term|
+      assert_includes direct_runbook, term.tr("\\", "")
+    end
+    assert_includes direct_runbook, "Never run `docker compose down -v`"
   end
 end

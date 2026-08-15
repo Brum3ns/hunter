@@ -25,7 +25,7 @@ chmod 0600 "$temporary_dir/development.yml" "$temporary_dir/production.yml"
 cd "$repository_root/web"
 bundle exec ruby test/config/assistant_compose_test.rb
 
-# The three assistant services no longer reference a custom AppArmor profile
+# The Assistant services no longer reference a custom AppArmor profile
 # (Docker's built-in docker-default profile applies instead; see
 # docs/superpowers/specs/2026-07-26-hunter-assistant-zero-step-activation-delta.md).
 # What remains a real, host-independent guarantee is each service's seccomp
@@ -37,9 +37,9 @@ for resolved in "$temporary_dir/development.yml" "$temporary_dir/production.yml"
     resolved_path, repository_root = ARGV
     services = YAML.safe_load(File.read(resolved_path)).fetch("services")
     seccomp_profiles = {
-      "assistant-gateway" => "gateway",
       "hunter-mcp" => "mcp",
-      "assistant-validator" => "validator"
+      "assistant-claude" => "claude",
+      "assistant-codex" => "codex"
     }
 
     seccomp_profiles.each do |service_name, profile_name|
@@ -48,6 +48,8 @@ for resolved in "$temporary_dir/development.yml" "$temporary_dir/production.yml"
       abort "#{resolved_path}: #{service_name} has no seccomp profile in security_opt" unless option
 
       path = option.split("=", 2).last
+      expected = "./ops/assistant/seccomp/#{profile_name}.json"
+      abort "#{resolved_path}: #{service_name} uses unexpected seccomp profile #{path}" unless path == expected
       resolved_json = File.expand_path(path, repository_root)
       abort "#{resolved_path}: #{service_name} seccomp profile #{path} does not exist" unless File.exist?(resolved_json)
     end
