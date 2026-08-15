@@ -14,6 +14,12 @@ were unavailable. This approves specification, planning, implementation,
 testing, and commits. It does not by itself complete the independent Assistant
 production checklist.
 
+**2026-08-15 amendment:** The exact Codex/Hunter tool boundary in this document
+is superseded by the separately approved
+[`2026-08-15-assistant-codex-mcp-boundary-design.md`](2026-08-15-assistant-codex-mcp-boundary-design.md).
+Codex-owned internal tools may remain only under that delta's exact pin and
+isolation; every Hunter capability remains MCP-only.
+
 ## Goal
 
 Make provider choice direct and understandable: an OpenAI logo starts a Codex
@@ -195,27 +201,25 @@ is the required approved delta under `AGENTS.md`.
 - The Assistant kill switch and existing independent
   `control_center_write_enabled` revocation continue to apply immediately.
 
-### Generic Codex tools are prohibited
+### Codex-owned tools and the Hunter MCP boundary
 
-The Codex process is configured to remove shell/unified execution, patch/file
-changes, web search, browser/computer use, apps/connectors, plugins, skills,
-image generation, multi-agent, and permission-request tooling. User/project
-config and execpolicy rules are ignored. The working directory is an empty,
-immutable directory with no Hunter checkout, host bind, Docker socket, datastore
-credential, or unrelated secret.
+The Codex process continues to disable shell/unified execution, web search,
+browser/computer use, apps/connectors, plugins, skills, image generation,
+multi-agent, and permission-request tooling. User/project config and execpolicy
+rules are ignored. The working directory is empty and immutable, with no Hunter
+checkout, host bind, Docker socket, datastore credential, or unrelated secret.
 
-Only the reviewed Hunter MCP catalog may remain model-visible. MCP configuration
-uses an exact `enabled_tools` allowlist; the service bearer and per-turn grant
-are injected through narrowly named environment-backed headers and never argv.
-Because generic execution tools are absent, the model cannot read those
-environment values or bypass the MCP schema.
+The approved 2026-08-15 delta permits only the exact Codex-owned built-ins
+captured for the pinned CLI. Those built-ins receive no direct Hunter or host
+capability. Every Hunter read or effect, including a future API-backed feature,
+must pass through the single authenticated `hunter` MCP server, exact reviewed
+catalog, per-turn grant, dedicated non-wildcard scopes, and existing policies.
 
-The Codex version is pinned. CI runs the real pinned binary against a local fake
-OpenAI-compatible endpoint, captures its outbound tool definitions, and fails
-unless the set is exactly the expected Hunter MCP catalog. Any generic tool,
-new built-in, wildcard, missing required tool, duplicate, or schema drift is a
-stable test failure and blocks a version bump. The wrapper also refuses to start
-when its hardened configuration is missing or invalid.
+CI runs the real pinned binary against local fake provider and MCP endpoints. It
+fails on any Codex-owned tool drift, another MCP source, missing or extra Hunter
+tool, Hunter schema drift, or a successful write to the immutable workspace.
+The wrapper also refuses to start when its hardened configuration is missing or
+invalid.
 
 ### Human approval and effects
 
@@ -270,8 +274,8 @@ are visibly marked and non-runnable.
   prevent accidental duplicate creation.
 - Cross-backend session identifier: ignored by routing and never sent to the
   other service; model validation rejects an impossible persisted combination.
-- Codex requests any generic/broadened tool: the tool is absent. Tool-schema
-  contract drift fails CI and production checklist review.
+- Codex exposes any built-in outside the exact pinned set or gains a direct
+  Hunter/host path: contract or isolation checks fail CI and production review.
 - Codex invokes an ungranted Hunter tool or scope: MCP returns the existing
   stable authorization failure; no effect occurs.
 - MCP/runner/login/provider timeout or malformed response: stable namespaced
@@ -317,8 +321,9 @@ Implementation is test-driven. Required coverage includes:
   byte/time bounds, and no sensitive error propagation;
 - Go wrapper argv/env construction, ChatGPT-only authentication, JSONL parsing,
   cancellation, malformed/oversized output, and secret redaction;
-- captured real-Codex outbound tool definitions exactly equal the approved MCP
-  catalog with every generic tool absent;
+- captured real-Codex outbound definitions exactly equal the approved pinned
+  built-ins, while the sole deferred `hunter` source exactly equals the reviewed
+  MCP catalog and a real patch attempt cannot mutate the workspace;
 - compose isolation, hardening, exact mounts/networks, no API-key variables,
   and persistent login behavior;
 - one-click mouse/keyboard creation, in-flight deduplication, provider avatar,
