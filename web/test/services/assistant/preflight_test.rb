@@ -36,24 +36,30 @@ class Assistant::PreflightTest < Minitest::Test
 
     assert_equal 2, urls.length
     assert urls.all? { |url| url.end_with?("/healthz") }, "probed #{urls.inspect}"
-    assert(urls.any? { |url| url.include?("assistant-gateway") })
-    assert(urls.any? { |url| url.include?("assistant-validator") })
+    assert(urls.any? { |url| url.include?("assistant-codex") })
+    assert(urls.any? { |url| url.include?("assistant-claude") })
+    refute(urls.any? { |url| url.include?("assistant-gateway") })
+    refute(urls.any? { |url| url.include?("assistant-validator") })
   end
 
   # /healthz needs no bearer token, so reachability is reported independently of
   # whether the ingress secret is correct.
   def test_the_probe_url_carries_no_token
     urls = []
-    with_env("ASSISTANT_GATEWAY_INGRESS_TOKEN" => "super-secret-token") do
+    with_env(
+      "ASSISTANT_CODEX_INGRESS_TOKEN" => "codex-super-secret-token",
+      "ASSISTANT_CLAUDE_INGRESS_TOKEN" => "claude-super-secret-token"
+    ) do
       Assistant::Preflight.call(prober: ->(url) { urls << url; [ true, "healthy" ] }, sleeper: ->(_s) {})
     end
-    refute(urls.any? { |url| url.include?("super-secret-token") })
+    refute(urls.any? { |url| url.include?("codex-super-secret-token") })
+    refute(urls.any? { |url| url.include?("claude-super-secret-token") })
   end
 
   def test_a_healthy_service_is_reported_ok
     checks = Assistant::Preflight.call(prober: ->(_url) { [ true, "healthy" ] }, sleeper: ->(_s) {})
     assert checks.all?(&:ok)
-    assert_equal [ "assistant-gateway", "assistant-validator" ], checks.map(&:service).sort
+    assert_equal [ "assistant-claude", "assistant-codex" ], checks.map(&:service).sort
   end
 
   def test_a_failing_service_is_reported_with_its_detail

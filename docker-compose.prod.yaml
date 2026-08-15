@@ -124,6 +124,9 @@ services:
       # Where Rails reaches the Claude Code wrapper, and the bearer it uses.
       ASSISTANT_CLAUDE_URL: ${ASSISTANT_CLAUDE_URL:-http://assistant-claude:8083}
       ASSISTANT_CLAUDE_INGRESS_TOKEN: ${ASSISTANT_CLAUDE_INGRESS_TOKEN:-}
+      # Where Rails reaches the Codex wrapper, and its distinct ingress bearer.
+      ASSISTANT_CODEX_URL: ${ASSISTANT_CODEX_URL:-http://assistant-codex:8084}
+      ASSISTANT_CODEX_INGRESS_TOKEN: ${ASSISTANT_CODEX_INGRESS_TOKEN:-}
       ASSISTANT_TRANSCRIPT_DAYS: "7"
       ASSISTANT_AUDIT_DAYS: "90"
       ASSISTANT_GRANT_TTL_SECONDS: "300"
@@ -141,6 +144,7 @@ services:
       - assistant-rails-validator
       - assistant-mcp-rails
       - assistant-rails-claude
+      - assistant-rails-codex
     ports:
       - "5000:5000"
     depends_on:
@@ -248,6 +252,7 @@ services:
       - assistant-gateway-mcp
       - assistant-mcp-rails
       - assistant-claude-mcp
+      - assistant-codex-mcp
     depends_on:
       web:
         condition: service_started
@@ -387,11 +392,49 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # Runs the pinned official Codex CLI on the operator's ChatGPT subscription.
+  # Its ingress, MCP route, provider egress and login home are all distinct from
+  # assistant-claude; no host port, source bind or provider API key is present.
+  assistant-codex:
+    image: ${REGISTRY_HOST:-10.0.1.2:3002}/${REGISTRY_OWNER:-gadmin}/${REGISTRY_REPO:-hunter}-assistant-codex:${ASSISTANT_IMAGE_TAG:-latest}
+    pull_policy: always
+    environment:
+      ASSISTANT_CODEX_INGRESS_TOKEN: ${ASSISTANT_CODEX_INGRESS_TOKEN:-}
+      ASSISTANT_CODEX_ALLOWED_HOSTS: assistant-codex:8084
+      ASSISTANT_CODEX_MCP_URL: http://hunter-mcp:8080/mcp
+      ASSISTANT_CODEX_MCP_TOKEN: ${ASSISTANT_GATEWAY_MCP_TOKEN}
+    networks:
+      - assistant-rails-codex
+      - assistant-codex-egress
+      - assistant-codex-mcp
+    volumes:
+      - assistant_codex_home:/home/codex/.codex
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=1000,gid=1000
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./ops/assistant/seccomp/codex.json
+    init: true
+    mem_limit: 512m
+    cpus: "1.00"
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "/hunter-assistant-codex", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
 volumes:
   rabbitmq_data: {}
   hunter_db:
   mongodb_data:
   assistant_claude_home: {}
+  assistant_codex_home: {}
 
 networks:
   assistant-rails-gateway:
@@ -407,9 +450,16 @@ networks:
   # assistant-claude's route to hunter-mcp (reviewed reads + validated authoring).
   assistant-claude-mcp:
     internal: true
+  # assistant-codex's isolated Rails ingress and Hunter MCP route.
+  assistant-rails-codex:
+    internal: true
+  assistant-codex-mcp:
+    internal: true
   # The gateway's one non-internal network — outbound only, for
   # api.anthropic.com / api.openai.com. No other service joins it.
   assistant-gateway-egress: {}
   # assistant-claude's one non-internal network — outbound only, for
   # api.anthropic.com. No other service joins it.
   assistant-claude-egress: {}
+  # assistant-codex's one non-internal network — outbound provider traffic only.
+  assistant-codex-egress: {}

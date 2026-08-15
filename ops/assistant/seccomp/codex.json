@@ -1,0 +1,111 @@
+{
+  "comment": "Seccomp profile for the assistant-codex service. This container runs the official Codex CLI, whose Node launcher and native runtime need a large, moving syscall set (TTY ioctls, clone3, io_uring probes, memfd, epoll/eventfd variants). A hand-maintained ERRNO allowlist would crash-loop when the runtime reached for an omitted syscall, so this profile is allow-by-default with a denylist of escape-relevant syscalls. It is defense-in-depth on top of cap_drop ALL, no-new-privileges, a read-only root, non-root uid 1000, bounded processes/resources, and isolated networks. Denied syscalls return ENOSYS (38) so runtime fallback paths engage cleanly.",
+  "defaultAction": "SCMP_ACT_ALLOW",
+  "archMap": [
+    {
+      "architecture": "SCMP_ARCH_X86_64",
+      "subArchitectures": [
+        "SCMP_ARCH_X86",
+        "SCMP_ARCH_X32"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_AARCH64",
+      "subArchitectures": [
+        "SCMP_ARCH_ARM"
+      ]
+    }
+  ],
+  "syscalls": [
+    {
+      "comment": "Mounting, namespace pivoting and the new fs* mount API are refused by name so nothing can re-enable them by accident.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "mount",
+        "mount_setattr",
+        "umount",
+        "umount2",
+        "pivot_root",
+        "chroot",
+        "unshare",
+        "setns",
+        "fsopen",
+        "fsconfig",
+        "fsmount",
+        "fspick",
+        "move_mount",
+        "open_tree",
+        "open_by_handle_at",
+        "name_to_handle_at"
+      ]
+    },
+    {
+      "comment": "Kernel module and kexec surface is never needed by the CLI and would provide a direct escape path.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "init_module",
+        "finit_module",
+        "delete_module",
+        "create_module",
+        "query_module",
+        "get_kernel_syms",
+        "kexec_load",
+        "kexec_file_load",
+        "reboot"
+      ]
+    },
+    {
+      "comment": "Process tracing and cross-process memory access are unrelated to a chat CLI and could expose neighbouring processes.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "ptrace",
+        "process_vm_readv",
+        "process_vm_writev"
+      ]
+    },
+    {
+      "comment": "eBPF, perf and kernel keyring operations expose broad kernel attack surface unrelated to chat.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "bpf",
+        "perf_event_open",
+        "add_key",
+        "request_key",
+        "keyctl"
+      ]
+    },
+    {
+      "comment": "Host-wide time, accounting, swap and legacy privileged syscalls are not needed by an unprivileged application container.",
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "names": [
+        "settimeofday",
+        "stime",
+        "clock_settime",
+        "clock_adjtime",
+        "adjtimex",
+        "acct",
+        "swapon",
+        "swapoff",
+        "quotactl",
+        "nfsservctl",
+        "_sysctl",
+        "uselib",
+        "personality",
+        "ustat",
+        "sysfs",
+        "ioperm",
+        "iopl",
+        "modify_ldt",
+        "vm86",
+        "vm86old",
+        "lookup_dcookie",
+        "userfaultfd"
+      ]
+    }
+  ]
+}

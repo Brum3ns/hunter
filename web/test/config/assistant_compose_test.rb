@@ -9,12 +9,14 @@ class AssistantComposeTest < Minitest::Test
   # The RabbitMQ broker, the squid egress proxy, the Rails event consumer and
   # the three bootstrap one-shots are gone: every secret is now a plain
   # environment variable and `web` talks to the gateway/validator over direct
-  # HTTP. Three Go services remain in the Assistant's own trust boundary.
+  # HTTP. The direct Claude and Codex runners remain in the Assistant's own
+  # trust boundary alongside the legacy services.
   ASSISTANT_SERVICES = %w[
     assistant-gateway
     hunter-mcp
     assistant-validator
     assistant-claude
+    assistant-codex
   ].freeze
   UNTRUSTED_SERVICES = ASSISTANT_SERVICES
   # The legacy provider-gateway path is retired from the default stack: these two
@@ -25,15 +27,19 @@ class AssistantComposeTest < Minitest::Test
   # No Assistant service bind-mounts anything from the host any more: the two
   # provider keys and all four machine tokens arrive as environment variables,
   # so `volumes:` is empty for every one of them — except assistant-claude,
-  # whose Claude Code subscription login/session must survive a restart and so
-  # lives on the assistant_claude_home *named volume* (not a host bind mount).
-  ALLOWED_HOST_MOUNTS = { "assistant-claude" => [ "assistant_claude_home:/home/claude" ] }.freeze
+  # whose subscription login/session must survive a restart and so lives on a
+  # dedicated *named volume* (not a host bind mount).
+  ALLOWED_HOST_MOUNTS = {
+    "assistant-claude" => [ "assistant_claude_home:/home/claude" ],
+    "assistant-codex" => [ "assistant_codex_home:/home/codex/.codex" ]
+  }.freeze
   NETWORKS = {
-    "web" => %w[default assistant-rails-gateway assistant-rails-validator assistant-mcp-rails assistant-rails-claude],
+    "web" => %w[default assistant-rails-gateway assistant-rails-validator assistant-mcp-rails assistant-rails-claude assistant-rails-codex],
     "assistant-gateway" => %w[assistant-rails-gateway assistant-gateway-mcp assistant-gateway-egress],
-    "hunter-mcp" => %w[assistant-gateway-mcp assistant-mcp-rails assistant-claude-mcp],
+    "hunter-mcp" => %w[assistant-gateway-mcp assistant-mcp-rails assistant-claude-mcp assistant-codex-mcp],
     "assistant-validator" => %w[assistant-rails-validator],
-    "assistant-claude" => %w[assistant-rails-claude assistant-claude-egress assistant-claude-mcp]
+    "assistant-claude" => %w[assistant-rails-claude assistant-claude-egress assistant-claude-mcp],
+    "assistant-codex" => %w[assistant-rails-codex assistant-codex-egress assistant-codex-mcp]
   }.freeze
   # Per-service runtime hardening, compared key-by-key between the two files.
   HARDENING_KEYS = %w[
@@ -87,11 +93,15 @@ class AssistantComposeTest < Minitest::Test
         assistant-mcp-rails
         assistant-rails-claude
         assistant-claude-mcp
+        assistant-rails-codex
+        assistant-codex-mcp
       ].each do |network|
         assert_equal true, networks.fetch(network)["internal"], "#{filename}: #{network} is externally routed"
       end
       refute networks.fetch("assistant-gateway-egress").fetch("internal", false),
         "#{filename}: the gateway's egress network has no route to the provider APIs"
+      refute networks.fetch("assistant-codex-egress").fetch("internal", false),
+        "#{filename}: Codex's egress network has no route to the provider API"
 
       # None of the three Go services may share a network with a datastore or
       # an execution surface — the gateway/validator/hunter-mcp are reachable
@@ -122,6 +132,63 @@ class AssistantComposeTest < Minitest::Test
       mounts = svc.fetch("volumes", []).map { |v| v.is_a?(String) ? v : v.to_a.join(":") }
       assert(mounts.any? { |m| m.include?("assistant_claude_home") && m.include?("/home/claude") },
         "#{filename}: assistant-claude must mount the assistant_claude_home volume at /home/claude")
+    end
+  end
+
+  def test_assistant_codex_has_only_its_dedicated_persistent_home_volume
+    each_compose do |filename, config|
+      services = config.fetch("services")
+      codex_mount = "assistant_codex_home:/home/codex/.codex"
+
+      assert_equal [ codex_mount ], services.fetch("assistant-codex").fetch("volumes", []),
+        "#{filename}: assistant-codex must persist only CODEX_HOME"
+      assert config.fetch("volumes").key?("assistant_codex_home"),
+        "#{filename}: assistant_codex_home is not declared"
+      services.except("assistant-codex").each do |name, service|
+        refute_includes service.fetch("volumes", []), codex_mount,
+          "#{filename}: #{name} shares the Codex credential volume"
+      end
+    end
+  end
+
+  def test_assistant_codex_environment_is_chatgpt_only_and_exactly_bounded
+    expected = {
+      "ASSISTANT_CODEX_INGRESS_TOKEN" => "${ASSISTANT_CODEX_INGRESS_TOKEN:-}",
+      "ASSISTANT_CODEX_ALLOWED_HOSTS" => "assistant-codex:8084",
+      "ASSISTANT_CODEX_MCP_URL" => "http://hunter-mcp:8080/mcp",
+      "ASSISTANT_CODEX_MCP_TOKEN" => "${ASSISTANT_GATEWAY_MCP_TOKEN}"
+    }
+
+    each_compose do |filename, config|
+      services = config.fetch("services")
+      service = services.fetch("assistant-codex")
+
+      assert_equal expected, service.fetch("environment"),
+        "#{filename}: assistant-codex environment widened beyond its ingress and MCP boundary"
+      %w[OPENAI_API_KEY CODEX_API_KEY ASSISTANT_OPENAI_API_KEY].each do |name|
+        refute service.fetch("environment").key?(name),
+          "#{filename}: assistant-codex exposes provider API-key variable #{name}"
+      end
+      assert_equal "${ASSISTANT_CODEX_URL:-http://assistant-codex:8084}",
+        services.fetch("web").fetch("environment").fetch("ASSISTANT_CODEX_URL")
+      assert_equal "${ASSISTANT_CODEX_INGRESS_TOKEN:-}",
+        services.fetch("web").fetch("environment").fetch("ASSISTANT_CODEX_INGRESS_TOKEN")
+    end
+  end
+
+  def test_assistant_codex_hardening_and_resources_match_claude
+    each_compose do |filename, config|
+      services = config.fetch("services")
+      claude = services.fetch("assistant-claude")
+      codex = services.fetch("assistant-codex")
+      comparable_keys = HARDENING_KEYS - [ "security_opt" ]
+
+      assert_equal claude.slice(*comparable_keys), codex.slice(*comparable_keys),
+        "#{filename}: assistant-codex hardening/resources differ from assistant-claude"
+      assert_equal [ "no-new-privileges:true", "seccomp=./ops/assistant/seccomp/codex.json" ],
+        codex.fetch("security_opt"), "#{filename}: assistant-codex seccomp boundary"
+      assert_equal [ "CMD", "/hunter-assistant-codex", "-healthcheck" ],
+        codex.fetch("healthcheck").fetch("test"), "#{filename}: assistant-codex healthcheck"
     end
   end
 

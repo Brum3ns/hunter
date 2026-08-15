@@ -1,7 +1,7 @@
 require "net/http"
 
 module Assistant
-  # Boot-time reachability check for the two services Rails calls over HTTP.
+  # Boot-time reachability check for the two direct chat services Rails calls.
   #
   # It exists because every failure in this path used to surface only in the chat
   # UI, as one opaque code, after a user had already sent a message. Running it
@@ -14,8 +14,8 @@ module Assistant
   module Preflight
     Check = Data.define(:service, :url, :ok, :detail)
 
-    # The gateway and validator have no `depends_on`, so they boot in parallel with
-    # web. A single probe would race them; this retries briefly before reporting.
+    # The CLI services have no `depends_on`, so they boot in parallel with web. A
+    # single probe would race them; this retries briefly before reporting.
     ATTEMPTS = 10
     SLEEP_SECONDS = 2
     TIMEOUT_SECONDS = 2
@@ -24,8 +24,8 @@ module Assistant
 
     def call(prober: method(:probe), sleeper: method(:sleep))
       [
-        { service: "assistant-gateway", url: healthz(GatewayClient.endpoint) },
-        { service: "assistant-validator", url: healthz(ValidatorClient.endpoint) }
+        { service: "assistant-codex", url: healthz(CodexClient.endpoint) },
+        { service: "assistant-claude", url: healthz(ClaudeCodeClient.endpoint) }
       ].map { |target| await(target, prober: prober, sleeper: sleeper) }
     end
 
@@ -63,19 +63,19 @@ module Assistant
     private_class_method :await
 
     # Returns [ok, detail]. `detail` names the fault in the same vocabulary
-    # GatewayClient uses, so a preflight line and a failed turn read alike.
+    # the direct clients use, so a preflight line and a failed turn read alike.
     def probe(url)
       uri = URI(url)
       response = Net::HTTP.start(uri.host, uri.port, open_timeout: TIMEOUT_SECONDS,
         read_timeout: TIMEOUT_SECONDS) { |http| http.request(Net::HTTP::Get.new(uri)) }
       code = response.code.to_i
-      # The gateway and validator /healthz handlers answer a ready service with
+      # The direct CLI /healthz handlers answer a ready service with
       # 204 No Content, never 200 — their own Docker healthchecks assert exactly
       # StatusNoContent. Matching that here is load-bearing: treating only 200 as
       # healthy reported both services "unexpected HTTP 204" — i.e. UNREACHABLE —
       # on every `docker compose up`, even when they were fully healthy.
       return [ true, "healthy" ] if code == 204
-      return [ false, "not ready (503) — no usable provider credential in that container" ] if code == 503
+      return [ false, "not ready (503) — direct CLI service is not ready" ] if code == 503
 
       [ false, "unexpected HTTP #{code}" ]
     rescue SocketError
