@@ -29,6 +29,7 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
       build-essential \
       libpq-dev \
+      libvips \
       libyaml-dev \
       postgresql-client \
       git \
@@ -39,7 +40,9 @@ RUN apt-get update -qq && \
 WORKDIR /app
 
 COPY web/Gemfile web/Gemfile.lock ./
-RUN bundle install && gem install foreman
+RUN bundle install && \
+    ruby -rvips -e 'abort "libvips 8.13 or newer is required" unless Vips.at_least_libvips?(8, 13)' && \
+    gem install foreman
 
 COPY web/ ./
 
