@@ -37,6 +37,23 @@ class Cves::DetailsTest < ActionDispatch::IntegrationTest
       assert_select "a[href=?]", "https://github.com/org/foo/issues/12"
       assert_select "body", text: /CVE-2024-1234/
       assert_select "body", text: /pkg:npm\/foo/
+      assert_select "div.cve-markdown[data-controller='cve-markdown']", text: /long \*\*markdown\*\* body/ do
+        assert_select "strong", count: 0
+      end
+    end
+  end
+
+  test "keeps untrusted detail HTML escaped before JavaScript connects" do
+    sign_in_as(@user)
+    details = 'long **markdown** body <img src=x onerror="alert(1)">'
+
+    stub_methods(Source, find: DOC.merge("details" => details)) do
+      get cves_detail_path("CVE-2024-1234")
+      assert_response :success
+      assert_select "div.cve-markdown[data-controller='cve-markdown']" do |elements|
+        assert_equal details, elements.fetch(0).text
+        assert_select "img", count: 0
+      end
     end
   end
 

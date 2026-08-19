@@ -1,7 +1,8 @@
 <%# web/app/views/cves/details/_panel.html.erb — local: cve
     The chain (fix commits / issues / advisories / fixed versions / git ranges)
     is the module's core value-add, so it renders first. All external links open
-    in a new tab. `details` is plain text (no markdown gem). %>
+    in a new tab. `details` stays escaped text until the CVE-specific Marked +
+    DOMPurify controller replaces it with a sanitized fragment. %>
 <%
   chain = cve.chain
   link  = "inline-flex items-center gap-1.5 break-all text-sm text-blue-600 hover:underline dark:text-blue-400"
@@ -104,7 +105,8 @@
         <p class="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"><%= cve.summary %></p>
       <% end %>
       <% if cve.details.present? %>
-        <div class="whitespace-pre-wrap rounded bg-zinc-50 px-3 py-2 text-sm leading-relaxed text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400"><%= cve.details %></div>
+        <div data-controller="cve-markdown"
+             class="cve-markdown whitespace-pre-wrap rounded bg-zinc-50 px-3 py-2 text-sm leading-relaxed text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400"><%= cve.details %></div>
       <% end %>
     </section>
   <% end %>

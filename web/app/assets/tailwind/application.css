@@ -473,6 +473,109 @@ dialog.program-modal::backdrop {
 .program-prose th, .program-prose td { border: 1px solid rgb(228 228 231); padding: 0.375rem 0.5rem; text-align: left; }
 .dark .program-prose th, .dark .program-prose td { border-color: rgb(39 39 42); }
 
+/* Sanitized CVE details Markdown. Every descendant rule stays inside the
+   controller's rendering boundary so advisory content cannot restyle Hunter. */
+.cve-markdown { overflow-wrap: anywhere; }
+.cve-markdown > :first-child { margin-top: 0; }
+.cve-markdown > :last-child { margin-bottom: 0; }
+.cve-markdown p,
+.cve-markdown ul,
+.cve-markdown ol,
+.cve-markdown blockquote,
+.cve-markdown pre,
+.cve-markdown table,
+.cve-markdown hr { margin: 0.7em 0; }
+.cve-markdown ul,
+.cve-markdown ol { padding-left: 1.4em; }
+.cve-markdown ul { list-style: disc; }
+.cve-markdown ol { list-style: decimal; }
+.cve-markdown li + li { margin-top: 0.2em; }
+.cve-markdown h1,
+.cve-markdown h2,
+.cve-markdown h3,
+.cve-markdown h4,
+.cve-markdown h5,
+.cve-markdown h6 {
+  margin: 1em 0 0.45em;
+  color: rgb(39 39 42);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.dark .cve-markdown h1,
+.dark .cve-markdown h2,
+.dark .cve-markdown h3,
+.dark .cve-markdown h4,
+.dark .cve-markdown h5,
+.dark .cve-markdown h6 { color: rgb(228 228 231); }
+.cve-markdown h1 { font-size: 1.4em; }
+.cve-markdown h2 { font-size: 1.25em; }
+.cve-markdown h3 { font-size: 1.125em; }
+.cve-markdown h4,
+.cve-markdown h5,
+.cve-markdown h6 { font-size: 1em; }
+.cve-markdown blockquote {
+  border-left: 3px solid rgb(161 161 170);
+  padding-left: 0.85em;
+  color: rgb(82 82 91);
+}
+.dark .cve-markdown blockquote {
+  border-left-color: rgb(82 82 91);
+  color: rgb(212 212 216);
+}
+.cve-markdown a {
+  color: rgb(37 99 235);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+.dark .cve-markdown a { color: rgb(96 165 250); }
+.cve-markdown code {
+  border: 1px solid rgb(212 212 216);
+  border-radius: 0.3rem;
+  background: rgb(244 244 245);
+  padding: 0.08em 0.32em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+.dark .cve-markdown code {
+  border-color: rgb(82 82 91);
+  background: rgb(39 39 42);
+}
+.cve-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgb(63 63 70);
+  border-radius: 0.55rem;
+  background: rgb(9 9 11);
+  padding: 0.75em 0.9em;
+  color: rgb(244 244 245);
+}
+.cve-markdown pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  white-space: pre;
+}
+.cve-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.cve-markdown th,
+.cve-markdown td {
+  border: 1px solid rgb(212 212 216);
+  padding: 0.35em 0.55em;
+  text-align: left;
+}
+.dark .cve-markdown th,
+.dark .cve-markdown td { border-color: rgb(63 63 70); }
+.cve-markdown hr { border-color: rgb(212 212 216); }
+.dark .cve-markdown hr { border-color: rgb(63 63 70); }
+
 /* highlight.js theme, tuned for the zinc-950 code surface used in the drawer. */
 .hljs {
   color: #e4e4e7;
