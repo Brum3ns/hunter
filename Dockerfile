@@ -25,6 +25,8 @@ ENV BUNDLE_APP_CONFIG=/usr/local/bundle \
     RAILS_ENV=${RAILS_ENV} \
     LANG=C.UTF-8
 
+# image_processing -> ruby-vips -> libvips; install the native library before
+# Bundler resolves and the build verifies the Ruby binding.
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
       build-essential \
@@ -40,6 +42,7 @@ RUN apt-get update -qq && \
 WORKDIR /app
 
 COPY web/Gemfile web/Gemfile.lock ./
+# Fail the image build if the Ruby binding cannot load the required native API.
 RUN bundle install && \
     ruby -rvips -e 'abort "libvips 8.13 or newer is required" unless Vips.at_least_libvips?(8, 13)' && \
     gem install foreman
