@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"hunter.local/assistant/mcp/internal/analysismodule"
 	"hunter.local/assistant/mcp/internal/readmodule"
 	"hunter.local/assistant/mcp/internal/tool"
 )
@@ -12,7 +13,12 @@ import (
 type Module struct{}
 
 func (Module) Tools() []tool.Tool {
-	return readmodule.Build(readmodule.Spec{
+	fields := []readmodule.ListField{
+		{Name: "q", Kind: "string", MaxLen: 200, Description: "Dork/free-text target search."},
+		{Name: "program", Kind: "string", MaxLen: 200, Description: "Program name."},
+		{Name: "status", Kind: "string", MaxLen: 40, Description: "HTTP status."},
+	}
+	tools := readmodule.Build(readmodule.Spec{
 		ListTool: "list_targets", GetTool: "get_target", Scope: "targets",
 		BasePath: "/api/v1/assistant/machine/targets", DetailKey: "target",
 		ListDesc: "List and count alive targets, optionally filtered by query, program, or status. Use q for dork search (see the q field for keys).",
@@ -33,6 +39,12 @@ func (Module) Tools() []tool.Tool {
 		},
 		ValidateDetail: validateDetail,
 	})
+	return append(tools, analysismodule.Build(analysismodule.Spec{
+		Name: "analyze_targets", Scope: "targets_read", Path: "/api/v1/assistant/machine/targets/analyze",
+		Description: "Aggregate all matching targets server-side by technology, status, program, and webserver.",
+		Fields:      fields,
+		GroupKeys:   []string{"technology_counts", "status_counts", "program_counts", "webserver_counts"},
+	}))
 }
 
 func validateDetail(detail map[string]json.RawMessage) error {

@@ -38,10 +38,10 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
     }, headers: headers(edit_grant), as: :json
 
     assert_response :success
-    assert_equal 1, response.parsed_body.dig("playbook", "lock_version")
+    assert_equal "updated", response.parsed_body.dig("receipt", "status")
     assert_equal "renamed-playbook", @playbook.reload.name
     assert_equal machine_user, @playbook.created_by
-    event = Assistant::AuditEvent.order(:id).last
+    event = Assistant::AuditEvent.where(event: "machine.edit").order(:id).last
     assert_equal "machine.edit", event.event
     assert_equal "edit_ansible_playbook", event.metadata.fetch("operation")
   end
@@ -63,7 +63,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
     patch endpoint, params: { expected_lock_version: 50, changes: { description: "Lost" } },
       headers: headers(edit_grant), as: :json
     assert_response :conflict
-    assert_equal "destination_stale", response.parsed_body["error"]
+    assert_equal "version_conflict", response.parsed_body["error"]
     assert_equal original, @playbook.reload.attributes
 
     unsafe = "---\n- hosts: all\n  tasks:\n    - ansible.builtin.shell: whoami\n"

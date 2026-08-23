@@ -10,57 +10,35 @@ module Assistant
         get_validation_result
       ].freeze
 
-      CHAT_READ_TOOLS = %w[
-        list_targets
-        get_target
-        list_cves
-        get_cve
-        list_vulnerabilities
-        get_vulnerability
-        list_endpoints
-        get_endpoint
-        list_programs
-        get_program
-        list_templates
-        get_template
-        list_jobs
-        get_job
-        list_playbooks
-        get_playbook
-        list_run_groups
-        get_run_group
-        get_run
-        list_run_events
-      ].freeze
-
-      CHAT_CREATE_TOOLS = %w[
-        create_whiterabbit_template
-        create_ansible_playbook
-      ].freeze
-
-      CHAT_EDIT_TOOLS = %w[
-        edit_whiterabbit_template
-        edit_ansible_playbook
-      ].freeze
-
-      CHAT_TOOLS = (CHAT_READ_TOOLS + CHAT_CREATE_TOOLS + CHAT_EDIT_TOOLS).freeze
-      AUTHORING_TOOLS = (CHAT_CREATE_TOOLS + CHAT_EDIT_TOOLS).freeze
+      CATALOG = Assistant::CapabilityCatalog.load
+      CATALOG_TOOLS = CATALOG.tools.index_by { |tool| tool.fetch("name") }.freeze
+      CHAT_TOOLS = CATALOG.tools.map { |tool| tool.fetch("name") }.freeze
+      CHAT_READ_TOOLS = CATALOG.tools.filter_map do |tool|
+        tool.fetch("name") if Assistant::TurnGrant::READ_EFFECTS.include?(tool.fetch("effect"))
+      end.freeze
+      CHAT_CREATE_TOOLS = CATALOG.tools.filter_map do |tool|
+        tool.fetch("name") if tool.fetch("effect") == "create"
+      end.freeze
+      CHAT_EDIT_TOOLS = CATALOG.tools.filter_map do |tool|
+        tool.fetch("name") if tool.fetch("effect") == "update"
+      end.freeze
+      AUTHORING_TOOLS = CATALOG.tools.filter_map do |tool|
+        tool.fetch("name") unless Assistant::TurnGrant::READ_EFFECTS.include?(tool.fetch("effect"))
+      end.freeze
       TOOLS = (LEGACY_TOOLS + CHAT_TOOLS).freeze
-      WRITE_SCOPE_BY_TOOL = {
-        "create_whiterabbit_template" => "control_center_templates_write",
-        "edit_whiterabbit_template" => "control_center_templates_edit",
-        "create_ansible_playbook" => "control_center_ansible_write",
-        "edit_ansible_playbook" => "control_center_ansible_edit"
-      }.freeze
 
       class << self
         def call(turn:, resources:, tools:)
           normalized_resources = normalize_resources(resources)
           normalized_tools = normalize_tools(tools)
-          write_enabled = Assistant::Setting.instance.control_center_write_enabled?
-          normalized_tools = normalized_tools.reject { |tool| AUTHORING_TOOLS.include?(tool) } unless write_enabled
-          requested_write_scopes = normalized_tools.filter_map { |tool| WRITE_SCOPE_BY_TOOL[tool] }
-          write_scopes = Assistant::TurnGrant::WRITE_SCOPES.select { |scope| requested_write_scopes.include?(scope) }
+          normalized_tools = enabled_tools(normalized_tools)
+          capabilities = normalized_tools.filter_map { |tool| CATALOG_TOOLS[tool] }
+          read_scopes = capabilities.filter_map do |tool|
+            tool.fetch("scope") if Assistant::TurnGrant::READ_EFFECTS.include?(tool.fetch("effect"))
+          end.uniq.sort
+          write_scopes = capabilities.filter_map do |tool|
+            tool.fetch("scope") unless Assistant::TurnGrant::READ_EFFECTS.include?(tool.fetch("effect"))
+          end.uniq.sort
           raw = SecureRandom.urlsafe_base64(32)
           profile_limit = turn.provider_profile.tool_call_limit
 
@@ -72,7 +50,7 @@ module Assistant
             token_digest: Assistant::TurnGrant.digest(raw),
             resources: normalized_resources,
             tools: normalized_tools,
-            read_scopes: Assistant::TurnGrant::READ_SCOPES,
+            read_scopes: read_scopes,
             write_scopes: write_scopes,
             expires_at: Assistant::Config.grant_ttl.from_now,
             max_calls: [ profile_limit, Assistant::Config.max_tool_calls ].min,
@@ -83,6 +61,14 @@ module Assistant
         end
 
         private
+
+        def enabled_tools(tools)
+          settings = Assistant::Setting.instance
+          tools.select do |tool|
+            LEGACY_TOOLS.include?(tool) ||
+              Assistant::CapabilityPolicy.check(tool: tool, settings: settings).allowed?
+          end
+        end
 
         def normalize_resources(resources)
           normalized = Array(resources).map do |resource|

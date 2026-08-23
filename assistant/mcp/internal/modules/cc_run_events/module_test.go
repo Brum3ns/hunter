@@ -31,7 +31,7 @@ func find(t *testing.T, name string) tool.Tool {
 
 func TestListRunEventsScope(t *testing.T) {
 	tl := find(t, "list_run_events")
-	if tl.Scope != "control_center_ansible" || tl.RequiresResource {
+	if tl.Scope != "control_center_ansible_runs_read" || tl.RequiresResource {
 		t.Fatalf("scope/resource wrong: %+v", tl)
 	}
 }
@@ -46,8 +46,15 @@ func TestListRunEventsBuildsQueryWithRunIDAndCursor(t *testing.T) {
 	if err != nil || call.Method != "GET" {
 		t.Fatalf("build: %+v err=%v", call, err)
 	}
-	if call.Path != "/api/v1/assistant/machine/control_center/ansible/run_events?after_counter=10&limit=5&run_id=42" {
+	if call.Path != "/api/v1/assistant/machine/control_center/ansible/runs/42/events?after_counter=10&limit=5" {
 		t.Fatalf("path: %s", call.Path)
+	}
+}
+
+func TestListRunEventsRequiresRunID(t *testing.T) {
+	tl := find(t, "list_run_events")
+	if _, err := tl.Decode([]byte(`{"limit":5}`)); err == nil {
+		t.Fatal("missing run_id accepted")
 	}
 }
 

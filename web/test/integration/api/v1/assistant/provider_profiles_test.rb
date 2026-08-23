@@ -156,4 +156,35 @@ class Api::V1::Assistant::ProviderProfilesTest < ActionDispatch::IntegrationTest
     assert_equal "conversation_management.disabled", event.event
     assert_equal @admin.id, event.user_id
   end
+
+  test "settings narrow operational access by exact reviewed tool effect and module" do
+    setting = Assistant::Setting.instance
+    setting.update!(
+      operational_access_enabled: true,
+      disabled_capability_tools: [], disabled_capability_effects: [], disabled_capability_modules: []
+    )
+
+    patch "/api/v1/assistant/settings", params: {
+      settings: {
+        operational_access_enabled: false,
+        disabled_capability_tools: [ "submit_whiterabbit_job" ],
+        disabled_capability_effects: [ "export" ],
+        disabled_capability_modules: [ "cves" ]
+      }
+    }, as: :json
+
+    assert_response :success
+    body = response.parsed_body
+    assert_equal false, body.fetch("operational_access_enabled")
+    assert_equal [ "submit_whiterabbit_job" ], body.fetch("disabled_capability_tools")
+    assert_equal [ "export" ], body.fetch("disabled_capability_effects")
+    assert_equal [ "cves" ], body.fetch("disabled_capability_modules")
+    refute setting.reload.operational_access_enabled?
+    assert_equal "capability_policy.updated", Assistant::AuditEvent.order(:id).last.event
+
+    patch "/api/v1/assistant/settings", params: {
+      settings: { disabled_capability_tools: [ "unknown_tool" ] }
+    }, as: :json
+    assert_response :unprocessable_entity
+  end
 end

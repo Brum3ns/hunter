@@ -16,8 +16,8 @@ module Assistant
               "name" => safe_text(playbook.name),
               "description" => safe_text(playbook.description),
               "checksum" => playbook.checksum,
-			  "lock_version" => playbook.lock_version,
-			  "created_by" => safe_text(playbook.created_by.username),
+        "lock_version" => playbook.lock_version,
+        "created_by" => safe_text(playbook.created_by.username),
               "updated_at" => playbook.updated_at
             }
           end

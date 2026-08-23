@@ -25,13 +25,23 @@ type Request struct {
 
 // Tool is a fully self-describing MCP tool the runner drives generically.
 type Tool struct {
-	Name             string
-	Description      string
-	InputSchema      json.RawMessage
-	OutputSchema     json.RawMessage
-	Scope            string // dedicated scope required; "" = no scope gate
-	WriteScope       bool   // true selects the grant's write scopes, never its read scopes
-	RequiresResource bool   // true iff an explicit resource grant is required
+	Name                string
+	Description         string
+	InputSchema         json.RawMessage
+	OutputSchema        json.RawMessage
+	Module              string
+	Effect              string
+	Scope               string // dedicated scope required; "" = no scope gate
+	WriteScope          bool   // true selects the grant's write scopes, never its read scopes
+	RequiresResource    bool   // true iff an explicit resource grant is required
+	Gate                string
+	RateProfile         string
+	ByteProfile         string
+	Idempotency         string
+	MachineMethod       string
+	MachinePath         string
+	InputSchemaVersion  int
+	OutputSchemaVersion int
 
 	Decode       func(args []byte) (Request, error)
 	BuildRequest func(req Request) (Call, error)

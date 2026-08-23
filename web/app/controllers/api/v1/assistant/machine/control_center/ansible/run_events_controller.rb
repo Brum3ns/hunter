@@ -14,7 +14,7 @@ module Api
               MAX_LIMIT = 100
 
               def index
-                reservation = authorize_tool!("list_run_events", scope: "control_center_ansible")
+                reservation = authorize_tool!("list_run_events", scope: "control_center_ansible_runs_read")
                 return machine_not_found(reservation) if params[:run_id].blank?
 
                 page = machine_page

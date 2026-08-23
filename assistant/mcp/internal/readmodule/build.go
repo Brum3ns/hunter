@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -74,6 +75,9 @@ func listSchema(spec Spec) json.RawMessage {
 		props[f.Name] = m
 	}
 	schema := map[string]any{"type": "object", "additionalProperties": false, "properties": props}
+	if len(spec.PathFields) > 0 {
+		schema["required"] = spec.PathFields
+	}
 	out, _ := json.Marshal(schema)
 	return out
 }
@@ -110,6 +114,11 @@ func decodeList(spec Spec) func([]byte) (tool.Request, error) {
 				return tool.Request{}, codec.ErrInvalid
 			}
 		}
+		for _, key := range spec.PathFields {
+			if _, ok := raw[key]; !ok {
+				return tool.Request{}, codec.ErrInvalid
+			}
+		}
 		return tool.Request{Payload: raw}, nil
 	}
 }
@@ -134,9 +143,15 @@ func buildList(spec Spec) func(tool.Request) (tool.Call, error) {
 		raw := req.Payload.(map[string]json.RawMessage)
 		values := url.Values{}
 		for key, val := range raw {
+			if slices.Contains(spec.PathFields, key) {
+				continue
+			}
 			values.Set(key, scalarString(val))
 		}
 		path := spec.BasePath
+		for _, key := range spec.PathFields {
+			path = strings.ReplaceAll(path, "{"+key+"}", url.PathEscape(scalarString(raw[key])))
+		}
 		if enc := values.Encode(); enc != "" {
 			path += "?" + enc
 		}

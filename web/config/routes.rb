@@ -14,6 +14,7 @@ Rails.application.routes.draw do
     resource :monitor_config, only: :update
   end
   get "notifications", to: "notifications#index"
+  get "assistant/exports/:token", to: "assistant/exports#show", as: :assistant_export
 
   # Web "departments" — one per Hunter module. Each module owns its own
   # controller + views; add a sibling line here when adding a module.
@@ -98,6 +99,7 @@ Rails.application.routes.draw do
         resource :settings, only: %i[show update]
         namespace :machine do
           resource :grant, only: :show, controller: "grants"
+          get "capabilities", to: "capabilities#index"
           get "contexts/:resource_type/:id", to: "contexts#show"
           get "artifacts/:resource_type/:id", to: "artifacts#show"
           get "policies/:artifact_type", to: "policies#show"
@@ -105,31 +107,77 @@ Rails.application.routes.draw do
           get "validation_results/:id", to: "validations#show"
           # Read-only module tools (Phase 2). Scope-gated in the controller.
           get "targets", to: "targets#index"
+          post "targets/analyze", to: "targets#analyze"
           get "targets/:id", to: "targets#show"
           get "cves", to: "cves#index"
+          get "cves/new", to: "cves#new"
+          post "cves/analyze", to: "cves#analyze"
           get "cves/:id", to: "cves#show"
           get "vulnerabilities", to: "vulnerabilities#index"
+          post "vulnerabilities/analyze", to: "vulnerabilities#analyze"
+          post "vulnerabilities", to: "vulnerabilities#create"
+          patch "vulnerabilities/:id", to: "vulnerabilities#update"
           get "vulnerabilities/:id", to: "vulnerabilities#show"
           get "sitemap/endpoints", to: "sitemap_endpoints#index"
+          post "sitemap/endpoints/analyze", to: "sitemap_endpoints#analyze"
           get "sitemap/endpoints/:id", to: "sitemap_endpoints#show", constraints: { id: /\d+/ }
           get "programs", to: "programs#index"
+          get "programs/changes", to: "programs#changes"
+          get "programs/scope_runs", to: "programs#scope_runs"
+          get "programs/scope_runs/:id", to: "programs#scope_run", constraints: { id: /\d+/ }
+          post "programs/analyze", to: "programs#analyze"
           get "programs/:id", to: "programs#show"
           namespace :control_center do
             get "templates", to: "templates#index"
+            post "templates/analyze", to: "templates#analyze"
+            post "templates/validate", to: "templates#validate"
+            post "templates/validate_yaml", to: "templates#validate_yaml"
             get "templates/:id", to: "templates#show", constraints: { id: /\d+/ }
             post "templates", to: "templates#create"
             patch "templates/:id", to: "templates#update", constraints: { id: /\d+/ }
             get "jobs", to: "jobs#index"
+            post "jobs/analyze", to: "jobs#analyze"
+            post "jobs/resolve_targets", to: "jobs#resolve_targets"
+            post "jobs", to: "jobs#create"
             get "jobs/:id", to: "jobs#show", constraints: { id: /\d+/ }
+            get "health", to: "health#show"
+            get "stats", to: "stats#show"
             namespace :ansible do
+              get "credentials", to: "credentials#index"
+              get "credentials/:id", to: "credentials#show", constraints: { id: /\d+/ }
               get "playbooks", to: "playbooks#index"
+              post "playbooks/analyze", to: "playbooks#analyze"
+              post "playbooks/validate", to: "playbooks#validate"
+              post "playbooks/export", to: "playbooks#export"
               get "playbooks/:id", to: "playbooks#show", constraints: { id: /\d+/ }
               post "playbooks", to: "playbooks#create"
               patch "playbooks/:id", to: "playbooks#update", constraints: { id: /\d+/ }
+              get "inventories", to: "inventories#index"
+              post "inventories/validate", to: "inventories#validate"
+              post "inventories", to: "inventories#create"
+              get "inventories/:id", to: "inventories#show", constraints: { id: /\d+/ }
+              patch "inventories/:id", to: "inventories#update", constraints: { id: /\d+/ }
+              post "inventories/:id/syntax_check", to: "inventories#syntax_check", constraints: { id: /\d+/ }
+              post "inventories/:id/host_key_scan", to: "inventories#host_key_scan", constraints: { id: /\d+/ }
+              post "inventories/:id/confirm_host_keys", to: "inventories#confirm_host_keys", constraints: { id: /\d+/ }
+              post "inventories/:id/connectivity_test", to: "inventories#connectivity_test", constraints: { id: /\d+/ }
+              get "inventories/:id/utility_tasks/:task_id", to: "inventories#utility_task", constraints: { id: /\d+/, task_id: /\d+/ }
+              get "variable_sets", to: "variable_sets#index"
+              post "variable_sets", to: "variable_sets#create"
+              get "variable_sets/:id", to: "variable_sets#show", constraints: { id: /\d+/ }
+              patch "variable_sets/:id", to: "variable_sets#update", constraints: { id: /\d+/ }
+              post "variable_sets/:variable_set_id/variables", to: "variables#create", constraints: { variable_set_id: /\d+/ }
+              patch "variable_sets/:variable_set_id/variables/:id", to: "variables#update", constraints: { variable_set_id: /\d+/, id: /\d+/ }
               get "run_groups", to: "run_groups#index"
+              post "run_groups/analyze", to: "run_groups#analyze"
+              post "run_groups", to: "run_groups#create"
               get "run_groups/:id", to: "run_groups#show", constraints: { id: /\d+/ }
+              post "run_groups/:id/cancel", to: "run_groups#cancel", constraints: { id: /\d+/ }
               get "runs/:id", to: "runs#show", constraints: { id: /\d+/ }
+              post "runs/:id/cancel", to: "runs#cancel", constraints: { id: /\d+/ }
+              get "runs/:run_id/events", to: "run_events#index", constraints: { run_id: /\d+/ }
               get "run_events", to: "run_events#index"
+              get "executor_health", to: "executor_health#show"
             end
           end
         end

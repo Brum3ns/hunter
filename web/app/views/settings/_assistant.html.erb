@@ -1,8 +1,12 @@
 <section id="assistant" class="scroll-mt-6">
+  <% capability_catalog = Assistant::CapabilityCatalog.load %>
+  <% capability_tools = capability_catalog.tools.map { |tool| tool.fetch("name") } %>
+  <% capability_effects = capability_catalog.tools.map { |tool| tool.fetch("effect") }.uniq.sort %>
+  <% capability_modules = capability_catalog.tools.map { |tool| tool.fetch("module") }.uniq.sort %>
   <div class="flex items-start justify-between gap-4">
     <div>
       <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Assistant</h2>
-      <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Session-only administration for the Hunter assistant. Enabled profiles may read non-secret Hunter data across targets, CVEs, vulnerabilities, sitemap, programs, and Control Center. When Control Center authoring is enabled, they may create and explicitly edit validated Whiterabbit templates and Ansible playbooks without a confirmation prompt, attributed to you and audited. They never delete or run artifacts and cannot execute or send anything on their own.</p>
+      <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Session-only administration for the Hunter assistant. Through the reviewed Hunter MCP catalog, enabled backends have administrator-equivalent operational access: workflow analysis, non-secret create and versioned edit, Whiterabbit job submission, Ansible utilities and launches, cancellation, monitoring, and human-owned exports. Actions are attributed to you and audited. The LLM can never see secrets, delete records, change security governance, or bypass MCP with a generic proxy.</p>
     </div>
     <span class="rounded-full px-2.5 py-1 text-xs font-medium <%= Assistant::Config.enabled? && setting.assistant_enabled? ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' %>">
       <%= Assistant::Config.enabled? && setting.assistant_enabled? ? "Enabled" : "Disabled" %>
@@ -20,16 +24,57 @@
       <%= check_box_tag "settings[assistant_enabled]", "1", setting.assistant_enabled?, class: "rounded border-zinc-300" %>
       Enable assistant in Hunter
     </label>
-	<%= hidden_field_tag "settings[control_center_write_enabled]", "0" %>
-	<label class="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
-	  <%= check_box_tag "settings[control_center_write_enabled]", "1", setting.control_center_write_enabled?, class: "rounded border-zinc-300" %>
-	  Enable permission-free Control Center template/playbook create and explicit edit
-	</label>
-	<%= hidden_field_tag "settings[conversation_management_enabled]", "0" %>
-	<label class="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
-	  <%= check_box_tag "settings[conversation_management_enabled]", "1", setting.conversation_management_enabled?, class: "rounded border-zinc-300" %>
-	  Enable direct conversation rename and reorder for the signed-in administrator
-	</label>
+    <%= hidden_field_tag "settings[operational_access_enabled]", "0" %>
+    <label class="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+      <%= check_box_tag "settings[operational_access_enabled]", "1", setting.operational_access_enabled?, class: "rounded border-zinc-300" %>
+      Enable reviewed Hunter operational access through MCP
+    </label>
+    <%= hidden_field_tag "settings[control_center_write_enabled]", "0" %>
+    <label class="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+      <%= check_box_tag "settings[control_center_write_enabled]", "1", setting.control_center_write_enabled?, class: "rounded border-zinc-300" %>
+      Enable effectful Control Center operations (authoring, jobs, utilities, launch, cancel, export)
+    </label>
+    <%= hidden_field_tag "settings[conversation_management_enabled]", "0" %>
+    <label class="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+      <%= check_box_tag "settings[conversation_management_enabled]", "1", setting.conversation_management_enabled?, class: "rounded border-zinc-300" %>
+      Enable direct conversation rename and reorder for the signed-in administrator
+    </label>
+
+    <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+      <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Live MCP capability controls</h3>
+      <p class="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+        Selected tools, effects, and modules are disabled immediately, including for active turn grants. The model cannot change these controls. Use Ctrl/Cmd-click to select or clear individual entries.
+      </p>
+      <p class="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+        Effective defaults: <%= Assistant::Config.max_tool_calls %> tool calls, <%= Assistant::Config.max_effects_per_turn %> effects, and <%= Assistant::Config.max_launches_per_turn %> launches per turn; <%= number_to_human_size(Assistant::Config.max_result_bytes) %> per result and <%= number_to_human_size(Assistant::Config.max_total_bytes) %> total result data.
+      </p>
+      <div class="mt-3 grid gap-3 lg:grid-cols-3">
+        <label class="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          Disabled exact tools
+          <%= hidden_field_tag "settings[disabled_capability_tools][]", "" %>
+          <%= select_tag "settings[disabled_capability_tools][]",
+            options_for_select(capability_tools, setting.disabled_capability_tools),
+            multiple: true, size: 10,
+            class: "mt-1 block w-full rounded-md border-zinc-300 bg-white font-mono text-xs dark:border-zinc-700 dark:bg-zinc-950" %>
+        </label>
+        <label class="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          Disabled effect classes
+          <%= hidden_field_tag "settings[disabled_capability_effects][]", "" %>
+          <%= select_tag "settings[disabled_capability_effects][]",
+            options_for_select(capability_effects, setting.disabled_capability_effects),
+            multiple: true, size: 10,
+            class: "mt-1 block w-full rounded-md border-zinc-300 bg-white font-mono text-xs dark:border-zinc-700 dark:bg-zinc-950" %>
+        </label>
+        <label class="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          Disabled modules
+          <%= hidden_field_tag "settings[disabled_capability_modules][]", "" %>
+          <%= select_tag "settings[disabled_capability_modules][]",
+            options_for_select(capability_modules, setting.disabled_capability_modules),
+            multiple: true, size: 10,
+            class: "mt-1 block w-full rounded-md border-zinc-300 bg-white font-mono text-xs dark:border-zinc-700 dark:bg-zinc-950" %>
+        </label>
+      </div>
+    </div>
     <div class="grid gap-4 sm:grid-cols-2">
       <label class="text-sm text-zinc-700 dark:text-zinc-300">
         Transcript retention (days)

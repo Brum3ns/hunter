@@ -10,7 +10,7 @@ openai:
   enabled: true
   input_limit: 32768
   output_limit: 8192
-  tool_call_limit: 8
+  tool_call_limit: 64
   retention_posture: standard
   reviewed_at: 2026-07-25 00:00:00
   created_by: one
@@ -24,7 +24,7 @@ anthropic:
   enabled: false
   input_limit: 32768
   output_limit: 8192
-  tool_call_limit: 8
+  tool_call_limit: 64
   retention_posture: standard
   reviewed_at: 2026-07-25 00:00:00
   created_by: one
@@ -38,7 +38,7 @@ codex:
   enabled: true
   input_limit: 32768
   output_limit: 8192
-  tool_call_limit: 8
+  tool_call_limit: 64
   retention_posture: standard
   reviewed_at: 2026-07-25 00:00:00
   created_by: one
@@ -52,7 +52,7 @@ claude_code:
   enabled: true
   input_limit: 32768
   output_limit: 8192
-  tool_call_limit: 8
+  tool_call_limit: 64
   retention_posture: standard
   reviewed_at: 2026-07-25 00:00:00
   created_by: one

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"hunter.local/assistant/mcp/internal/actionreceipt"
 	"hunter.local/assistant/mcp/internal/codec"
 	"hunter.local/assistant/mcp/internal/tool"
 )
@@ -21,37 +22,37 @@ func (Module) Tools() []tool.Tool {
 			Name: "create_whiterabbit_template",
 			Description: "Create a new validated Whiterabbit template in Control Center without a confirmation prompt. " +
 				"Never overwrites, edits, deletes, or runs an existing template.",
-			InputSchema: templateSchema, OutputSchema: resultSchema("template"),
+			InputSchema: templateSchema, OutputSchema: actionreceipt.Schema(),
 			Scope: "control_center_templates_write", WriteScope: true,
 			Decode: decodeTemplate, BuildRequest: buildCreate("/api/v1/assistant/machine/control_center/templates"),
-			Validate: func(payload []byte) error { return validateCreateOutput(payload, "template") },
+			Validate: actionreceipt.Validate("create_whiterabbit_template"),
 		},
 		{
 			Name: "create_ansible_playbook",
 			Description: "Create a new validated Ansible playbook in Control Center without a confirmation prompt. " +
 				"Never overwrites, edits, deletes, or runs an existing playbook.",
-			InputSchema: playbookSchema, OutputSchema: resultSchema("playbook"),
+			InputSchema: playbookSchema, OutputSchema: actionreceipt.Schema(),
 			Scope: "control_center_ansible_write", WriteScope: true,
 			Decode: decodePlaybook, BuildRequest: buildCreate("/api/v1/assistant/machine/control_center/ansible/playbooks"),
-			Validate: func(payload []byte) error { return validateCreateOutput(payload, "playbook") },
+			Validate: actionreceipt.Validate("create_ansible_playbook"),
 		},
 		{
 			Name: "edit_whiterabbit_template",
 			Description: "Edit an existing Whiterabbit template by ID after an explicit user edit request. " +
 				"Requires its current lock version, validates the complete merged template, and never deletes or runs it.",
-			InputSchema: templateEditSchema, OutputSchema: resultSchema("template"),
+			InputSchema: templateEditSchema, OutputSchema: actionreceipt.Schema(),
 			Scope: "control_center_templates_edit", WriteScope: true,
 			Decode: decodeTemplateEdit, BuildRequest: buildEdit("/api/v1/assistant/machine/control_center/templates/%d"),
-			Validate: func(payload []byte) error { return validateCreateOutput(payload, "template") },
+			Validate: actionreceipt.Validate("edit_whiterabbit_template"),
 		},
 		{
 			Name: "edit_ansible_playbook",
 			Description: "Edit an existing Ansible playbook by ID after an explicit user edit request. " +
 				"Requires its current lock version, validates the complete merged playbook, and never deletes or runs it.",
-			InputSchema: playbookEditSchema, OutputSchema: resultSchema("playbook"),
+			InputSchema: playbookEditSchema, OutputSchema: actionreceipt.Schema(),
 			Scope: "control_center_ansible_edit", WriteScope: true,
 			Decode: decodePlaybookEdit, BuildRequest: buildEdit("/api/v1/assistant/machine/control_center/ansible/playbooks/%d"),
-			Validate: func(payload []byte) error { return validateCreateOutput(payload, "playbook") },
+			Validate: actionreceipt.Validate("edit_ansible_playbook"),
 		},
 	}
 }

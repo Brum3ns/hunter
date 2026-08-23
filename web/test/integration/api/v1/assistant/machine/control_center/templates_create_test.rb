@@ -30,16 +30,15 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
       assert_response :created
       body = response.parsed_body
       assert body["correlation_id"].present?
-      template = body["template"]
-      assert template["id"].present?
-      assert_equal "assistant-probe", template["name"]
-      assert_equal 0, template["lock_version"]
+      receipt = body.fetch("receipt")
+      assert_equal "create_whiterabbit_template", receipt.fetch("tool")
+      assert_equal "created", receipt.fetch("status")
 
-      record = ControlCenter::Template.find(template["id"])
+      record = ControlCenter::Template.find(receipt.dig("target", "id"))
       assert_equal "assistant-probe", record.name
       assert_equal machine_user.username, record.created_by
 
-      event = Assistant::AuditEvent.order(:id).last
+      event = Assistant::AuditEvent.where(event: "machine.create").order(:id).last
       assert_equal "machine.create", event.event
       assert_equal "create_whiterabbit_template", event.metadata["operation"]
       assert_equal assistant_turns(:created).id, event.turn_id
@@ -93,7 +92,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
       }, headers: headers(write_grant), as: :json
 
       assert_response :created
-      record = ControlCenter::Template.find(response.parsed_body.dig("template", "id"))
+      record = ControlCenter::Template.find(response.parsed_body.dig("receipt", "target", "id"))
       assert_equal [], record.commands.first.fetch("args")
       assert_equal "", record.commands.first.fetch("operator")
       assert_equal [ "recon" ], record.tags
@@ -126,11 +125,11 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
       end
 
       assert_response :conflict
-      assert_equal "name_conflict", response.parsed_body["error"]
-      event = Assistant::AuditEvent.order(:id).last
+      assert_equal "conflict", response.parsed_body["error"]
+      event = Assistant::AuditEvent.where(event: "machine.create_rejected").order(:id).last
       assert_equal "machine.create_rejected", event.event
       assert_equal({
-        "operation" => "create_whiterabbit_template", "outcome" => "rejected", "reason" => "name_conflict"
+        "operation" => "create_whiterabbit_template", "outcome" => "rejected", "reason" => "conflict"
       }, event.metadata)
     end
   end
@@ -146,7 +145,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
       end
 
       assert_response :forbidden
-      assert_equal "scope_not_allowed", response.parsed_body["reason"]
+      assert_equal "scope_not_granted", response.parsed_body["error"]
     end
   end
 
@@ -167,9 +166,9 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
 
       assert_response :created
       body = response.parsed_body
-      template = body["template"]
-      assert template["id"].present?
-      assert ControlCenter::Template.exists?(template["id"])
+      receipt = body.fetch("receipt")
+      assert receipt.dig("target", "id").present?
+      assert ControlCenter::Template.exists?(receipt.dig("target", "id"))
 
       record.reload
       assert_not_nil record.revoked_at
@@ -191,10 +190,10 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
     end
 
     assert_response :forbidden
-    assert_equal "control_center_write_disabled", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
     event = Assistant::AuditEvent.order(:id).last
     assert_equal "machine.create_rejected", event.event
-    assert_equal "control_center_write_disabled", event.metadata["reason"]
+    assert_equal "capability_disabled", event.metadata["reason"]
   end
 
   private

@@ -36,6 +36,8 @@ class User < ApplicationRecord
     class_name: "Assistant::Turn",
     dependent: :delete_all,
     inverse_of: :user
+  has_many :assistant_export_artifacts,
+    class_name: "Assistant::ExportArtifact", dependent: :delete_all, inverse_of: :user
 
   normalizes :username, with: ->(u) { u.strip.downcase }
 

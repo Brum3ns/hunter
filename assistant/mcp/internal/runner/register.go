@@ -67,13 +67,17 @@ func PublicError(err error) string {
 	case errors.Is(err, ErrInvalidInput):
 		return "invalid_tool_input"
 	case errors.Is(err, ErrResourceDenied):
-		return "resource_not_granted"
+		return "scope_not_granted"
 	case errors.Is(err, ErrScopeDenied):
 		return "scope_not_granted"
+	case errors.Is(err, ErrCallBudgetExhausted):
+		return "turn_call_budget_exhausted"
+	case errors.Is(err, ErrGrantExpired):
+		return "turn_grant_expired"
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return "tool_call_cancelled"
-	case errors.Is(err, ErrToolDenied), errors.Is(err, ErrGrantExpired):
-		return "turn_grant_rejected"
+	case errors.Is(err, ErrToolDenied):
+		return "scope_not_granted"
 	default:
 		return "tool_response_rejected"
 	}

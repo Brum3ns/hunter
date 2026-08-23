@@ -1,0 +1,1969 @@
+# Reviewed Hunter Assistant MCP capability catalog.
+# Authority metadata only; this never dispatches a generic request.
+version: 1
+tools:
+  - name: "list_hunter_capabilities"
+    module: "catalog"
+    operation: "list_hunter_capabilities"
+    effect: "read"
+    scope: "hunter_capabilities_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/capabilities"
+    api_operation: "GET /api/v1/openapi"
+    gate: "catalog"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_hunter_capabilities"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "list_targets"
+    module: "targets"
+    operation: "list_targets"
+    effect: "read"
+    scope: "targets_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/targets"
+    api_operation: "GET /api/v1/targets"
+    gate: "targets"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_targets"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_target"
+    module: "targets"
+    operation: "get_target"
+    effect: "read"
+    scope: "targets_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/targets/{id}"
+    api_operation: "GET /api/v1/targets/{id}"
+    gate: "targets"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_target"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "analyze_targets"
+    module: "targets"
+    operation: "analyze_targets"
+    effect: "analyze"
+    scope: "targets_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/targets/analyze"
+    api_operation: "GET /api/v1/targets"
+    gate: "targets"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_targets"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "list_endpoints"
+    module: "sitemap"
+    operation: "list_endpoints"
+    effect: "read"
+    scope: "sitemap_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/sitemap/endpoints"
+    api_operation: "GET /api/v1/sitemap/endpoints"
+    gate: "sitemap"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_endpoints"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_endpoint"
+    module: "sitemap"
+    operation: "get_endpoint"
+    effect: "read"
+    scope: "sitemap_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/sitemap/endpoints/{id}"
+    api_operation: "domain:Sitemap::Endpoint.find"
+    gate: "sitemap"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_endpoint"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "analyze_endpoints"
+    module: "sitemap"
+    operation: "analyze_endpoints"
+    effect: "analyze"
+    scope: "sitemap_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/sitemap/endpoints/analyze"
+    api_operation: "GET /api/v1/sitemap/endpoints"
+    gate: "sitemap"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_endpoints"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "list_programs"
+    module: "programs"
+    operation: "list_programs"
+    effect: "read"
+    scope: "programs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/programs"
+    api_operation: "domain:Programs::MongoSource.list"
+    gate: "programs"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_programs"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_program"
+    module: "programs"
+    operation: "get_program"
+    effect: "read"
+    scope: "programs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/programs/{id}"
+    api_operation: "domain:Programs::MongoSource.find"
+    gate: "programs"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_program"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "analyze_programs"
+    module: "programs"
+    operation: "analyze_programs"
+    effect: "analyze"
+    scope: "programs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/programs/analyze"
+    api_operation: "domain:Programs::MongoSource.list"
+    gate: "programs"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_programs"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "list_program_changes"
+    module: "programs"
+    operation: "list_program_changes"
+    effect: "read"
+    scope: "programs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/programs/changes"
+    api_operation: "GET /api/v1/programs/changes"
+    gate: "programs"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_program_changes"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "list_scope_runs"
+    module: "programs"
+    operation: "list_scope_runs"
+    effect: "read"
+    scope: "programs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/programs/scope_runs"
+    api_operation: "GET /api/v1/programs/runs"
+    gate: "programs"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_scope_runs"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_scope_run"
+    module: "programs"
+    operation: "get_scope_run"
+    effect: "read"
+    scope: "programs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/programs/scope_runs/{id}"
+    api_operation: "GET /api/v1/programs/runs/{id}"
+    gate: "programs"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_scope_run"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_cves"
+    module: "cves"
+    operation: "list_cves"
+    effect: "read"
+    scope: "cves_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/cves"
+    api_operation: "GET /api/v1/cves"
+    gate: "cves"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_cves"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_cve"
+    module: "cves"
+    operation: "get_cve"
+    effect: "read"
+    scope: "cves_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/cves/{id}"
+    api_operation: "GET /api/v1/cves/{id}"
+    gate: "cves"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_cve"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_new_cves"
+    module: "cves"
+    operation: "list_new_cves"
+    effect: "read"
+    scope: "cves_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/cves/new"
+    api_operation: "GET /api/v1/cves/new"
+    gate: "cves"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_new_cves"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "analyze_cves"
+    module: "cves"
+    operation: "analyze_cves"
+    effect: "analyze"
+    scope: "cves_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/cves/analyze"
+    api_operation: "GET /api/v1/cves"
+    gate: "cves"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_cves"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "list_vulnerabilities"
+    module: "vulnerabilities"
+    operation: "list_vulnerabilities"
+    effect: "read"
+    scope: "vulnerabilities_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/vulnerabilities"
+    api_operation: "GET /api/v1/vulnerabilities"
+    gate: "vulnerabilities"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_vulnerabilities"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_vulnerability"
+    module: "vulnerabilities"
+    operation: "get_vulnerability"
+    effect: "read"
+    scope: "vulnerabilities_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/vulnerabilities/{id}"
+    api_operation: "GET /api/v1/vulnerabilities/{id}"
+    gate: "vulnerabilities"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_vulnerability"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "analyze_vulnerabilities"
+    module: "vulnerabilities"
+    operation: "analyze_vulnerabilities"
+    effect: "analyze"
+    scope: "vulnerabilities_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/vulnerabilities/analyze"
+    api_operation: "GET /api/v1/vulnerabilities"
+    gate: "vulnerabilities"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_vulnerabilities"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "create_vulnerability"
+    module: "vulnerabilities"
+    operation: "create_vulnerability"
+    effect: "create"
+    scope: "vulnerabilities_create"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/vulnerabilities"
+    api_operation: "POST /api/v1/vulnerabilities"
+    gate: "vulnerabilities"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.create_vulnerability"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "update_vulnerability"
+    module: "vulnerabilities"
+    operation: "update_vulnerability"
+    effect: "update"
+    scope: "vulnerabilities_update"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "PATCH"
+    machine_path: "/api/v1/assistant/machine/vulnerabilities/{id}"
+    api_operation: "PATCH /api/v1/vulnerabilities/{id}"
+    gate: "vulnerabilities"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "expected_lock_version"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.update_vulnerability"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_templates"
+    module: "control_center_templates"
+    operation: "list_templates"
+    effect: "read"
+    scope: "control_center_templates_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/templates"
+    api_operation: "GET /api/v1/control_center/templates"
+    gate: "control_center_templates"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_templates"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_template"
+    module: "control_center_templates"
+    operation: "get_template"
+    effect: "read"
+    scope: "control_center_templates_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/templates/{id}"
+    api_operation: "GET /api/v1/control_center/templates/{id}"
+    gate: "control_center_templates"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_template"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "analyze_templates"
+    module: "control_center_templates"
+    operation: "analyze_templates"
+    effect: "analyze"
+    scope: "control_center_templates_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/templates/analyze"
+    api_operation: "GET /api/v1/control_center/templates"
+    gate: "control_center_templates"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_templates"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "validate_whiterabbit_template"
+    module: "control_center_templates"
+    operation: "validate_whiterabbit_template"
+    effect: "validate"
+    scope: "control_center_templates_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/templates/validate"
+    api_operation: "POST /api/v1/control_center/templates/validate"
+    gate: "control_center_templates"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.validate_whiterabbit_template"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "validate_whiterabbit_yaml"
+    module: "control_center_templates"
+    operation: "validate_whiterabbit_yaml"
+    effect: "validate"
+    scope: "control_center_templates_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/templates/validate_yaml"
+    api_operation: "POST /api/v1/control_center/templates/validate_yaml"
+    gate: "control_center_templates"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.validate_whiterabbit_yaml"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "create_whiterabbit_template"
+    module: "control_center_templates"
+    operation: "create_whiterabbit_template"
+    effect: "create"
+    scope: "control_center_templates_write"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/templates"
+    api_operation: "POST /api/v1/control_center/templates"
+    gate: "control_center_templates"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.create_whiterabbit_template"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "edit_whiterabbit_template"
+    module: "control_center_templates"
+    operation: "edit_whiterabbit_template"
+    effect: "update"
+    scope: "control_center_templates_edit"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "PATCH"
+    machine_path: "/api/v1/assistant/machine/control_center/templates/{id}"
+    api_operation: "PATCH /api/v1/control_center/templates/{id}"
+    gate: "control_center_templates"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "expected_lock_version"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.edit_whiterabbit_template"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_jobs"
+    module: "control_center_jobs"
+    operation: "list_jobs"
+    effect: "read"
+    scope: "control_center_jobs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/jobs"
+    api_operation: "GET /api/v1/control_center/jobs"
+    gate: "control_center_jobs"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_jobs"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_job"
+    module: "control_center_jobs"
+    operation: "get_job"
+    effect: "read"
+    scope: "control_center_jobs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/jobs/{id}"
+    api_operation: "GET /api/v1/control_center/jobs/{id}"
+    gate: "control_center_jobs"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_job"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "analyze_jobs"
+    module: "control_center_jobs"
+    operation: "analyze_jobs"
+    effect: "analyze"
+    scope: "control_center_jobs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/jobs/analyze"
+    api_operation: "GET /api/v1/control_center/jobs"
+    gate: "control_center_jobs"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_jobs"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "resolve_job_targets"
+    module: "control_center_jobs"
+    operation: "resolve_job_targets"
+    effect: "analyze"
+    scope: "control_center_jobs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/jobs/resolve_targets"
+    api_operation: "POST /api/v1/control_center/jobs/resolve_targets"
+    gate: "control_center_jobs"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.resolve_job_targets"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "submit_whiterabbit_job"
+    module: "control_center_jobs"
+    operation: "submit_whiterabbit_job"
+    effect: "execute"
+    scope: "control_center_jobs_submit"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/jobs"
+    api_operation: "POST /api/v1/control_center/jobs"
+    gate: "control_center_jobs"
+    rate_profile: "launch"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.submit_whiterabbit_job"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_control_center_health"
+    module: "control_center_jobs"
+    operation: "get_control_center_health"
+    effect: "read"
+    scope: "control_center_jobs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/health"
+    api_operation: "GET /api/v1/control_center/health"
+    gate: "control_center_jobs"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_control_center_health"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_control_center_stats"
+    module: "control_center_jobs"
+    operation: "get_control_center_stats"
+    effect: "analyze"
+    scope: "control_center_jobs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/stats"
+    api_operation: "GET /api/v1/control_center/stats"
+    gate: "control_center_jobs"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_control_center_stats"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "list_ansible_credential_metadata"
+    module: "control_center_ansible_credentials"
+    operation: "list_ansible_credential_metadata"
+    effect: "read"
+    scope: "control_center_ansible_credentials_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/credentials"
+    api_operation: "GET /api/v1/control_center/ansible/credentials"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_ansible_credential_metadata"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_ansible_credential_metadata"
+    module: "control_center_ansible_credentials"
+    operation: "get_ansible_credential_metadata"
+    effect: "read"
+    scope: "control_center_ansible_credentials_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/credentials/{id}"
+    api_operation: "GET /api/v1/control_center/ansible/credentials/{id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_ansible_credential_metadata"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_playbooks"
+    module: "control_center_ansible_playbooks"
+    operation: "list_playbooks"
+    effect: "read"
+    scope: "control_center_ansible_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/playbooks"
+    api_operation: "GET /api/v1/control_center/ansible/playbooks"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_playbooks"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_playbook"
+    module: "control_center_ansible_playbooks"
+    operation: "get_playbook"
+    effect: "read"
+    scope: "control_center_ansible_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/playbooks/{id}"
+    api_operation: "GET /api/v1/control_center/ansible/playbooks/{id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_playbook"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "analyze_playbooks"
+    module: "control_center_ansible_playbooks"
+    operation: "analyze_playbooks"
+    effect: "analyze"
+    scope: "control_center_ansible_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/playbooks/analyze"
+    api_operation: "GET /api/v1/control_center/ansible/playbooks"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_playbooks"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "validate_ansible_playbook"
+    module: "control_center_ansible_playbooks"
+    operation: "validate_ansible_playbook"
+    effect: "validate"
+    scope: "control_center_ansible_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/playbooks/validate"
+    api_operation: "POST /api/v1/control_center/ansible/playbooks/validate"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.validate_ansible_playbook"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "export_ansible_playbooks"
+    module: "control_center_ansible_playbooks"
+    operation: "export_ansible_playbooks"
+    effect: "export"
+    scope: "control_center_ansible_playbooks_export"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/playbooks/export"
+    api_operation: "POST /api/v1/control_center/ansible/playbooks/export"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.export_ansible_playbooks"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "create_ansible_playbook"
+    module: "control_center_ansible_playbooks"
+    operation: "create_ansible_playbook"
+    effect: "create"
+    scope: "control_center_ansible_write"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/playbooks"
+    api_operation: "POST /api/v1/control_center/ansible/playbooks"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.create_ansible_playbook"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "edit_ansible_playbook"
+    module: "control_center_ansible_playbooks"
+    operation: "edit_ansible_playbook"
+    effect: "update"
+    scope: "control_center_ansible_edit"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "PATCH"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/playbooks/{id}"
+    api_operation: "PATCH /api/v1/control_center/ansible/playbooks/{id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "expected_lock_version"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.edit_ansible_playbook"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_ansible_inventories"
+    module: "control_center_ansible_inventories"
+    operation: "list_ansible_inventories"
+    effect: "read"
+    scope: "control_center_ansible_inventories_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories"
+    api_operation: "GET /api/v1/control_center/ansible/inventories"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_ansible_inventories"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_ansible_inventory"
+    module: "control_center_ansible_inventories"
+    operation: "get_ansible_inventory"
+    effect: "read"
+    scope: "control_center_ansible_inventories_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories/{id}"
+    api_operation: "GET /api/v1/control_center/ansible/inventories/{id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_ansible_inventory"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "validate_ansible_inventory"
+    module: "control_center_ansible_inventories"
+    operation: "validate_ansible_inventory"
+    effect: "validate"
+    scope: "control_center_ansible_inventories_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories/validate"
+    api_operation: "POST /api/v1/control_center/ansible/inventories/validate"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.validate_ansible_inventory"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "create_ansible_inventory"
+    module: "control_center_ansible_inventories"
+    operation: "create_ansible_inventory"
+    effect: "create"
+    scope: "control_center_ansible_inventories_create"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories"
+    api_operation: "POST /api/v1/control_center/ansible/inventories"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.create_ansible_inventory"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "edit_ansible_inventory"
+    module: "control_center_ansible_inventories"
+    operation: "edit_ansible_inventory"
+    effect: "update"
+    scope: "control_center_ansible_inventories_edit"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "PATCH"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories/{id}"
+    api_operation: "PATCH /api/v1/control_center/ansible/inventories/{id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "expected_lock_version"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.edit_ansible_inventory"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "queue_inventory_syntax_check"
+    module: "control_center_ansible_inventories"
+    operation: "queue_inventory_syntax_check"
+    effect: "execute"
+    scope: "control_center_ansible_inventory_syntax_check"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories/{id}/syntax_check"
+    api_operation: "POST /api/v1/control_center/ansible/inventories/{id}/syntax_check"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "launch"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.queue_inventory_syntax_check"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "queue_host_key_scan"
+    module: "control_center_ansible_inventories"
+    operation: "queue_host_key_scan"
+    effect: "execute"
+    scope: "control_center_ansible_inventory_host_key_scan"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories/{id}/host_key_scan"
+    api_operation: "POST /api/v1/control_center/ansible/inventories/{id}/host_key_scan"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "launch"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.queue_host_key_scan"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "confirm_inventory_host_keys"
+    module: "control_center_ansible_inventories"
+    operation: "confirm_inventory_host_keys"
+    effect: "update"
+    scope: "control_center_ansible_inventory_host_keys_confirm"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories/{id}/confirm_host_keys"
+    api_operation: "POST /api/v1/control_center/ansible/inventories/{id}/confirm_host_keys"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "expected_lock_version"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.confirm_inventory_host_keys"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "queue_inventory_connectivity_test"
+    module: "control_center_ansible_inventories"
+    operation: "queue_inventory_connectivity_test"
+    effect: "execute"
+    scope: "control_center_ansible_inventory_connectivity_test"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories/{id}/connectivity_test"
+    api_operation: "POST /api/v1/control_center/ansible/inventories/{id}/connectivity_test"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "launch"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.queue_inventory_connectivity_test"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "get_inventory_utility_task"
+    module: "control_center_ansible_inventories"
+    operation: "get_inventory_utility_task"
+    effect: "read"
+    scope: "control_center_ansible_inventories_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/inventories/{id}/utility_tasks/{task_id}"
+    api_operation: "GET /api/v1/control_center/ansible/inventories/{id}/executor_tasks/{task_id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_inventory_utility_task"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_ansible_variable_sets"
+    module: "control_center_ansible_variables"
+    operation: "list_ansible_variable_sets"
+    effect: "read"
+    scope: "control_center_ansible_variables_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/variable_sets"
+    api_operation: "GET /api/v1/control_center/ansible/variable_sets"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_ansible_variable_sets"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_ansible_variable_set"
+    module: "control_center_ansible_variables"
+    operation: "get_ansible_variable_set"
+    effect: "read"
+    scope: "control_center_ansible_variables_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/variable_sets/{id}"
+    api_operation: "GET /api/v1/control_center/ansible/variable_sets/{id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_ansible_variable_set"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "create_ansible_variable_set"
+    module: "control_center_ansible_variables"
+    operation: "create_ansible_variable_set"
+    effect: "create"
+    scope: "control_center_ansible_variable_sets_create"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/variable_sets"
+    api_operation: "POST /api/v1/control_center/ansible/variable_sets"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.create_ansible_variable_set"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "edit_ansible_variable_set"
+    module: "control_center_ansible_variables"
+    operation: "edit_ansible_variable_set"
+    effect: "update"
+    scope: "control_center_ansible_variable_sets_edit"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "PATCH"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/variable_sets/{id}"
+    api_operation: "PATCH /api/v1/control_center/ansible/variable_sets/{id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "expected_lock_version"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.edit_ansible_variable_set"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "create_nonsecret_ansible_variable"
+    module: "control_center_ansible_variables"
+    operation: "create_nonsecret_ansible_variable"
+    effect: "create"
+    scope: "control_center_ansible_variables_create"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/variable_sets/{variable_set_id}/variables"
+    api_operation: "POST /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.create_nonsecret_ansible_variable"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "edit_nonsecret_ansible_variable"
+    module: "control_center_ansible_variables"
+    operation: "edit_nonsecret_ansible_variable"
+    effect: "update"
+    scope: "control_center_ansible_variables_edit"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "PATCH"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}"
+    api_operation: "PATCH /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}"
+    gate: "control_center_ansible_artifacts"
+    rate_profile: "effect"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "expected_lock_version"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.edit_nonsecret_ansible_variable"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_run_groups"
+    module: "control_center_ansible_execution"
+    operation: "list_run_groups"
+    effect: "read"
+    scope: "control_center_ansible_runs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/run_groups"
+    api_operation: "GET /api/v1/control_center/ansible/run_groups"
+    gate: "control_center_ansible_execution"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_run_groups"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_run_group"
+    module: "control_center_ansible_execution"
+    operation: "get_run_group"
+    effect: "read"
+    scope: "control_center_ansible_runs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/run_groups/{id}"
+    api_operation: "GET /api/v1/control_center/ansible/run_groups/{id}"
+    gate: "control_center_ansible_execution"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_run_group"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "analyze_ansible_runs"
+    module: "control_center_ansible_execution"
+    operation: "analyze_ansible_runs"
+    effect: "analyze"
+    scope: "control_center_ansible_runs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/run_groups/analyze"
+    api_operation: "GET /api/v1/control_center/ansible/run_groups"
+    gate: "control_center_ansible_execution"
+    rate_profile: "analyze"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.analyze_ansible_runs"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "launch_ansible_run_group"
+    module: "control_center_ansible_execution"
+    operation: "launch_ansible_run_group"
+    effect: "execute"
+    scope: "control_center_ansible_run_groups_launch"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/run_groups"
+    api_operation: "POST /api/v1/control_center/ansible/run_groups"
+    gate: "control_center_ansible_execution"
+    rate_profile: "launch"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.launch_ansible_run_group"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "cancel_ansible_run_group"
+    module: "control_center_ansible_execution"
+    operation: "cancel_ansible_run_group"
+    effect: "cancel"
+    scope: "control_center_ansible_run_groups_cancel"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/run_groups/{id}/cancel"
+    api_operation: "POST /api/v1/control_center/ansible/run_groups/{id}/cancel"
+    gate: "control_center_ansible_execution"
+    rate_profile: "launch"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.cancel_ansible_run_group"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "get_run"
+    module: "control_center_ansible_execution"
+    operation: "get_run"
+    effect: "read"
+    scope: "control_center_ansible_runs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/runs/{id}"
+    api_operation: "GET /api/v1/control_center/ansible/runs/{id}"
+    gate: "control_center_ansible_execution"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_run"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "cancel_ansible_run"
+    module: "control_center_ansible_execution"
+    operation: "cancel_ansible_run"
+    effect: "cancel"
+    scope: "control_center_ansible_runs_cancel"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "POST"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/runs/{id}/cancel"
+    api_operation: "POST /api/v1/control_center/ansible/runs/{id}/cancel"
+    gate: "control_center_ansible_execution"
+    rate_profile: "launch"
+    byte_profile: "standard"
+    idempotency: "required"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.cancel_ansible_run"
+    target_metadata: ["id"]
+    rollout: "enabled"
+  - name: "list_run_events"
+    module: "control_center_ansible_execution"
+    operation: "list_run_events"
+    effect: "read"
+    scope: "control_center_ansible_runs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/runs/{run_id}/events"
+    api_operation: "GET /api/v1/control_center/ansible/runs/{run_id}/events"
+    gate: "control_center_ansible_execution"
+    rate_profile: "read"
+    byte_profile: "large"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.list_run_events"
+    target_metadata: []
+    rollout: "enabled"
+  - name: "get_ansible_executor_health"
+    module: "control_center_ansible_execution"
+    operation: "get_ansible_executor_health"
+    effect: "read"
+    scope: "control_center_ansible_runs_read"
+    input_schema_version: 1
+    output_schema_version: 1
+    machine_method: "GET"
+    machine_path: "/api/v1/assistant/machine/control_center/ansible/executor_health"
+    api_operation: "GET /api/v1/control_center/ansible/executor_health"
+    gate: "control_center_ansible_execution"
+    rate_profile: "read"
+    byte_profile: "standard"
+    idempotency: "none"
+    locking: "none"
+    secret_input: "deny"
+    secret_output: "deny"
+    audit_event: "assistant.machine.get_ansible_executor_health"
+    target_metadata: []
+    rollout: "enabled"
+api_classifications:
+  "GET /api/v1/assistant/machine/capabilities":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/credentials":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/credentials/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/executor_health":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/inventories":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/inventories/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/inventories/{id}/utility_tasks/{task_id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/runs/{run_id}/events":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/variable_sets":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/variable_sets/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/health":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/stats":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/cves/new":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/programs/changes":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/programs/scope_runs":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/programs/scope_runs/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "PATCH /api/v1/assistant/machine/control_center/ansible/inventories/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "PATCH /api/v1/assistant/machine/control_center/ansible/variable_sets/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "PATCH /api/v1/assistant/machine/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "PATCH /api/v1/assistant/machine/vulnerabilities/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/inventories":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/inventories/validate":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/inventories/{id}/confirm_host_keys":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/inventories/{id}/connectivity_test":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/inventories/{id}/host_key_scan":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/inventories/{id}/syntax_check":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/playbooks/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/playbooks/export":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/playbooks/validate":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/run_groups":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/run_groups/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/run_groups/{id}/cancel":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/runs/{id}/cancel":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/variable_sets":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/ansible/variable_sets/{variable_set_id}/variables":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/jobs":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/jobs/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/jobs/resolve_targets":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/templates/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/templates/validate":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/templates/validate_yaml":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/cves/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/programs/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/sitemap/endpoints/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/targets/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/vulnerabilities":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/vulnerabilities/analyze":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "DELETE /api/v1/assistant/conversations/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "DELETE /api/v1/assistant/provider_profiles/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "DELETE /api/v1/control_center/ansible/credentials/{id}":
+    classification: "excluded_secret"
+    reason: "Credential material cannot enter or leave the model boundary."
+  "DELETE /api/v1/control_center/ansible/inventories/{id}":
+    classification: "excluded_delete"
+    reason: "Destructive deletion is permanently unavailable to the Assistant."
+  "DELETE /api/v1/control_center/ansible/playbooks/{id}":
+    classification: "excluded_delete"
+    reason: "Destructive deletion is permanently unavailable to the Assistant."
+  "DELETE /api/v1/control_center/ansible/variable_sets/{id}":
+    classification: "excluded_delete"
+    reason: "Destructive deletion is permanently unavailable to the Assistant."
+  "DELETE /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}":
+    classification: "excluded_delete"
+    reason: "Destructive deletion is permanently unavailable to the Assistant."
+  "DELETE /api/v1/control_center/templates/{id}":
+    classification: "excluded_delete"
+    reason: "Destructive deletion is permanently unavailable to the Assistant."
+  "DELETE /api/v1/vulnerabilities/{id}":
+    classification: "excluded_delete"
+    reason: "Destructive deletion is permanently unavailable to the Assistant."
+  "GET /api/v1/ansible_executor/runs/{id}/control":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "GET /api/v1/assistant/bootstrap":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/assistant/context_options":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/assistant/conversations":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/assistant/conversations/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/assistant/drafts/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/assistant/machine/artifacts/{resource_type}/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/contexts/{resource_type}/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/playbooks":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/playbooks/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/run_events":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/run_groups":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/run_groups/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/ansible/runs/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/jobs":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/jobs/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/templates":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/control_center/templates/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/cves":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/cves/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/grant":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/policies/{artifact_type}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/programs":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/programs/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/sitemap/endpoints":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/sitemap/endpoints/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/targets":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/targets/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/validation_results/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/vulnerabilities":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/machine/vulnerabilities/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "GET /api/v1/assistant/provider_profiles":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/assistant/provider_profiles/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/assistant/settings":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/assistant/turns/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "GET /api/v1/control_center/ansible/credentials":
+    classification: "enabled"
+    tool: "list_ansible_credential_metadata"
+  "GET /api/v1/control_center/ansible/credentials/{id}":
+    classification: "enabled"
+    tool: "get_ansible_credential_metadata"
+  "GET /api/v1/control_center/ansible/executor_health":
+    classification: "enabled"
+    tool: "get_ansible_executor_health"
+  "GET /api/v1/control_center/ansible/inventories":
+    classification: "enabled"
+    tool: "list_ansible_inventories"
+  "GET /api/v1/control_center/ansible/inventories/{id}":
+    classification: "enabled"
+    tool: "get_ansible_inventory"
+  "GET /api/v1/control_center/ansible/inventories/{id}/executor_tasks/{task_id}":
+    classification: "enabled"
+    tool: "get_inventory_utility_task"
+  "GET /api/v1/control_center/ansible/playbooks":
+    classification: "enabled"
+    tool: "list_playbooks"
+  "GET /api/v1/control_center/ansible/playbooks/{id}":
+    classification: "enabled"
+    tool: "get_playbook"
+  "GET /api/v1/control_center/ansible/run_groups":
+    classification: "enabled"
+    tool: "list_run_groups"
+  "GET /api/v1/control_center/ansible/run_groups/{id}":
+    classification: "enabled"
+    tool: "get_run_group"
+  "GET /api/v1/control_center/ansible/runs/{id}":
+    classification: "enabled"
+    tool: "get_run"
+  "GET /api/v1/control_center/ansible/runs/{run_id}/events":
+    classification: "enabled"
+    tool: "list_run_events"
+  "GET /api/v1/control_center/ansible/variable_sets":
+    classification: "enabled"
+    tool: "list_ansible_variable_sets"
+  "GET /api/v1/control_center/ansible/variable_sets/{id}":
+    classification: "enabled"
+    tool: "get_ansible_variable_set"
+  "GET /api/v1/control_center/health":
+    classification: "enabled"
+    tool: "get_control_center_health"
+  "GET /api/v1/control_center/jobs":
+    classification: "enabled"
+    tool: "list_jobs"
+  "GET /api/v1/control_center/jobs/{id}":
+    classification: "enabled"
+    tool: "get_job"
+  "GET /api/v1/control_center/stats":
+    classification: "enabled"
+    tool: "get_control_center_stats"
+  "GET /api/v1/control_center/templates":
+    classification: "enabled"
+    tool: "list_templates"
+  "GET /api/v1/control_center/templates/{id}":
+    classification: "enabled"
+    tool: "get_template"
+  "GET /api/v1/cves":
+    classification: "enabled"
+    tool: "list_cves"
+  "GET /api/v1/cves/config":
+    classification: "excluded_governance"
+    reason: "Saved token filter configuration is API-token governance."
+  "GET /api/v1/cves/new":
+    classification: "enabled"
+    tool: "list_new_cves"
+  "GET /api/v1/cves/{id}":
+    classification: "enabled"
+    tool: "get_cve"
+  "GET /api/v1/openapi":
+    classification: "enabled"
+    tool: "list_hunter_capabilities"
+  "GET /api/v1/programs/changes":
+    classification: "enabled"
+    tool: "list_program_changes"
+  "GET /api/v1/programs/runs":
+    classification: "enabled"
+    tool: "list_scope_runs"
+  "GET /api/v1/programs/runs/{id}":
+    classification: "enabled"
+    tool: "get_scope_run"
+  "GET /api/v1/sitemap/endpoints":
+    classification: "enabled"
+    tool: "list_endpoints"
+  "GET /api/v1/targets":
+    classification: "enabled"
+    tool: "list_targets"
+  "GET /api/v1/targets/{id}":
+    classification: "enabled"
+    tool: "get_target"
+  "GET /api/v1/vulnerabilities":
+    classification: "enabled"
+    tool: "list_vulnerabilities"
+  "GET /api/v1/vulnerabilities/{id}":
+    classification: "enabled"
+    tool: "get_vulnerability"
+  "PATCH /api/v1/assistant/conversations/order":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "PATCH /api/v1/assistant/conversations/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "PATCH /api/v1/assistant/machine/control_center/ansible/playbooks/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "PATCH /api/v1/assistant/machine/control_center/templates/{id}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "PATCH /api/v1/assistant/provider_profiles/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "PATCH /api/v1/assistant/settings":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "PATCH /api/v1/control_center/ansible/credentials/{id}":
+    classification: "excluded_secret"
+    reason: "Credential material cannot enter or leave the model boundary."
+  "PATCH /api/v1/control_center/ansible/inventories/{id}":
+    classification: "enabled"
+    tool: "edit_ansible_inventory"
+  "PATCH /api/v1/control_center/ansible/playbooks/{id}":
+    classification: "enabled"
+    tool: "edit_ansible_playbook"
+  "PATCH /api/v1/control_center/ansible/variable_sets/{id}":
+    classification: "enabled"
+    tool: "edit_ansible_variable_set"
+  "PATCH /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}":
+    classification: "enabled"
+    tool: "edit_nonsecret_ansible_variable"
+  "PATCH /api/v1/control_center/templates/{id}":
+    classification: "enabled"
+    tool: "edit_whiterabbit_template"
+  "PATCH /api/v1/vulnerabilities/{id}":
+    classification: "enabled"
+    tool: "update_vulnerability"
+  "POST /api/v1/ansible_executor/runs/claim":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/ansible_executor/runs/{id}/events":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/ansible_executor/runs/{id}/heartbeat":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/ansible_executor/runs/{id}/result":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/ansible_executor/runs/{id}/start":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/ansible_executor/tasks/claim":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/ansible_executor/tasks/{id}/heartbeat":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/ansible_executor/tasks/{id}/result":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/assistant/context_previews":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "POST /api/v1/assistant/conversations":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "POST /api/v1/assistant/conversations/{conversation_id}/turns":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "POST /api/v1/assistant/drafts/{draft_id}/confirmed_save":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "POST /api/v1/assistant/machine/control_center/ansible/playbooks":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/control_center/templates":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/machine/validations/{artifact_type}":
+    classification: "internal_mcp_backend"
+    reason: "Dedicated MCP backend route."
+  "POST /api/v1/assistant/provider_profiles":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "POST /api/v1/assistant/turns/{id}/cancel":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "POST /api/v1/control_center/ansible/credentials":
+    classification: "excluded_secret"
+    reason: "Credential material cannot enter or leave the model boundary."
+  "POST /api/v1/control_center/ansible/inventories":
+    classification: "enabled"
+    tool: "create_ansible_inventory"
+  "POST /api/v1/control_center/ansible/inventories/validate":
+    classification: "enabled"
+    tool: "validate_ansible_inventory"
+  "POST /api/v1/control_center/ansible/inventories/{id}/confirm_host_keys":
+    classification: "enabled"
+    tool: "confirm_inventory_host_keys"
+  "POST /api/v1/control_center/ansible/inventories/{id}/connectivity_test":
+    classification: "enabled"
+    tool: "queue_inventory_connectivity_test"
+  "POST /api/v1/control_center/ansible/inventories/{id}/host_key_scan":
+    classification: "enabled"
+    tool: "queue_host_key_scan"
+  "POST /api/v1/control_center/ansible/inventories/{id}/syntax_check":
+    classification: "enabled"
+    tool: "queue_inventory_syntax_check"
+  "POST /api/v1/control_center/ansible/playbooks":
+    classification: "enabled"
+    tool: "create_ansible_playbook"
+  "POST /api/v1/control_center/ansible/playbooks/export":
+    classification: "enabled"
+    tool: "export_ansible_playbooks"
+  "POST /api/v1/control_center/ansible/playbooks/validate":
+    classification: "enabled"
+    tool: "validate_ansible_playbook"
+  "POST /api/v1/control_center/ansible/run_groups":
+    classification: "enabled"
+    tool: "launch_ansible_run_group"
+  "POST /api/v1/control_center/ansible/run_groups/{id}/cancel":
+    classification: "enabled"
+    tool: "cancel_ansible_run_group"
+  "POST /api/v1/control_center/ansible/runs/{id}/cancel":
+    classification: "enabled"
+    tool: "cancel_ansible_run"
+  "POST /api/v1/control_center/ansible/variable_sets":
+    classification: "enabled"
+    tool: "create_ansible_variable_set"
+  "POST /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables":
+    classification: "enabled"
+    tool: "create_nonsecret_ansible_variable"
+  "POST /api/v1/control_center/jobs":
+    classification: "enabled"
+    tool: "submit_whiterabbit_job"
+  "POST /api/v1/control_center/jobs/resolve_targets":
+    classification: "enabled"
+    tool: "resolve_job_targets"
+  "POST /api/v1/control_center/templates":
+    classification: "enabled"
+    tool: "create_whiterabbit_template"
+  "POST /api/v1/control_center/templates/validate":
+    classification: "enabled"
+    tool: "validate_whiterabbit_template"
+  "POST /api/v1/control_center/templates/validate_yaml":
+    classification: "enabled"
+    tool: "validate_whiterabbit_yaml"
+  "POST /api/v1/runner/jobs/claim":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/runner/jobs/{id}/result":
+    classification: "excluded_machine_identity"
+    reason: "Runner and executor callback identity is not model authority."
+  "POST /api/v1/vulnerabilities":
+    classification: "enabled"
+    tool: "create_vulnerability"
+  "PUT /api/v1/assistant/provider_profiles/{id}":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "PUT /api/v1/assistant/settings":
+    classification: "excluded_governance"
+    reason: "Assistant authority and conversation administration remain human-only."
+  "PUT /api/v1/control_center/ansible/credentials/{id}":
+    classification: "excluded_secret"
+    reason: "Credential material cannot enter or leave the model boundary."
+  "PUT /api/v1/control_center/ansible/inventories/{id}":
+    classification: "api_alias"
+    alias_of: "PATCH /api/v1/control_center/ansible/inventories/{id}"
+    reason: "PUT invokes the same reviewed update operation as PATCH."
+  "PUT /api/v1/control_center/ansible/playbooks/{id}":
+    classification: "api_alias"
+    alias_of: "PATCH /api/v1/control_center/ansible/playbooks/{id}"
+    reason: "PUT invokes the same reviewed update operation as PATCH."
+  "PUT /api/v1/control_center/ansible/variable_sets/{id}":
+    classification: "api_alias"
+    alias_of: "PATCH /api/v1/control_center/ansible/variable_sets/{id}"
+    reason: "PUT invokes the same reviewed update operation as PATCH."
+  "PUT /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}":
+    classification: "api_alias"
+    alias_of: "PATCH /api/v1/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}"
+    reason: "PUT invokes the same reviewed update operation as PATCH."
+  "PUT /api/v1/control_center/templates/{id}":
+    classification: "api_alias"
+    alias_of: "PATCH /api/v1/control_center/templates/{id}"
+    reason: "PUT invokes the same reviewed update operation as PATCH."
+  "PUT /api/v1/vulnerabilities/{id}":
+    classification: "api_alias"
+    alias_of: "PATCH /api/v1/vulnerabilities/{id}"
+    reason: "PUT invokes the same reviewed update operation as PATCH."

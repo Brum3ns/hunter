@@ -100,7 +100,7 @@ class Api::V1::Assistant::Machine::ProgramsTest < ActionDispatch::IntegrationTes
     get "/api/v1/assistant/machine/programs", headers: headers(grant)
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "get_program returns the full projection" do
@@ -207,8 +207,8 @@ class Api::V1::Assistant::Machine::ProgramsTest < ActionDispatch::IntegrationTes
   end
 
   test "an aggregate projection above the encoded result ceiling fails closed" do
-    oversized_scope = Array.new(500) do |index|
-      { "asset" => "#{index}-#{"a" * 1_500}.example", "type" => "web" }
+    oversized_scope = Array.new(900) do |index|
+      { "asset" => "#{index}-#{"a" * 4_000}.example", "type" => "web" }
     end
     grant = read_grant
     grant_record = Assistant::TurnGrant.order(:id).last
@@ -217,8 +217,8 @@ class Api::V1::Assistant::Machine::ProgramsTest < ActionDispatch::IntegrationTes
       get "/api/v1/assistant/machine/programs/acme-corp", headers: headers(grant)
     end
 
-    assert_response :forbidden
-    assert_equal "result_rejected", response.parsed_body["error"]
+    assert_response :content_too_large
+    assert_equal "tool_response_rejected", response.parsed_body["error"]
     assert_equal 0, grant_record.reload.reserved_bytes
   end
 

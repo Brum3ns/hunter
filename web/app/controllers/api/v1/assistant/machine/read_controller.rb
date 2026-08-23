@@ -45,7 +45,7 @@ module Api
             )
             if sanitized.value.nil? || residual
               reservation.fail!
-              return render json: { error: "result_rejected" }, status: :forbidden
+              return render json: { error: "tool_response_rejected" }, status: :forbidden
             end
 
             complete_machine_response!(reservation, sanitized.value)

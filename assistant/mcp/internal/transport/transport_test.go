@@ -97,6 +97,8 @@ func TestIntrospectRejectsMissingNullAndWrongShapedFields(t *testing.T) {
 		strings.Replace(valid, `"resources":[]`, `"resources":null`, 1),
 		strings.Replace(valid, `"resources":[]`, `"resources":[{"type":"target"}]`, 1),
 		strings.Replace(valid, `"calls_remaining":8`, `"calls_remaining":-1`, 1),
+		strings.Replace(valid, `"calls_remaining":8`, `"calls_remaining":129`, 1),
+		strings.Replace(valid, `"bytes_remaining":4096`, `"bytes_remaining":16777217`, 1),
 	}
 	for _, body := range cases {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -156,6 +158,29 @@ func TestDoReturnsOnlyAllowlistedStableHunterErrors(t *testing.T) {
 	defer untrusted.Close()
 	if _, err := newTestClient(t, untrusted.URL, 64<<10).Do(context.Background(), http.MethodGet, "/x", "g1", nil); !errors.Is(err, ErrUnexpectedResponse) {
 		t.Fatalf("untrusted error got %v", err)
+	}
+}
+
+func TestDoAcceptsTheReviewedOperationalErrorVocabulary(t *testing.T) {
+	for _, code := range []string{
+		"capability_disabled", "scope_not_granted", "turn_grant_expired",
+		"turn_call_budget_exhausted", "effect_rate_limited", "validation_failed",
+		"version_conflict", "idempotent_replay", "not_found", "conflict",
+		"upstream_unavailable", "tool_response_rejected",
+	} {
+		t.Run(code, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error":"` + code + `"}`))
+			}))
+			defer server.Close()
+			_, err := newTestClient(t, server.URL, 64<<10).Do(context.Background(), http.MethodGet, "/x", "g1", nil)
+			var hunterErr *HunterError
+			if !errors.As(err, &hunterErr) || hunterErr.Code != code {
+				t.Fatalf("got %#v (%v)", hunterErr, err)
+			}
+		})
 	}
 }
 

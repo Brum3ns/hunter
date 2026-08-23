@@ -55,17 +55,16 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     assert_response :created
     body = response.parsed_body
     assert body["correlation_id"].present?
-    playbook = body["playbook"]
-    assert playbook["id"].present?
-    assert_equal "assistant-playbook", playbook["name"]
-    assert_equal 0, playbook["lock_version"]
+    receipt = body.fetch("receipt")
+    assert_equal "created", receipt.fetch("status")
+    assert_equal "ansible_playbook", receipt.dig("target", "type")
 
-    record = ::ControlCenter::Ansible::Playbook.find(playbook["id"])
+    record = ::ControlCenter::Ansible::Playbook.find(receipt.dig("target", "id"))
     assert_equal "assistant-playbook", record.name
     assert_equal VALID_YAML, record.yaml_content
     assert_equal machine_user, record.created_by
 
-    event = Assistant::AuditEvent.order(:id).last
+    event = Assistant::AuditEvent.where(event: "machine.create").order(:id).last
     assert_equal "machine.create", event.event
     assert_equal "create_ansible_playbook", event.metadata["operation"]
   end
@@ -79,7 +78,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
       headers: headers(write_grant), as: :json
 
     assert_response :created
-    record = ControlCenter::Ansible::Playbook.find(response.parsed_body.dig("playbook", "id"))
+    record = ControlCenter::Ansible::Playbook.find(response.parsed_body.dig("receipt", "target", "id"))
     assert_equal source, record.yaml_content
   end
 
@@ -133,7 +132,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     end
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "refuses to create when the control center write toggle is off" do
@@ -146,7 +145,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     end
 
     assert_response :forbidden
-    assert_equal "control_center_write_disabled", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
   private

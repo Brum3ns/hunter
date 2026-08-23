@@ -23,6 +23,11 @@ module Assistant
         when "turn_start" then consume_turn_start!(user, now.in_time_zone)
         when "create" then consume_create!(user, now.in_time_zone)
         when "edit" then consume_edit!(user, now.in_time_zone)
+        when /\Aeffect:(\d+)\z/
+          consume_effect!(user, Regexp.last_match(1), now.in_time_zone)
+        when /\Alaunch:(\d+)\z/
+          consume_effect!(user, Regexp.last_match(1), now.in_time_zone)
+          consume_launch!(user, Regexp.last_match(1), now.in_time_zone)
         when /\Avalidation:(\d+)\z/ then check_validation!(user, Regexp.last_match(1), now.in_time_zone)
         else raise ArgumentError, "unsupported assistant rate-limit action"
         end
@@ -95,6 +100,56 @@ module Assistant
       )
     end
     private_class_method :consume_edit!
+
+    def consume_effect!(user, turn_id, now)
+      turn = rate_limit_turn!(user, turn_id)
+      consume_window!(
+        user: user,
+        action: "effect.turn.#{turn.id}",
+        started_at: turn.created_at,
+        limit: Assistant::Config.max_effects_per_turn,
+        code: "effect_rate_limited",
+        retry_after: ->(_start) { [ (turn.created_at + Assistant::Config.grant_ttl - now).ceil, 1 ].max }
+      )
+      consume_window!(
+        user: user,
+        action: "effect.hour",
+        started_at: now.change(min: 0, sec: 0),
+        limit: Assistant::Config.max_effects_per_hour,
+        code: "effect_rate_limited",
+        retry_after: ->(start) { (start + 1.hour - now).ceil }
+      )
+    end
+    private_class_method :consume_effect!
+
+    def consume_launch!(user, turn_id, now)
+      turn = rate_limit_turn!(user, turn_id)
+      consume_window!(
+        user: user,
+        action: "launch.turn.#{turn.id}",
+        started_at: turn.created_at,
+        limit: Assistant::Config.max_launches_per_turn,
+        code: "effect_rate_limited",
+        retry_after: ->(_start) { [ (turn.created_at + Assistant::Config.grant_ttl - now).ceil, 1 ].max }
+      )
+      consume_window!(
+        user: user,
+        action: "launch.hour",
+        started_at: now.change(min: 0, sec: 0),
+        limit: Assistant::Config.max_launches_per_hour,
+        code: "effect_rate_limited",
+        retry_after: ->(start) { (start + 1.hour - now).ceil }
+      )
+    end
+    private_class_method :consume_launch!
+
+    def rate_limit_turn!(user, turn_id)
+      turn = Assistant::Turn.where(user: user).find_by(id: turn_id)
+      raise ArgumentError, "rate-limit turn is unavailable" unless turn
+
+      turn
+    end
+    private_class_method :rate_limit_turn!
 
     def consume_window!(user:, action:, started_at:, limit:, code:, retry_after:)
       bucket = Assistant::RateLimitBucket.find_or_initialize_by(

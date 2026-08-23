@@ -56,7 +56,7 @@ class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :forbidden
-    assert_equal "resource_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
     refute resolved
   end
 
@@ -71,8 +71,8 @@ class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
       get "/api/v1/assistant/machine/contexts/target/abc", headers: headers(grant_token)
     end
 
-    assert_response :forbidden
-    assert_equal "grant_calls_exhausted", response.parsed_body["reason"]
+    assert_response :too_many_requests
+    assert_equal "turn_call_budget_exhausted", response.parsed_body["error"]
   end
 
   test "artifact fetch rejects secret-bearing examples without returning content" do

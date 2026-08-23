@@ -2,6 +2,7 @@
 package cves
 
 import (
+	"hunter.local/assistant/mcp/internal/analysismodule"
 	"hunter.local/assistant/mcp/internal/readmodule"
 	"hunter.local/assistant/mcp/internal/tool"
 )
@@ -9,7 +10,15 @@ import (
 type Module struct{}
 
 func (Module) Tools() []tool.Tool {
-	return readmodule.Build(readmodule.Spec{
+	fields := []readmodule.ListField{
+		{Name: "q", Kind: "string", MaxLen: 200}, {Name: "ecosystem", Kind: "string", MaxLen: 100},
+		{Name: "package", Kind: "string", MaxLen: 200}, {Name: "language", Kind: "string", MaxLen: 100},
+		{Name: "vendor", Kind: "string", MaxLen: 100}, {Name: "cwe", Kind: "string", MaxLen: 40},
+		{Name: "tag", Kind: "string", MaxLen: 100}, {Name: "has_fix", Kind: "string", MaxLen: 5},
+		{Name: "min_severity", Kind: "string", MaxLen: 10},
+		{Name: "published_after", Kind: "string", MaxLen: 40}, {Name: "modified_after", Kind: "string", MaxLen: 40},
+	}
+	tools := readmodule.Build(readmodule.Spec{
 		ListTool: "list_cves", GetTool: "get_cve", Scope: "cves",
 		BasePath: "/api/v1/assistant/machine/cves", DetailKey: "cve",
 		ListDesc: "List and count tracked CVEs, optionally filtered by ecosystem, package, severity, or fix status.",
@@ -36,4 +45,11 @@ func (Module) Tools() []tool.Tool {
 			"osv_id", "first_seen_at", "last_synced_at",
 		},
 	})
+	tools = append(tools, analysismodule.Build(analysismodule.Spec{
+		Name: "analyze_cves", Scope: "cves_read", Path: "/api/v1/assistant/machine/cves/analyze",
+		Description: "Aggregate all matching CVEs server-side by severity, ecosystem, language, and fix availability.",
+		Fields:      fields, GroupKeys: []string{"severity_counts", "ecosystem_counts", "language_counts", "fix_counts"},
+	}))
+	tools = append(tools, newCVEsTool(fields))
+	return tools
 }

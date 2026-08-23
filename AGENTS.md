@@ -158,33 +158,44 @@ in the Assistant production checklist.
   bulk mutation, or removal of owner/toggle/audit/closed-schema gates is a new
   capability change requiring another threat-model delta.
 
-- **Approval-free create + explicit edit: Whiterabbit templates + Ansible
-  playbooks** (approved delta:
-  `docs/superpowers/specs/2026-07-30-assistant-mcp-full-access-authoring-design.md`).
-  Create and explicit user-requested edit (never delete/run) of these two
-  Control Center artifact types are approved **without** a confirmation step,
-  conditioned on all of
+- **Administrator-equivalent operational access through Hunter MCP** (approved
+  delta:
+  `docs/superpowers/specs/2026-08-19-assistant-mcp-administrator-proxy-design.md`).
+  Submitting a message as the configured Assistant administrator approves the
+  model's use of every currently enabled, dedicated Hunter MCP capability
+  reasonably necessary to fulfill that message, including non-secret creates,
+  updates, validation, target resolution, Whiterabbit job submission,
+  operational analysis, Ansible utility actions, run launch, monitoring, and
+  cancellation. No second confirmation step is required, conditioned on all of
   the following remaining true:
-  - The strict content validators (`Assistant::DraftValidation::AnsibleStatic`
-    for playbooks, `Assistant::DraftValidation::Whiterabbit`/`TemplateValidator`
-    for templates) remain mandatory, fail-closed gates — no persist path may
-    bypass them.
-  - Create only builds a new record (`Model.new`) and never overwrites. Edit is
-    separately named for every existing artifact, requires the artifact ID
-    plus `expected_lock_version`, validates the complete merged artifact, and
-    fails stale; there is no delete or run path.
-  - Authorization is via dedicated, non-wildcard write scopes
-    (`control_center_templates_write`, `control_center_templates_edit`,
-    `control_center_ansible_write`, `control_center_ansible_edit`) granted only
-    alongside the matching `create_*`/`edit_*` tool, and the whole capability is
-    independently revocable via `Assistant::Setting#control_center_write_enabled`
-    (default on) without touching any read capability.
-  - Every create/edit is attributed to the turn's human user and audited
-    metadata-only (`Assistant::Audit.record!`).
-  - Production activation still stays gated by, and requires review evidence
-    recorded in, the Assistant production checklist
-    (`docs/security/hunter-assistant-production-checklist.md`) before enable.
+  - Hunter MCP is the only Hunter access path. Every capability has a narrowly
+    named tool, closed schemas, dedicated non-wildcard authorization, a live
+    human-controlled feature gate, ordinary domain validation, stable errors,
+    action receipts, and metadata-only audit. There is no generic API, network,
+    shell, filesystem, database, credential, send, schedule, or execution tool.
+  - Every current and future `/api/v1` operation is classified by the reviewed
+    capability catalog as enabled, secret, delete, governance, machine identity,
+    internal MCP backing, or an API alias. New operations stay unavailable until
+    explicitly classified and implemented; OpenAPI never auto-registers tools.
+  - Secret values are unavailable as both input and output. Credentials and
+    secret variables expose safe metadata/opaque IDs only; the model cannot
+    create, rotate, clear, reveal, or update secret material.
+  - No MCP tool may issue HTTP `DELETE`, reach a destroy action/service, or
+    destructively remove a Hunter record. Separately named reversible cancel,
+    restore, or untrash operations are allowed only when their schemas and
+    services cannot delete a record.
+  - Assistant/security governance remains human-only. The model cannot change
+    tools, scopes, gates, budgets, validators, audit, providers, authentication,
+    users, roles, sessions, API tokens, retention, service identities, or
+    runner/executor machine state.
+  - Effects are attributed to the turn's human administrator, validated through
+    existing domain services, idempotent against retries, concurrency-safe where
+    records are editable, immediately revocable through live gates, disclosed
+    in the UI, and audited without prompts, content, output, or secrets.
+  - Production activation remains gated by review evidence in
+    `docs/security/hunter-assistant-production-checklist.md`.
 
-  Any change to these conditions (new artifact type, delete/run, blind edit, a
-  broadened or wildcard scope, or removing the validator/toggle/audit gates)
-  is a new capability change requiring its own threat-model delta.
+  Any relaxation of the permanent secret, deletion, governance, MCP-only,
+  dedicated-tool, closed-schema, non-wildcard, revocation, validation,
+  idempotency, attribution, disclosure, audit, or production-gate conditions is
+  a new capability change requiring another approved threat-model delta.

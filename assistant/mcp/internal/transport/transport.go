@@ -28,6 +28,17 @@ var (
 const maxErrorResponseBytes int64 = 8 << 10
 
 var stableHunterErrors = map[string]struct{}{
+	"capability_disabled":           {},
+	"scope_not_granted":             {},
+	"turn_grant_expired":            {},
+	"turn_call_budget_exhausted":    {},
+	"effect_rate_limited":           {},
+	"version_conflict":              {},
+	"idempotent_replay":             {},
+	"not_found":                     {},
+	"conflict":                      {},
+	"upstream_unavailable":          {},
+	"tool_response_rejected":        {},
 	"name_conflict":                 {},
 	"destination_stale":             {},
 	"artifact_not_found":            {},
@@ -117,7 +128,8 @@ func (client *Client) Introspect(ctx context.Context, grant string) (Grant, erro
 
 func validGrant(grant Grant, root map[string]json.RawMessage) bool {
 	if grant.GrantID <= 0 || !grantCorrelationID.MatchString(grant.CorrelationID) || grant.ExpiresAt.IsZero() ||
-		grant.CallsRemaining < 0 || grant.BytesRemaining < 0 ||
+		grant.CallsRemaining < 0 || grant.CallsRemaining > 128 ||
+		grant.BytesRemaining < 0 || grant.BytesRemaining > 16<<20 ||
 		bytes.Equal(bytes.TrimSpace(root["resources"]), []byte("null")) ||
 		!validGrantStrings(root["tools"], grant.Tools, 128) ||
 		!validGrantStrings(root["read_scopes"], grant.ReadScopes, 128) ||

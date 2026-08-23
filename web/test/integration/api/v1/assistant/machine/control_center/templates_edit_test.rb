@@ -30,13 +30,13 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDisp
       }, headers: headers(edit_grant), as: :json
 
       assert_response :success
-      assert_equal 1, response.parsed_body.dig("template", "lock_version")
+      assert_equal "updated", response.parsed_body.dig("receipt", "status")
       assert_equal "Updated", @template.reload.description
       assert_equal [], @template.commands.first.fetch("args")
     assert_equal machine_user.username, @template.created_by
     assert_nil @template.output
     assert_nil @template.target
-      event = Assistant::AuditEvent.order(:id).last
+      event = Assistant::AuditEvent.where(event: "machine.edit").order(:id).last
       assert_equal "machine.edit", event.event
       assert_equal({ "operation" => "edit_whiterabbit_template", "outcome" => "updated" }, event.metadata)
     end
@@ -48,11 +48,11 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDisp
       patch endpoint, params: { expected_lock_version: 99, changes: { description: "Lost" } },
         headers: headers(edit_grant), as: :json
       assert_response :conflict
-      assert_equal "destination_stale", response.parsed_body["error"]
+      assert_equal "version_conflict", response.parsed_body["error"]
       assert_equal original, @template.reload.attributes
       event = Assistant::AuditEvent.order(:id).last
       assert_equal "machine.edit_rejected", event.event
-      assert_equal "destination_stale", event.metadata["reason"]
+      assert_equal "version_conflict", event.metadata["reason"]
       assert_equal @template.id.to_s, event.target_id
 
       patch endpoint, params: {
@@ -71,7 +71,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDisp
     patch endpoint, params: { expected_lock_version: 0, changes: { description: "No" } },
       headers: headers(grant), as: :json
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
     assert_equal "Original", @template.reload.description
   end
 

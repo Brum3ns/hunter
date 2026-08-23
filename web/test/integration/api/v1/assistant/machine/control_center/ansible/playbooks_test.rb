@@ -38,7 +38,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksTest < Actio
     get "/api/v1/assistant/machine/control_center/ansible/playbooks", headers: headers(grant)
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "get_playbook returns the full projection" do

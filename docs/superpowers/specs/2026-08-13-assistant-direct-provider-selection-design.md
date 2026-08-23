@@ -25,6 +25,13 @@ is superseded by the separately approved
 Codex-owned internal tools may remain only under that delta's exact pin and
 isolation; every Hunter capability remains MCP-only.
 
+**2026-08-19 amendment:** The exact Hunter `CHAT_TOOLS` catalog and this
+document's old no-run/no-send Hunter capability statements are superseded by
+[`2026-08-19-assistant-mcp-administrator-proxy-design.md`](2026-08-19-assistant-mcp-administrator-proxy-design.md).
+The direct-provider binding, credential isolation, hardened runner, exact
+Codex-owned built-in pin, and MCP-only Hunter access requirements remain in
+force.
+
 ## Goal
 
 Make provider choice direct and understandable: an OpenAI logo starts a Codex

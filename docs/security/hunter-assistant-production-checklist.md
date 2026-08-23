@@ -10,7 +10,8 @@ result in this document or its attachments.
 The active direct-provider design is
 `docs/superpowers/specs/2026-08-13-assistant-direct-provider-selection-design.md`
 as amended by
-`docs/superpowers/specs/2026-08-15-assistant-codex-mcp-boundary-design.md`.
+`docs/superpowers/specs/2026-08-15-assistant-codex-mcp-boundary-design.md` and
+`docs/superpowers/specs/2026-08-19-assistant-mcp-administrator-proxy-design.md`.
 Use `docs/runbooks/assistant-codex-mcp-smoke-test.md` for the operator evidence
 procedure. Legacy gateway/provider-key rows apply only when a separately
 approved rollback candidate activates the `legacy-gateway` profile.
@@ -65,6 +66,7 @@ mutable “latest” results.
 |---|---|---|---|
 | Rails, JavaScript, Go race suites | Complete logs | UNSET | Not run |
 | MCP conformance and adversarial fixtures | Complete logs | UNSET | Not run |
+| Administrator-equivalent Hunter MCP operations | Exact 70-tool catalog parity across Rails/MCP/Codex/Claude; all 139 public and 47 internal API operations classified; no secret/delete/governance/machine-identity/generic proxy exposure; closed schemas, live revocation, effect/launch budgets, idempotent receipts, human attribution, and metadata-only audit verified with adversarial fixtures | UNSET | Not run |
 | Codex 0.144.4 model-visible schema capture | Exact eight approved built-in names and complete stable schemas; no ninth tool | UNSET | Not run |
 | Deferred Hunter MCP catalog capture | Sole source `hunter`; exact reviewed tool names/input schemas; exact service bearer and per-turn grant headers | UNSET | Not run |
 | Codex immutable-workspace patch denial | Real pinned binary receives provider-forced `apply_patch`; failed custom-tool output observed; target remains absent | UNSET | Not run |
@@ -82,7 +84,7 @@ mutable “latest” results.
 | Live direct-provider `docker compose up` acceptance | Both logins absent/present, both one-click backends, resume, legacy read-only plus `legacy_provider_retired`, and redacted `docker compose config` review; config expands live secret values, so never attach it unredacted | UNSET | Not run |
 | Metadata-only audit/log canaries | Unique prompt/reply/grant/login/tool canaries absent from audit metadata, logs, and API errors; expected message bodies present only in transcript storage | UNSET | Not run |
 | Direct-provider rollback | Kill switches off, grants revoked, previous approved digests plus `legacy-gateway` profile restored as one candidate, history/session bindings unchanged | UNSET | Not run |
-| Approval-free create + explicit edit (Whiterabbit templates + Ansible playbooks) — see `docs/superpowers/specs/2026-07-30-assistant-mcp-full-access-authoring-design.md` and the "Approved exceptions" entry in `AGENTS.md` | Evidence that: fail-closed validators reject every disallowed command/module and secret fixture with no mutation; create conflicts never overwrite; edits cover existing artifacts only by ID plus current `lock_version`, validate complete merged state, and reject stale versions; the four non-wildcard authoring scopes are independently revocable through `Assistant::Setting#control_center_write_enabled`; no delete/run tool exists; writes are human-attributed and metadata-only audited | UNSET | Not run |
+| Administrator-equivalent operational access through Hunter MCP — see `docs/superpowers/specs/2026-08-19-assistant-mcp-administrator-proxy-design.md` and the "Approved exceptions" entry in `AGENTS.md` | Evidence that: message submission authorizes only dedicated currently enabled tools; validators reject disallowed command/module and secret fixtures with no mutation; create conflicts never overwrite; edits require current versions; job submissions and Ansible launch/cancel are idempotent and bounded; operational/tool/module/effect gates revoke live; all effects are human-attributed and metadata-only audited; no secret, delete, governance, machine callback, or generic request/execution tool is advertised or callable | UNSET | Not run |
 | Direct conversation organization (rename + reorder) — see `docs/superpowers/specs/2026-08-13-assistant-conversation-workspace-design.md` and the "Approved exceptions" entry in `AGENTS.md` | Evidence that: session/admin/CSRF/owner checks reject adversarial requests; rename/reorder schemas remain closed and narrow; exact permutations are atomic and fail stale; `conversation_management_enabled` revokes both writes; the LLM has no organization tool; titles/order arrays/content never enter audit; the pinned Markdown parser/sanitizer corpus rejects active content with stable outcomes | UNSET | Not run |
 
 ### Local implementation evidence (not release approval)
@@ -98,6 +100,17 @@ vulnerability document endpoint. The first full Rails run completed 1,361 runs
 and 7,166 assertions with one documentation assertion failure; the assertion
 was fixed and its focused suite passed, but PostgreSQL then stopped accepting
 connections before a fresh full-suite run.
+
+On 2026-08-19, the administrator-equivalent Hunter MCP implementation passed a
+fresh full Rails run (1,413 runs and 7,609 assertions), all 127 JavaScript tests,
+and all five Assistant Go suites under the race detector. Source verification
+also confirmed exact parity for 70 reviewed tools across Rails, Hunter MCP,
+Codex, and Claude; classified all 186 API operations (139 public and 47
+Assistant-internal); passed Zeitwerk; passed the pinned Brakeman scanner with 79
+checks, zero errors, and zero warnings; and passed `git diff --check`. These are
+local source results only. The unavailable Docker runtime and unresolved
+`dockergateway` hostname prevented deployed end-to-end acceptance evidence, so
+the formal rows above remain `Not run` and production activation remains denied.
 
 This environment has no Docker-compatible runtime, `gitleaks`, `govulncheck`,
 image scanner, or SBOM toolchain, so it could not produce

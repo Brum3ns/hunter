@@ -1,17 +1,33 @@
 module Assistant
   module Config
     HARD_LIMITS = {
-      grant_ttl_seconds: 300,
+      grant_ttl_seconds: 1_800,
       max_records: 10,
-      max_tool_calls: 8,
-      max_result_bytes: 524_288,
-      max_total_bytes: 2_097_152,
+      max_tool_calls: 128,
+      max_result_bytes: 1_048_576,
+      max_total_bytes: 16_777_216,
+      max_effects_per_turn: 64,
+      max_effects_per_hour: 240,
+      max_launches_per_turn: 32,
+      max_launches_per_hour: 120,
       turn_starts_per_minute: 10,
       turn_starts_per_hour: 60,
       max_concurrent_turns: 2,
       max_validations_per_turn: 1,
       max_creates_per_minute: 5,
       max_creates_per_hour: 30
+    }.freeze
+
+    DEFAULT_LIMITS = {
+      grant_ttl_seconds: 1_800,
+      max_records: 10,
+      max_tool_calls: 64,
+      max_result_bytes: 1_048_576,
+      max_total_bytes: 16_777_216,
+      max_effects_per_turn: 32,
+      max_effects_per_hour: 120,
+      max_launches_per_turn: 16,
+      max_launches_per_hour: 60
     }.freeze
 
     module_function
@@ -29,23 +45,39 @@ module Assistant
     end
 
     def grant_ttl
-      bounded_ceiling("ASSISTANT_GRANT_TTL_SECONDS", HARD_LIMITS[:grant_ttl_seconds]).seconds
+      bounded_limit("ASSISTANT_GRANT_TTL_SECONDS", :grant_ttl_seconds).seconds
     end
 
     def max_records
-      bounded_ceiling("ASSISTANT_MAX_RECORDS", HARD_LIMITS[:max_records])
+      bounded_limit("ASSISTANT_MAX_RECORDS", :max_records)
     end
 
     def max_tool_calls
-      bounded_ceiling("ASSISTANT_MAX_TOOL_CALLS", HARD_LIMITS[:max_tool_calls])
+      bounded_limit("ASSISTANT_MAX_TOOL_CALLS", :max_tool_calls)
     end
 
     def max_result_bytes
-      bounded_ceiling("ASSISTANT_MAX_RESULT_BYTES", HARD_LIMITS[:max_result_bytes])
+      bounded_limit("ASSISTANT_MAX_RESULT_BYTES", :max_result_bytes)
     end
 
     def max_total_bytes
-      bounded_ceiling("ASSISTANT_MAX_TOTAL_BYTES", HARD_LIMITS[:max_total_bytes])
+      bounded_limit("ASSISTANT_MAX_TOTAL_BYTES", :max_total_bytes)
+    end
+
+    def max_effects_per_turn
+      bounded_limit("ASSISTANT_MAX_EFFECTS_PER_TURN", :max_effects_per_turn)
+    end
+
+    def max_effects_per_hour
+      bounded_limit("ASSISTANT_MAX_EFFECTS_PER_HOUR", :max_effects_per_hour)
+    end
+
+    def max_launches_per_turn
+      bounded_limit("ASSISTANT_MAX_LAUNCHES_PER_TURN", :max_launches_per_turn)
+    end
+
+    def max_launches_per_hour
+      bounded_limit("ASSISTANT_MAX_LAUNCHES_PER_HOUR", :max_launches_per_hour)
     end
 
     def turn_starts_per_minute
@@ -105,6 +137,14 @@ module Assistant
       ceiling
     end
     private_class_method :bounded_ceiling
+
+    def bounded_limit(key, name)
+      configured_value = configured(key)
+      return DEFAULT_LIMITS.fetch(name) if configured_value.nil?
+
+      bounded_ceiling(key, HARD_LIMITS.fetch(name))
+    end
+    private_class_method :bounded_limit
 
     def bounded_integer(key, default:, range:)
       value = Integer(configured(key) || default)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"hunter.local/assistant/mcp/internal/catalog"
 	"hunter.local/assistant/mcp/internal/tool"
 )
 
@@ -19,12 +20,50 @@ func NewRegistry() *Registry { return &Registry{tools: map[string]tool.Tool{}} }
 func (r *Registry) Add(modules ...tool.Module) {
 	for _, module := range modules {
 		for _, t := range module.Tools() {
-			if _, exists := r.tools[t.Name]; exists {
-				panic(fmt.Sprintf("duplicate tool: %s", t.Name))
-			}
-			r.tools[t.Name] = t
+			r.add(t)
 		}
 	}
+}
+
+// AddReviewed registers only tools present in the checked capability catalog
+// and copies authority metadata from that catalog. Module code continues to
+// own schemas, decoding, request construction, and response validation.
+func (r *Registry) AddReviewed(modules ...tool.Module) {
+	for _, module := range modules {
+		for _, candidate := range module.Tools() {
+			definition, ok := catalog.Lookup(candidate.Name)
+			if !ok {
+				panic(fmt.Sprintf("tool is absent from reviewed catalog: %s", candidate.Name))
+			}
+			candidate.Module = definition.Module
+			candidate.Effect = definition.Effect
+			candidate.Scope = definition.Scope
+			candidate.WriteScope = definition.Effect != "read" && definition.Effect != "analyze" && definition.Effect != "validate"
+			candidate.Gate = definition.Gate
+			candidate.RateProfile = definition.RateProfile
+			candidate.ByteProfile = definition.ByteProfile
+			candidate.Idempotency = definition.Idempotency
+			candidate.MachineMethod = definition.Method
+			candidate.MachinePath = definition.Path
+			candidate.InputSchemaVersion = definition.InputSchemaVersion
+			candidate.OutputSchemaVersion = definition.OutputSchemaVersion
+			r.add(candidate)
+		}
+	}
+}
+
+func (r *Registry) RequireReviewedCatalog() error {
+	if !slices.Equal(r.Names(), catalog.Names()) {
+		return fmt.Errorf("registered tools do not match reviewed catalog")
+	}
+	return nil
+}
+
+func (r *Registry) add(t tool.Tool) {
+	if _, exists := r.tools[t.Name]; exists {
+		panic(fmt.Sprintf("duplicate tool: %s", t.Name))
+	}
+	r.tools[t.Name] = t
 }
 
 func (r *Registry) Lookup(name string) (tool.Tool, bool) {

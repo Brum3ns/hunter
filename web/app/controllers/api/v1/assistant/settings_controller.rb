@@ -15,6 +15,9 @@ module Api
           authoring_enabled = if attributes.key?(:control_center_write_enabled)
             ActiveModel::Type::Boolean.new.cast(attributes[:control_center_write_enabled])
           end
+          operational_enabled = if attributes.key?(:operational_access_enabled)
+            ActiveModel::Type::Boolean.new.cast(attributes[:operational_access_enabled])
+          end
           conversation_management_enabled = if attributes.key?(:conversation_management_enabled)
             ActiveModel::Type::Boolean.new.cast(attributes[:conversation_management_enabled])
           end
@@ -29,8 +32,12 @@ module Api
             end
             setting.update!(attributes.except(
               :assistant_enabled,
+              :operational_access_enabled,
               :control_center_write_enabled,
-              :conversation_management_enabled
+              :conversation_management_enabled,
+              :disabled_capability_tools,
+              :disabled_capability_effects,
+              :disabled_capability_modules
             ))
             if attributes.key?(:assistant_enabled)
               if enabled
@@ -45,6 +52,21 @@ module Api
               else
                 setting.disable_control_center_write!(user: current_assistant_user)
               end
+            end
+            if attributes.key?(:operational_access_enabled)
+              if operational_enabled
+                setting.enable_operational_access!(user: current_assistant_user)
+              else
+                setting.disable_operational_access!(user: current_assistant_user)
+              end
+            end
+            if attributes.keys.any? { |key| key.to_s.start_with?("disabled_capability_") }
+              setting.update_capability_disables!(
+                tools: attributes.fetch(:disabled_capability_tools, setting.disabled_capability_tools),
+                effects: attributes.fetch(:disabled_capability_effects, setting.disabled_capability_effects),
+                modules: attributes.fetch(:disabled_capability_modules, setting.disabled_capability_modules),
+                user: current_assistant_user
+              )
             end
             if attributes.key?(:conversation_management_enabled)
               if conversation_management_enabled
@@ -69,10 +91,14 @@ module Api
         def settings_params
           params.require(:settings).permit(
             :assistant_enabled,
+            :operational_access_enabled,
             :control_center_write_enabled,
             :conversation_management_enabled,
             :transcript_retention_days,
-            :audit_retention_days
+            :audit_retention_days,
+            disabled_capability_tools: [],
+            disabled_capability_effects: [],
+            disabled_capability_modules: []
           ).to_h.symbolize_keys
         end
       end

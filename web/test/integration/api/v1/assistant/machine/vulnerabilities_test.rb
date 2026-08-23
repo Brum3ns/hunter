@@ -32,7 +32,7 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
     body = response.parsed_body
     assert_equal 1, body["count"]
     item = body["items"].first
-    assert_equal %w[id name severity status program], item.keys
+    assert_equal %w[id version name severity status program], item.keys
     assert_equal "60f7c2d2b1a2c3d4e5f6a7b8", item["id"]
     assert_equal "Reflected XSS", item["name"]
     assert_equal "high", item["severity"]
@@ -47,7 +47,7 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
     get "/api/v1/assistant/machine/vulnerabilities", headers: headers(grant)
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "get_vulnerability returns the full projection" do
@@ -67,7 +67,7 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
     assert_response :success
     result = response.parsed_body["vulnerability"]
     expected_keys = %w[
-      id name severity status program
+      id version name severity status program
       type cwe tags tool asset date description impact
       host url ip port target_input method submitted status_updated_at confidence
       evidence
@@ -111,7 +111,7 @@ class Api::V1::Assistant::Machine::VulnerabilitiesTest < ActionDispatch::Integra
     assert_response :success
     result = response.parsed_body["vulnerability"]
     expected_keys = %w[
-      id name severity status program
+      id version name severity status program
       type cwe tags tool asset date description impact
       host url ip port target_input method submitted status_updated_at confidence
       evidence

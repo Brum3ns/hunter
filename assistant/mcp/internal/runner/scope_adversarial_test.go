@@ -48,10 +48,10 @@ func newCCWriteRunner(b Backend) *Runner {
 }
 
 func TestCreateTemplateAllowedOnlyByDedicatedWriteScope(t *testing.T) {
-	payload := []byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{"id":1,"name":"httpx proof","lock_version":0}}`)
+	payload := []byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","receipt":{"receipt_id":"3b241101-e2bb-4255-8caf-4136c566a963","tool":"create_whiterabbit_template","status":"created","target":{"type":"whiterabbit_template","id":"1"},"human_user_id":1,"turn_id":1,"idempotency_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","replayed":false,"occurred_at":"2026-08-19T00:00:00Z"}}`)
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"create_whiterabbit_template"}, WriteScopes: []string{"control_center_templates_write"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: payload}
 	out, err := newCCWriteRunner(b).Dispatch(context.Background(), "g", "create_whiterabbit_template", []byte(`{"template":{"name":"httpx proof","kind":"cmdscript","commands":[{"command":"httpx","args":["-l","targets.txt"]}]}}`))
 	if err != nil || string(out) != string(payload) {
@@ -88,7 +88,7 @@ func newAnsibleRunner(b Backend) *Runner {
 func TestListTargetsDeniedWithoutScope(t *testing.T) {
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_targets"}, ReadScopes: nil,
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}}
 	_, err := newTargetsRunner(b).Dispatch(context.Background(), "g", "list_targets", []byte(`{}`))
 	if !errors.Is(err, ErrScopeDenied) {
@@ -100,7 +100,7 @@ func TestListTargetsAllowedWithScope(t *testing.T) {
 	payload := []byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":0,"page":1,"limit":50,"items":[]}`)
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_targets"}, ReadScopes: []string{"targets"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: payload}
 	out, err := newTargetsRunner(b).Dispatch(context.Background(), "g", "list_targets", []byte(`{"q":"example.com"}`))
 	if err != nil || string(out) != string(payload) {
@@ -111,7 +111,7 @@ func TestListTargetsAllowedWithScope(t *testing.T) {
 func TestGetTargetDeniedWithoutScope(t *testing.T) {
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"get_target"}, ReadScopes: []string{"cves"}, // wrong scope
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}}
 	_, err := newTargetsRunner(b).Dispatch(context.Background(), "g", "get_target", []byte(`{"id":"t1"}`))
 	if !errors.Is(err, ErrScopeDenied) {
@@ -124,7 +124,7 @@ func TestGetTargetDeniedWithoutScope(t *testing.T) {
 func TestListCvesDeniedWithoutScope(t *testing.T) {
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_cves"}, ReadScopes: nil,
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}}
 	_, err := newCvesRunner(b).Dispatch(context.Background(), "g", "list_cves", []byte(`{}`))
 	if !errors.Is(err, ErrScopeDenied) {
@@ -136,7 +136,7 @@ func TestListCvesAllowedWithScope(t *testing.T) {
 	payload := []byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":0,"page":1,"limit":50,"items":[]}`)
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_cves"}, ReadScopes: []string{"cves"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: payload}
 	out, err := newCvesRunner(b).Dispatch(context.Background(), "g", "list_cves", []byte(`{"ecosystem":"PyPI"}`))
 	if err != nil || string(out) != string(payload) {
@@ -149,7 +149,7 @@ func TestListCvesAllowedWithScope(t *testing.T) {
 func TestListEndpointsDeniedWithoutScope(t *testing.T) {
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_endpoints"}, ReadScopes: nil,
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}}
 	_, err := newEndpointsRunner(b).Dispatch(context.Background(), "g", "list_endpoints", []byte(`{}`))
 	if !errors.Is(err, ErrScopeDenied) {
@@ -161,7 +161,7 @@ func TestListEndpointsAllowedWithScope(t *testing.T) {
 	payload := []byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":0,"page":1,"limit":50,"items":[]}`)
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_endpoints"}, ReadScopes: []string{"sitemap"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: payload}
 	out, err := newEndpointsRunner(b).Dispatch(context.Background(), "g", "list_endpoints", []byte(`{"path":"/api"}`))
 	if err != nil || string(out) != string(payload) {
@@ -174,7 +174,7 @@ func TestListEndpointsAllowedWithScope(t *testing.T) {
 func TestListTemplatesDeniedWithoutScope(t *testing.T) {
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_templates"}, ReadScopes: nil,
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}}
 	_, err := newTemplatesRunner(b).Dispatch(context.Background(), "g", "list_templates", []byte(`{}`))
 	if !errors.Is(err, ErrScopeDenied) {
@@ -186,7 +186,7 @@ func TestListTemplatesAllowedWithScope(t *testing.T) {
 	payload := []byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":0,"page":1,"limit":50,"items":[]}`)
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_templates"}, ReadScopes: []string{"control_center_templates"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: payload}
 	out, err := newTemplatesRunner(b).Dispatch(context.Background(), "g", "list_templates", []byte(`{"kind":"recon"}`))
 	if err != nil || string(out) != string(payload) {
@@ -199,7 +199,7 @@ func TestListTemplatesAllowedWithScope(t *testing.T) {
 func TestListRunGroupsDeniedWithoutScope(t *testing.T) {
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_run_groups"}, ReadScopes: nil,
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}}
 	_, err := newAnsibleRunner(b).Dispatch(context.Background(), "g", "list_run_groups", []byte(`{}`))
 	if !errors.Is(err, ErrScopeDenied) {
@@ -211,7 +211,7 @@ func TestListRunGroupsAllowedWithScope(t *testing.T) {
 	payload := []byte(`{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":0,"page":1,"limit":50,"items":[]}`)
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"list_run_groups"}, ReadScopes: []string{"control_center_ansible"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: payload}
 	out, err := newAnsibleRunner(b).Dispatch(context.Background(), "g", "list_run_groups", []byte(`{}`))
 	if err != nil || string(out) != string(payload) {
@@ -222,7 +222,7 @@ func TestListRunGroupsAllowedWithScope(t *testing.T) {
 func TestGetRunDeniedWithoutScope(t *testing.T) {
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"get_run"}, ReadScopes: []string{"cves"}, // wrong scope
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}}
 	_, err := newAnsibleRunner(b).Dispatch(context.Background(), "g", "get_run", []byte(`{"id":"101"}`))
 	if !errors.Is(err, ErrScopeDenied) {
@@ -249,7 +249,7 @@ func TestGetRunAllowedWithScope(t *testing.T) {
 	payload := []byte(validRunPayload)
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"get_run"}, ReadScopes: []string{"control_center_ansible"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: payload}
 	out, err := newAnsibleRunner(b).Dispatch(context.Background(), "g", "get_run", []byte(`{"id":"101"}`))
 	if err != nil || string(out) != string(payload) {
@@ -266,7 +266,7 @@ func TestGetRunSecretFieldRejected(t *testing.T) {
 	leaked := validRunPayload[:len(validRunPayload)-2] + `,"lease_digest":"deadbeefcafe"}}`
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"get_run"}, ReadScopes: []string{"control_center_ansible"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: []byte(leaked)}
 	out, err := newAnsibleRunner(b).Dispatch(context.Background(), "g", "get_run", []byte(`{"id":"101"}`))
 	if !errors.Is(err, ErrResponseRejected) {
@@ -291,7 +291,7 @@ func TestGetRunGroupSecretFieldRejected(t *testing.T) {
 	leaked := validRunGroup[:len(validRunGroup)-2] + `,"execution_payload":"resolved-secret-blob"}}`
 	b := fakeBackend{grant: transport.Grant{
 		Tools: []string{"get_run_group"}, ReadScopes: []string{"control_center_ansible"},
-		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 8, BytesRemaining: 4096,
+		ExpiresAt: time.Now().Add(time.Minute), CallsRemaining: 64, BytesRemaining: 16 << 20,
 	}, payload: []byte(leaked)}
 	out, err := newAnsibleRunner(b).Dispatch(context.Background(), "g", "get_run_group", []byte(`{"id":"42"}`))
 	if !errors.Is(err, ErrResponseRejected) {

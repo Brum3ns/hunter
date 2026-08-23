@@ -1,3 +1,3 @@
 module hunter.local/assistant/validator
 
-go 1.25.12
+go 1.25.13

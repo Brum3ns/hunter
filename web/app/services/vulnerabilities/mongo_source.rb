@@ -9,6 +9,8 @@ module Vulnerabilities
   module MongoSource
     module_function
 
+    VersionedUpdate = Data.define(:status, :document)
+
     # This module owns the `vulnerabilities` collection. Env override kept for
     # back-compat with the running docker-compose (MONGO_COLLECTION).
     COLLECTION = ENV.fetch("MONGO_COLLECTION", "vulnerabilities")
@@ -77,6 +79,19 @@ module Vulnerabilities
       find(id)
     end
 
+    def update_with_version(id:, expected_version:, attrs:)
+      oid = to_object_id(id)
+      return VersionedUpdate.new(status: :not_found, document: nil) unless oid
+
+      filter = { _id: oid, "$or" => version_filters(expected_version.to_s, id.to_s) }
+      result = collection.update_one(filter, { "$set" => strip_ids(attrs) })
+      if result.matched_count.zero?
+        status = find(id) ? :conflict : :not_found
+        return VersionedUpdate.new(status: status, document: nil)
+      end
+      VersionedUpdate.new(status: :updated, document: find(id))
+    end
+
     def delete(id)
       oid = to_object_id(id)
       return false unless oid
@@ -128,6 +143,28 @@ module Vulnerabilities
       attrs.to_h.reject { |k, _| %w[id _id].include?(k.to_s) }
     end
     private_class_method :strip_ids
+
+    def version_filters(expected, id)
+      [
+        { "metadata.assistant_version" => expected },
+        {
+          "metadata.assistant_version" => { "$exists" => false },
+          "metadata.assistant_updated_at" => expected
+        },
+        {
+          "metadata.assistant_version" => { "$exists" => false },
+          "metadata.assistant_updated_at" => { "$exists" => false },
+          "metadata.date" => expected
+        },
+        {
+          "metadata.assistant_version" => { "$exists" => false },
+          "metadata.assistant_updated_at" => { "$exists" => false },
+          "metadata.date" => { "$exists" => false },
+          "$expr" => { "$eq" => [ expected, id ] }
+        }
+      ]
+    end
+    private_class_method :version_filters
 
     def to_object_id(id)
       BSON::ObjectId.from_string(id.to_s)

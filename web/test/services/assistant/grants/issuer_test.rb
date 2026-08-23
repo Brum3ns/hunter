@@ -19,7 +19,7 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
     assert_includes Assistant::Grants::Issuer::TOOLS, "get_target"
   end
 
-  test "issued grant read_scopes equal the full phase 2c allowlist" do
+  test "a requested read tool grants only its reviewed scope" do
     raw = Assistant::Grants::Issuer.call(
       turn: assistant_turns(:created),
       resources: [],
@@ -27,14 +27,11 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
     )
     grant = Assistant::TurnGrant.find_by!(token_digest: Assistant::TurnGrant.digest(raw))
 
-    assert_equal(
-      %w[targets cves vulnerabilities sitemap programs control_center_templates control_center_jobs control_center_ansible],
-      grant.read_scopes
-    )
+    assert_equal %w[cves_read], grant.read_scopes
     assert_equal [], grant.write_scopes
   end
 
-  test "Issuer.call grants the phase 2c read tools into the persisted grant" do
+  test "Issuer.call grants every reviewed operational tool into the persisted grant" do
     raw = Assistant::Grants::Issuer.call(
       turn: assistant_turns(:created),
       resources: [],
@@ -43,12 +40,20 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
     grant = Assistant::TurnGrant.find_by!(token_digest: Assistant::TurnGrant.digest(raw))
 
     %w[
-      list_cves get_cve list_vulnerabilities list_endpoints
-      list_programs list_templates list_jobs list_playbooks
-      list_run_groups get_run list_run_events
+      analyze_targets list_new_cves create_vulnerability
+      submit_whiterabbit_job list_ansible_inventories
+      create_nonsecret_ansible_variable launch_ansible_run_group
+      cancel_ansible_run list_run_events
     ].each do |tool|
       assert_includes grant.tools, tool
     end
+  end
+
+  test "CHAT_TOOLS exactly matches the reviewed operational catalog" do
+    expected = Assistant::CapabilityCatalog.load.tools.map { |tool| tool.fetch("name") }
+
+    assert_equal expected, Assistant::Grants::Issuer::CHAT_TOOLS
+    assert_equal 70, Assistant::Grants::Issuer::CHAT_TOOLS.length
   end
 
   test "create tools are members of the issuer tool allowlist" do
@@ -87,7 +92,7 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
     end
   end
 
-  test "issued grant has no write scopes or create tools when the write toggle is off" do
+  test "legacy Control Center write toggle revokes Control Center effects but not other modules" do
     Assistant::Setting.instance.update!(control_center_write_enabled: false)
 
     raw = Assistant::Grants::Issuer.call(
@@ -97,8 +102,10 @@ class Assistant::Grants::IssuerTest < ActiveSupport::TestCase
     )
     grant = Assistant::TurnGrant.find_by!(token_digest: Assistant::TurnGrant.digest(raw))
 
-    assert_equal [], grant.write_scopes
+    assert_includes grant.write_scopes, "vulnerabilities_create"
+    refute_includes grant.write_scopes, "control_center_templates_write"
     refute_includes grant.tools, "create_whiterabbit_template"
     refute_includes grant.tools, "create_ansible_playbook"
+    assert_includes grant.tools, "create_vulnerability"
   end
 end

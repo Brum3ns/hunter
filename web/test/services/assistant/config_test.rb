@@ -3,11 +3,15 @@ require "test_helper"
 class Assistant::ConfigTest < ActiveSupport::TestCase
   test "hard ceilings cannot be raised by environment configuration" do
     stub_methods(Assistant::Config, configured: ->(_key) { "99999999" }) do
-      assert_equal 300.seconds, Assistant::Config.grant_ttl
+      assert_equal 30.minutes, Assistant::Config.grant_ttl
       assert_equal 10, Assistant::Config.max_records
-      assert_equal 8, Assistant::Config.max_tool_calls
-      assert_equal 524_288, Assistant::Config.max_result_bytes
-      assert_equal 2_097_152, Assistant::Config.max_total_bytes
+      assert_equal 128, Assistant::Config.max_tool_calls
+      assert_equal 1_048_576, Assistant::Config.max_result_bytes
+      assert_equal 16_777_216, Assistant::Config.max_total_bytes
+      assert_equal 64, Assistant::Config.max_effects_per_turn
+      assert_equal 240, Assistant::Config.max_effects_per_hour
+      assert_equal 32, Assistant::Config.max_launches_per_turn
+      assert_equal 120, Assistant::Config.max_launches_per_hour
       assert_equal 10, Assistant::Config.turn_starts_per_minute
       assert_equal 60, Assistant::Config.turn_starts_per_hour
       assert_equal 2, Assistant::Config.max_concurrent_turns
@@ -41,6 +45,16 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
     end
   end
 
+  test "workflow defaults allow a full operational turn" do
+    stub_methods(Assistant::Config, configured: ->(_key) { nil }) do
+      assert_equal 64, Assistant::Config.max_tool_calls
+      assert_equal 32, Assistant::Config.max_effects_per_turn
+      assert_equal 120, Assistant::Config.max_effects_per_hour
+      assert_equal 16, Assistant::Config.max_launches_per_turn
+      assert_equal 60, Assistant::Config.max_launches_per_hour
+    end
+  end
+
   test "retention uses secure defaults and rejects values outside its bounds" do
     stub_methods(Assistant::Config, configured: ->(_key) { nil }) do
       assert_equal 7, Assistant::Config.transcript_retention_days
@@ -55,7 +69,7 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
 
   test "invalid ceiling values fail closed to the hard ceiling" do
     stub_methods(Assistant::Config, configured: ->(_key) { "not-an-integer" }) do
-      assert_equal 300.seconds, Assistant::Config.grant_ttl
+      assert_equal 30.minutes, Assistant::Config.grant_ttl
       assert_equal 10, Assistant::Config.max_records
     end
   end

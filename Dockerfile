@@ -44,7 +44,7 @@ WORKDIR /app
 COPY web/Gemfile web/Gemfile.lock ./
 # Fail the image build if the Ruby binding cannot load the required native API.
 RUN bundle install && \
-    ruby -rvips -e 'abort "libvips 8.13 or newer is required" unless Vips.at_least_libvips?(8, 13)' && \
+    bundle exec ruby -rvips -e 'abort "libvips 8.13 or newer is required" unless Vips.at_least_libvips?(8, 13)' && \
     gem install foreman
 
 COPY web/ ./

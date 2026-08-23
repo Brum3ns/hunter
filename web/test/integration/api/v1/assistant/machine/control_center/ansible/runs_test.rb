@@ -57,7 +57,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunsTest < ActionDisp
     get "/api/v1/assistant/machine/control_center/ansible/runs/#{record.id}", headers: headers(grant)
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "get_run releases the reservation on a miss" do

@@ -51,7 +51,7 @@ class Cves::DetailsTest < ActionDispatch::IntegrationTest
       get cves_detail_path("CVE-2024-1234")
       assert_response :success
       assert_select "div.cve-markdown[data-controller='cve-markdown']" do |elements|
-        assert_equal details, elements.fetch(0).text
+        assert_equal details, elements.first.text
         assert_select "img", count: 0
       end
     end

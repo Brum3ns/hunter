@@ -49,17 +49,14 @@ class Assistant::ProviderProfileTest < ActiveSupport::TestCase
   end
 
   test "tool call limit is bounded by the assistant hard ceiling" do
-    profile = Assistant::ProviderProfile.new(
-      name: "Too many tools",
-      catalog_slug: "openai_primary",
-      retention_posture: "standard",
-      reviewed_at: Time.current,
-      tool_call_limit: 9,
-      created_by: users(:one)
-    )
+    profile = assistant_provider_profiles(:openai)
+    profile.tool_call_limit = 129
 
     refute profile.valid?
-    assert_includes profile.errors[:tool_call_limit], "must be less than or equal to 8"
+    assert_includes profile.errors[:tool_call_limit], "must be less than or equal to 128"
+
+    profile.tool_call_limit = 128
+    assert profile.valid?, profile.errors.full_messages.join(", ")
   end
 
   test "direct chat helpers derive only from the immutable catalog binding" do

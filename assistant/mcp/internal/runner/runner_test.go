@@ -12,13 +12,14 @@ import (
 )
 
 type fakeBackend struct {
-	grant   transport.Grant
-	payload []byte
-	doErr   error
+	grant         transport.Grant
+	introspectErr error
+	payload       []byte
+	doErr         error
 }
 
 func (f fakeBackend) Introspect(context.Context, string) (transport.Grant, error) {
-	return f.grant, nil
+	return f.grant, f.introspectErr
 }
 
 func (f fakeBackend) Do(context.Context, string, string, string, []byte) ([]byte, error) {
@@ -53,10 +54,10 @@ func liveGrant(g transport.Grant) transport.Grant {
 		g.ExpiresAt = time.Now().Add(time.Minute)
 	}
 	if g.CallsRemaining == 0 {
-		g.CallsRemaining = 8
+		g.CallsRemaining = 64
 	}
 	if g.BytesRemaining == 0 {
-		g.BytesRemaining = 1024
+		g.BytesRemaining = 16 << 20
 	}
 	return g
 }
@@ -138,6 +139,39 @@ func TestDispatchPreservesStableHunterOutcome(t *testing.T) {
 	_, err := newRunner(b, tool.Tool{Name: "edit_x"}).Dispatch(context.Background(), "g", "edit_x", []byte(`{}`))
 	if got := PublicError(err); got != "destination_stale" {
 		t.Fatalf("PublicError = %q, want destination_stale", got)
+	}
+}
+
+func TestDispatchPreservesStableGrantIntrospectionOutcome(t *testing.T) {
+	b := fakeBackend{introspectErr: &transport.HunterError{Code: "turn_grant_expired"}}
+	_, err := newRunner(b, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "g", "list_x", []byte(`{}`))
+	if got := PublicError(err); got != "turn_grant_expired" {
+		t.Fatalf("PublicError = %q, want turn_grant_expired", got)
+	}
+}
+
+func TestDispatchEnforcesLocalHardCallAndByteCeilings(t *testing.T) {
+	b := fakeBackend{
+		grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), payload: []byte(`{}`),
+	}
+	r := newRunner(b, tool.Tool{Name: "list_x"})
+	for range 128 {
+		if _, err := r.Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); err != nil {
+			t.Fatalf("reviewed call rejected early: %v", err)
+		}
+	}
+	if _, err := r.Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); !errors.Is(err, ErrCallBudgetExhausted) {
+		t.Fatalf("hard call ceiling got %v", err)
+	}
+
+	large := fakeBackend{
+		grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), payload: make([]byte, (1<<20)+1),
+	}
+	reg := NewRegistry()
+	reg.Add(staticModule{t: passTool(tool.Tool{Name: "list_x"})})
+	largeRunner := New(large, reg, redact.NewChecker(2<<20))
+	if _, err := largeRunner.Dispatch(context.Background(), "large", "list_x", []byte(`{}`)); !errors.Is(err, ErrResponseRejected) {
+		t.Fatalf("per-call byte ceiling got %v", err)
 	}
 }
 

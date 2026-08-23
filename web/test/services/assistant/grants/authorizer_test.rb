@@ -10,7 +10,7 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
     refute_equal raw, grant.token_digest
     assert_equal Digest::SHA256.hexdigest(raw), grant.token_digest
     assert_equal [ { "type" => "target", "id" => "abc" } ], grant.resources
-    assert_operator grant.expires_at, :<=, 5.minutes.from_now
+    assert_operator grant.expires_at, :<=, 30.minutes.from_now
   end
 
   test "reservation verifies tool and exact resource then accounts actual bytes" do
@@ -45,10 +45,10 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
         resource_id: "abc"
       )
     end
-    assert_equal "grant_expired", error.code
+    assert_equal "turn_grant_expired", error.code
 
     raw = issue_grant
-    assert_authorization_error("tool_not_allowed") do
+    assert_authorization_error("scope_not_granted") do
       Assistant::Grants::Authorizer.reserve!(raw_grant: raw, tool: "unknown_tool")
     end
     assert_authorization_error("resource_not_allowed") do
@@ -169,7 +169,7 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
     end
     threads.each(&:join)
 
-    assert_equal [ "grant_budget_exhausted", "reserved" ], 2.times.map { outcomes.pop }.sort
+    assert_equal [ "reserved", "tool_response_rejected" ], 2.times.map { outcomes.pop }.sort
     assert_equal grant.max_result_bytes, grant.reload.reserved_bytes
     assert_equal 1, grant.call_count
   end
@@ -179,15 +179,15 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
     grant = Assistant::TurnGrant.order(:id).last
     grant.update_column(:read_scopes, [])
 
-    assert_authorization_error("scope_not_allowed") do
-      Assistant::Grants::Authorizer.reserve!(raw_grant: raw, tool: "list_targets", scope: "targets")
+    assert_authorization_error("scope_not_granted") do
+      Assistant::Grants::Authorizer.reserve!(raw_grant: raw, tool: "list_targets", scope: "targets_read")
     end
   end
 
   test "a scoped read tool is allowed when its scope is granted" do
     raw = issue_read_grant
 
-    assert Assistant::Grants::Authorizer.reserve!(raw_grant: raw, tool: "list_targets", scope: "targets")
+    assert Assistant::Grants::Authorizer.reserve!(raw_grant: raw, tool: "list_targets", scope: "targets_read")
     assert_equal 1, Assistant::TurnGrant.order(:id).last.reload.call_count
   end
 
@@ -196,7 +196,7 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
     grant = Assistant::TurnGrant.order(:id).last
     grant.update_column(:write_scopes, [])
 
-    assert_authorization_error("scope_not_allowed") do
+    assert_authorization_error("scope_not_granted") do
       Assistant::Grants::Authorizer.reserve!(
         raw_grant: raw, tool: "create_ansible_playbook", scope: "control_center_ansible_write"
       )
@@ -233,9 +233,37 @@ class Assistant::Grants::AuthorizerTest < ActiveSupport::TestCase
       write_scopes: []
     )
 
-    assert_authorization_error("scope_not_allowed") do
+    assert_authorization_error("scope_not_granted") do
       Assistant::Grants::Authorizer.reserve!(
         raw_grant: raw, tool: "create_ansible_playbook", scope: "control_center_ansible_write"
+      )
+    end
+  end
+
+  test "live exact-tool revocation stops an already issued grant" do
+    raw = issue_read_grant
+    Assistant::Setting.instance.update!(disabled_capability_tools: [ "list_targets" ])
+
+    assert_authorization_error("capability_disabled") do
+      Assistant::Grants::Authorizer.reserve!(
+        raw_grant: raw, tool: "list_targets", scope: "targets_read"
+      )
+    end
+  end
+
+  test "call exhaustion has the stable workflow error" do
+    raw = issue_read_grant
+    grant = Assistant::TurnGrant.order(:id).last
+    grant.update_columns(max_calls: 1, max_total_bytes: grant.max_result_bytes * 2)
+
+    reservation = Assistant::Grants::Authorizer.reserve!(
+      raw_grant: raw, tool: "list_targets", scope: "targets_read"
+    )
+    reservation.complete!(bytes: 0)
+
+    assert_authorization_error("turn_call_budget_exhausted") do
+      Assistant::Grants::Authorizer.reserve!(
+        raw_grant: raw, tool: "list_targets", scope: "targets_read"
       )
     end
   end

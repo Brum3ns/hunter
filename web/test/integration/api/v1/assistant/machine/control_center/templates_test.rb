@@ -36,7 +36,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
     get "/api/v1/assistant/machine/control_center/templates", headers: headers(grant)
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "list_templates narrows by the kind filter" do

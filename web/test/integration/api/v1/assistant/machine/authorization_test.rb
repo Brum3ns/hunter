@@ -58,7 +58,8 @@ class Api::V1::Assistant::Machine::AuthorizationTest < ActionDispatch::Integrati
       headers: machine_headers(grant: grant_token)
 
     assert_response :forbidden
-    assert_equal "grant_expired", response.parsed_body["reason"]
+    assert_equal "turn_grant_expired", response.parsed_body["error"]
+    refute response.parsed_body.key?("reason")
   end
 
   test "MCP service token cannot authenticate an ordinary module route" do
@@ -70,6 +71,9 @@ class Api::V1::Assistant::Machine::AuthorizationTest < ActionDispatch::Integrati
   end
 
   test "machine writes reject oversized request bodies" do
+    assert_equal Assistant::Config.max_result_bytes,
+      Api::V1::Assistant::Machine::BaseController::MAX_REQUEST_BYTES
+
     post "/api/v1/assistant/machine/validations/whiterabbit_template",
       params: { draft: "x" * (Api::V1::Assistant::Machine::BaseController::MAX_REQUEST_BYTES + 1) },
       headers: machine_headers, as: :json
@@ -96,7 +100,11 @@ class Api::V1::Assistant::Machine::AuthorizationTest < ActionDispatch::Integrati
     @raw_grant ||= Assistant::Grants::Issuer.call(
       turn: assistant_turns(:created),
       resources: [ { type: "target", id: "abc" } ],
-      tools: [ "get_selected_context", "validate_whiterabbit_draft" ]
+      tools: [
+        "get_selected_context",
+        "validate_whiterabbit_draft",
+        *Assistant::Grants::Issuer::CHAT_READ_TOOLS
+      ]
     )
   end
 

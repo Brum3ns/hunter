@@ -97,7 +97,7 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
   end
 
 
-  test "a Claude Code turn loses only authoring tools and scopes when Control Center writes are off" do
+  test "a Claude Code turn loses Control Center effects but keeps reads and vulnerability writes" do
     profile = assistant_provider_profiles(:claude_code)
     conversation = Assistant::Conversation.start!(user: @user, provider_profile: profile)
     Assistant::Setting.instance.update!(control_center_write_enabled: false)
@@ -114,9 +114,12 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     end
 
     grant = @turn.turn_grant
-    assert_equal Assistant::Grants::Issuer::CHAT_READ_TOOLS, grant.tools
+    assert_includes grant.tools, "list_playbooks"
+    assert_includes grant.tools, "create_vulnerability"
+    refute_includes grant.tools, "create_ansible_playbook"
+    refute_includes grant.tools, "submit_whiterabbit_job"
     assert_equal Assistant::TurnGrant::READ_SCOPES, grant.read_scopes
-    assert_equal [], grant.write_scopes
+    assert_equal %w[vulnerabilities_create vulnerabilities_update], grant.write_scopes
   end
 
   test "an administrator shutdown in the Claude dispatch gap cannot reopen or enqueue the turn" do

@@ -63,6 +63,18 @@ paths:
         "200": { description: "Exact tools, resources, read_scopes, write_scopes, expiry, correlation ID, and remaining budgets." }
         "401": { description: "Invalid assistant service identity." }
         "403": { description: "Invalid, expired, revoked, or mismatched turn grant." }
+  /api/v1/assistant/machine/capabilities:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List the effective reviewed Hunter MCP capability catalog"
+      description: "Returns the exact enabled, non-secret, non-delete operational tools and effective limits for this turn. It cannot mutate capabilities, scopes, gates, budgets, providers, or other Assistant governance."
+      x-internal-machine: true
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses:
+        "200": { description: "Exact enabled capability metadata, permanent exclusions, and remaining turn budgets." }
+        "401": { description: "Invalid assistant service identity." }
+        "403": { description: "The catalog tool is not granted or operational access is disabled." }
   /api/v1/assistant/machine/contexts/{resource_type}/{id}:
     get:
       tags: ["Assistant Machine"]
@@ -218,6 +230,26 @@ paths:
       responses:
         "200": { description: "A bounded, projection-only, grant-scoped (vulnerabilities) page of vulnerability summaries plus count, excluding raw request/response, poc, and operator PII." }
         "403": { description: "The tool is not granted." }
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Create a non-secret vulnerability record"
+      x-internal-machine: true
+      x-mcp-tool: "create_vulnerability"
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vulnerability]
+              properties: { vulnerability: { $ref: "#/components/schemas/AssistantVulnerabilityInput" } }
+              additionalProperties: false
+      responses:
+        "201": { description: "Created; returns a metadata-only idempotent action receipt." }
+        "403": { description: "The tool, scope, or live capability gate is unavailable." }
+        "422": { description: "Closed input validation failed." }
   /api/v1/assistant/machine/vulnerabilities/{id}:
     get:
       tags: ["Assistant Machine"]
@@ -231,6 +263,30 @@ paths:
         "200": { description: "A bounded vulnerability with sanitized request/response/curl/extracted evidence and redaction flags; scan IDs, internal reasoning, secrets, and operator PII are excluded." }
         "403": { description: "The tool is not granted." }
         "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: ["Assistant Machine"]
+      summary: "Version-update a non-secret vulnerability record"
+      x-internal-machine: true
+      x-mcp-tool: "update_vulnerability"
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_version, vulnerability]
+              properties:
+                expected_version: { type: string, minLength: 1, maxLength: 255 }
+                vulnerability: { $ref: "#/components/schemas/AssistantVulnerabilityInput" }
+              additionalProperties: false
+      responses:
+        "200": { description: "Updated; returns a metadata-only idempotent action receipt." }
+        "409": { description: "The expected version is stale." }
+        "422": { description: "Closed input validation failed." }
   /api/v1/assistant/machine/sitemap/endpoints:
     get:
       tags: ["Assistant Machine"]
@@ -325,7 +381,7 @@ paths:
     post:
       tags: ["Assistant Machine"]
       summary: "Create a Whiterabbit template"
-      description: "Approval-free create (never overwrite/delete/run), validated server-side; gated by the control_center_write_enabled toggle and the control_center_templates_write grant scope."
+      description: "The administrator's current message approves this dedicated MCP operation without a second confirmation. Creation never overwrites or deletes, is validated server-side, returns an idempotent action receipt, and is revocable through the operational and Control Center gates."
       x-internal-machine: true
       security: [{ assistantServiceToken: [] }]
       parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
@@ -351,7 +407,7 @@ paths:
               required: [template]
               additionalProperties: false
       responses:
-        "201": { description: "Created; returns correlation_id and template:{id, name, lock_version}." }
+        "201": { description: "Created; returns a metadata-only idempotent action receipt and correlation ID." }
         "409": { description: "name_conflict; no existing template was changed." }
         "403": { description: "The write toggle is off or the grant lacks control_center_templates_write." }
         "422": { description: "Template validation or creation failed." }
@@ -372,7 +428,7 @@ paths:
     patch:
       tags: ["Assistant Machine"]
       summary: "Explicitly edit a Whiterabbit template"
-      description: "Approval-free only after an explicit user edit request. Requires the current lock version, validates the complete merged template, and cannot delete or run."
+      description: "The administrator's current message approves this dedicated MCP edit without a second confirmation. It requires the current lock version, validates the complete merged template, cannot delete, and returns a metadata-only idempotent action receipt."
       x-internal-machine: true
       security: [{ assistantServiceToken: [] }]
       parameters:
@@ -401,7 +457,7 @@ paths:
                   additionalProperties: false
               additionalProperties: false
       responses:
-        "200": { description: "Updated; returns correlation_id and template:{id, name, lock_version}." }
+        "200": { description: "Updated; returns a metadata-only idempotent action receipt and correlation ID." }
         "403": { description: "Authoring is disabled or the exact edit scope is absent." }
         "404": { description: "artifact_not_found" }
         "409": { description: "destination_stale or name_conflict; no edit was applied." }
@@ -421,6 +477,19 @@ paths:
       responses:
         "200": { description: "A bounded, projection-only, grant-scoped (control_center_jobs) page of job summaries plus count, excluding template_snapshot, selections, manual_targets, and idempotency_key." }
         "403": { description: "The tool is not granted." }
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Submit a validated Whiterabbit job"
+      x-internal-machine: true
+      x-mcp-tool: "submit_whiterabbit_job"
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssistantJobInput" } } } }
+      responses:
+        "201": { description: "Queued once; returns a metadata-only idempotent action receipt." }
+        "403": { description: "The tool, scope, or live capability gate is unavailable." }
+        "422": { description: "Template, target selection, or closed input validation failed." }
+        "429": { description: "The bounded launch rate was reached." }
   /api/v1/assistant/machine/control_center/jobs/{id}:
     get:
       tags: ["Assistant Machine"]
@@ -450,7 +519,7 @@ paths:
     post:
       tags: ["Assistant Machine"]
       summary: "Create an Ansible playbook"
-      description: "Approval-free create (never overwrite/delete/run), validated server-side; gated by the control_center_write_enabled toggle and the control_center_ansible_write grant scope."
+      description: "The administrator's current message approves this dedicated MCP operation without a second confirmation. Creation never overwrites or deletes, is validated server-side, returns an idempotent action receipt, and is revocable through the operational and Control Center gates."
       x-internal-machine: true
       security: [{ assistantServiceToken: [] }]
       parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
@@ -473,7 +542,7 @@ paths:
               required: [playbook]
               additionalProperties: false
       responses:
-        "201": { description: "Created; returns correlation_id and playbook:{id, name, lock_version}." }
+        "201": { description: "Created; returns a metadata-only idempotent action receipt and correlation ID." }
         "409": { description: "name_conflict; no existing playbook was changed." }
         "403": { description: "The write toggle is off or the grant lacks control_center_ansible_write." }
         "422": { description: "Playbook validation or creation failed." }
@@ -494,7 +563,7 @@ paths:
     patch:
       tags: ["Assistant Machine"]
       summary: "Explicitly edit an Ansible playbook"
-      description: "Approval-free only after an explicit user edit request. Requires the current lock version, validates the complete merged playbook, and cannot delete or run."
+      description: "The administrator's current message approves this dedicated MCP edit without a second confirmation. It requires the current lock version, validates the complete merged playbook, cannot delete, and returns a metadata-only idempotent action receipt."
       x-internal-machine: true
       security: [{ assistantServiceToken: [] }]
       parameters:
@@ -520,7 +589,7 @@ paths:
                   additionalProperties: false
               additionalProperties: false
       responses:
-        "200": { description: "Updated; returns correlation_id and playbook:{id, name, lock_version}." }
+        "200": { description: "Updated; returns a metadata-only idempotent action receipt and correlation ID." }
         "403": { description: "Authoring is disabled or the exact edit scope is absent." }
         "404": { description: "artifact_not_found" }
         "409": { description: "destination_stale or name_conflict; no edit was applied." }
@@ -539,6 +608,19 @@ paths:
       responses:
         "200": { description: "A bounded, projection-only, grant-scoped (control_center_ansible) page of run-group summaries plus count." }
         "403": { description: "The tool is not granted." }
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Launch one validated Ansible run group"
+      x-internal-machine: true
+      x-mcp-tool: "launch_ansible_run_group"
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssistantAnsibleLaunchInput" } } } }
+      responses:
+        "201": { description: "Queued once; returns a metadata-only idempotent action receipt." }
+        "403": { description: "The tool, scope, or live capability gate is unavailable." }
+        "422": { description: "Closed launch input or referenced resource validation failed." }
+        "429": { description: "The bounded launch rate was reached." }
   /api/v1/assistant/machine/control_center/ansible/run_groups/{id}:
     get:
       tags: ["Assistant Machine"]
@@ -896,8 +978,22 @@ components:
           type: object
           properties:
             assistant_enabled: { type: boolean }
+            operational_access_enabled: { type: boolean }
             control_center_write_enabled: { type: boolean }
             conversation_management_enabled: { type: boolean }
+            disabled_capability_tools:
+              type: array
+              maxItems: 70
+              uniqueItems: true
+              items: { type: string, pattern: "^[a-z][a-z0-9_]*$" }
+            disabled_capability_effects:
+              type: array
+              uniqueItems: true
+              items: { type: string, enum: [read, analyze, create, update, validate, export, execute, cancel, restore] }
+            disabled_capability_modules:
+              type: array
+              uniqueItems: true
+              items: { type: string, pattern: "^[a-z][a-z0-9_]*$" }
             transcript_retention_days: { type: integer, minimum: 1, maximum: 30 }
             audit_retention_days: { type: integer, minimum: 1, maximum: 365 }
           additionalProperties: false

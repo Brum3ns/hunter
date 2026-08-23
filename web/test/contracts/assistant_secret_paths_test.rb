@@ -86,7 +86,7 @@ class AssistantSecretPathsTest < Minitest::Test
       refute_match(/^\s*secrets:\s*$/, body, "#{name} still declares top-level Compose secrets")
 
       MACHINE_SECRETS.each do |secret|
-        assert_includes body, "${#{secret}}", "#{name} does not substitute #{secret} from the environment"
+        assert_includes body, "${HUNTER_#{secret}}", "#{name} does not substitute #{secret} from the namespaced environment"
       end
     end
 
@@ -102,8 +102,8 @@ class AssistantSecretPathsTest < Minitest::Test
           value = environment[secret]
           next if value.nil?
 
-          assert_match(/\$\{#{Regexp.escape(secret)}(:-|\})/, value.to_s,
-            "#{name}: #{service_name} does not source #{secret} from the environment")
+          assert_match(/\$\{HUNTER_#{Regexp.escape(secret)}(:-|\})/, value.to_s,
+            "#{name}: #{service_name} does not source #{secret} from the namespaced environment")
         end
       end
     end
@@ -131,9 +131,9 @@ class AssistantSecretPathsTest < Minitest::Test
     end
 
     env_example = ROOT.join(".env.example").read
-    refute_match(/^ASSISTANT_ENABLED=/, env_example,
+    refute_match(/^HUNTER_ASSISTANT_ENABLED=/, env_example,
       ".env.example still assigns ASSISTANT_ENABLED a default value")
-    refute_match(/^ASSISTANT_SECRET_DIR=/, env_example,
+    refute_match(/^HUNTER_ASSISTANT_SECRET_DIR=/, env_example,
       ".env.example still references the retired ASSISTANT_SECRET_DIR")
   end
 

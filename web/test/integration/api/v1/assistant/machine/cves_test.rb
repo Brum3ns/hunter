@@ -46,7 +46,7 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
     get "/api/v1/assistant/machine/cves", headers: headers(grant)
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "get_cve returns the full projection" do

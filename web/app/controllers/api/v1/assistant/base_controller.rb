@@ -131,11 +131,15 @@ module Api
             assistant_enabled: setting.assistant_enabled?,
             infrastructure_enabled: state.active,
             effective_enabled: state.active && setting.assistant_enabled?,
+            operational_access_enabled: setting.operational_access_enabled?,
             control_center_write_enabled: setting.control_center_write_enabled?,
             conversation_management_enabled: setting.conversation_management_enabled?,
             disabled_reason: disabled_reason_for(setting, state),
             transcript_retention_days: setting.transcript_retention_days,
             audit_retention_days: setting.audit_retention_days,
+            disabled_capability_tools: setting.disabled_capability_tools,
+            disabled_capability_effects: setting.disabled_capability_effects,
+            disabled_capability_modules: setting.disabled_capability_modules,
             disabled_at: setting.disabled_at&.iso8601,
             disabled_by_id: setting.disabled_by_id
           }

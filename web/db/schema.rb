@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_010300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -116,6 +116,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
     t.index ["turn_id"], name: "index_assistant_drafts_on_turn_id"
   end
 
+  create_table "assistant_export_artifacts", force: :cascade do |t|
+    t.bigint "byte_count", null: false
+    t.string "content_type", null: false
+    t.datetime "created_at", null: false
+    t.datetime "downloaded_at"
+    t.datetime "expires_at", null: false
+    t.string "filename", null: false
+    t.string "kind", null: false
+    t.binary "payload", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["expires_at"], name: "index_assistant_export_artifacts_on_expires_at"
+    t.index ["user_id"], name: "index_assistant_export_artifacts_on_user_id"
+    t.check_constraint "byte_count >= 0", name: "assistant_export_artifacts_byte_count_nonnegative"
+  end
+
   create_table "assistant_messages", force: :cascade do |t|
     t.text "body", null: false
     t.bigint "conversation_id", null: false
@@ -143,14 +159,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
     t.string "retention_posture", null: false
     t.datetime "reviewed_at"
     t.string "secret_ref", null: false
-    t.integer "tool_call_limit", default: 8, null: false
+    t.integer "tool_call_limit", default: 64, null: false
     t.datetime "updated_at", null: false
     t.index "lower((name)::text)", name: "idx_assistant_profiles_lower_name", unique: true
     t.index ["catalog_slug"], name: "index_assistant_provider_profiles_on_catalog_slug", unique: true
     t.index ["created_by_id"], name: "index_assistant_provider_profiles_on_created_by_id"
     t.check_constraint "input_limit > 0", name: "assistant_profiles_input_limit_positive"
     t.check_constraint "output_limit > 0", name: "assistant_profiles_output_limit_positive"
-    t.check_constraint "tool_call_limit >= 1 AND tool_call_limit <= 8", name: "assistant_profiles_tool_call_limit_bounded"
+    t.check_constraint "tool_call_limit >= 1 AND tool_call_limit <= 128", name: "assistant_profiles_tool_call_limit_bounded"
   end
 
   create_table "assistant_rate_limit_buckets", force: :cascade do |t|
@@ -186,6 +202,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
     t.datetime "created_at", null: false
     t.datetime "disabled_at"
     t.bigint "disabled_by_id"
+    t.jsonb "disabled_capability_effects", default: [], null: false
+    t.jsonb "disabled_capability_modules", default: [], null: false
+    t.jsonb "disabled_capability_tools", default: [], null: false
+    t.boolean "operational_access_enabled", default: true, null: false
     t.boolean "singleton_key", default: true, null: false
     t.integer "transcript_retention_days", default: 7, null: false
     t.datetime "updated_at", null: false
@@ -271,7 +291,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
     t.index ["turn_grant_id"], name: "index_assistant_validation_requests_on_turn_grant_id"
     t.index ["turn_id", "status"], name: "idx_assistant_validation_requests_turn_status"
     t.index ["turn_id"], name: "index_assistant_validation_requests_on_turn_id"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'valid'::character varying, 'invalid'::character varying, 'failed'::character varying, 'expired'::character varying]::text[])", name: "assistant_validation_requests_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'valid'::character varying::text, 'invalid'::character varying::text, 'failed'::character varying::text, 'expired'::character varying::text])", name: "assistant_validation_requests_status"
   end
 
   create_table "control_center_ansible_credentials", force: :cascade do |t|
@@ -325,6 +345,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
     t.text "description"
     t.jsonb "host_key_fingerprints", default: {}, null: false
     t.text "known_hosts"
+    t.integer "lock_version", default: 0, null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.text "yaml_content", null: false
@@ -459,6 +480,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
     t.datetime "created_at", null: false
     t.bigint "created_by_id", null: false
     t.text "description"
+    t.integer "lock_version", default: 0, null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.index "lower((name)::text)", name: "idx_ansible_variable_sets_lower_name", unique: true
@@ -467,6 +489,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
 
   create_table "control_center_ansible_variables", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.integer "lock_version", default: 0, null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
     t.boolean "secret", default: false, null: false
@@ -848,6 +871,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_010000) do
   add_foreign_key "assistant_conversations", "users", on_delete: :cascade
   add_foreign_key "assistant_drafts", "assistant_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "assistant_drafts", "assistant_turns", column: "turn_id", on_delete: :cascade
+  add_foreign_key "assistant_export_artifacts", "users"
   add_foreign_key "assistant_messages", "assistant_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "assistant_messages", "assistant_turns", column: "turn_id", on_delete: :nullify
   add_foreign_key "assistant_provider_profiles", "users", column: "created_by_id"

@@ -3,9 +3,9 @@ module Api
     module Assistant
       module Machine
         class BaseController < Api::V1::BaseController
-          # Includes the closed JSON envelope and escaping around a schema-
-          # bounded 64 KiB Ansible source.
-          MAX_REQUEST_BYTES = 524_288
+          # Machine schemas remain substantially smaller in normal use, but
+          # the transport ceiling must match the reviewed per-call ceiling.
+          MAX_REQUEST_BYTES = ::Assistant::Config.max_result_bytes
 
           skip_before_action :authenticate_api!
           skip_before_action :authorize_scope!
@@ -87,14 +87,14 @@ module Api
           # turn a committed write into a 403: it accounts the response bytes
           # via Reservation#complete_write! but always renders 201.
           def machine_create_response(reservation, key:, record:)
-			machine_authoring_response(reservation, key: key, record: record, status: :created)
-		  end
+      machine_authoring_response(reservation, key: key, record: record, status: :created)
+      end
 
-		  def machine_edit_response(reservation, key:, record:)
-			machine_authoring_response(reservation, key: key, record: record, status: :ok)
-		  end
+      def machine_edit_response(reservation, key:, record:)
+      machine_authoring_response(reservation, key: key, record: record, status: :ok)
+      end
 
-		  def machine_authoring_response(reservation, key:, record:, status:)
+      def machine_authoring_response(reservation, key:, record:, status:)
             payload = {
               correlation_id: machine_grant.turn.correlation_id,
               key => { id: record.id, name: record.name, lock_version: record.lock_version }
@@ -102,7 +102,7 @@ module Api
             reservation.complete_write!(bytes: JSON.generate(payload).bytesize)
 
             set_grant_budget_headers
-			render json: payload, status: status
+      render json: payload, status: status
           end
 
           def render_machine_validation_error(reservation, codes)
@@ -112,67 +112,67 @@ module Api
           end
 
           def render_machine_create_error(reservation, errors)
-			render_machine_persist_error(reservation, errors)
-		  end
+      render_machine_persist_error(reservation, errors)
+      end
 
-		  def render_machine_persist_error(reservation, errors)
+      def render_machine_persist_error(reservation, errors)
             reservation.fail!
-			if errors.details.values.flatten.any? { |detail| detail[:error] == :taken }
-			  audit_machine_authoring_failure!(reason: "name_conflict")
-			  render json: { error: "name_conflict" }, status: :conflict
-			elsif errors[:base].include?("destination_stale")
-			  audit_machine_authoring_failure!(reason: "destination_stale")
-			  render json: { error: "destination_stale" }, status: :conflict
-			else
-			  code = if errors[:variable_set_ids].any?
-				"ansible_variable_set_ids_unknown"
-			  else
-				"artifact_persistence_invalid"
-			  end
-			  audit_machine_authoring_failure!(reason: "validation_failed")
-			  render json: { error: "validation_failed", codes: [ code ] }, status: :unprocessable_content
-			end
-		  end
+      if errors.details.values.flatten.any? { |detail| detail[:error] == :taken }
+        audit_machine_authoring_failure!(reason: "conflict")
+        render json: { error: "conflict" }, status: :conflict
+      elsif errors[:base].include?("destination_stale")
+        audit_machine_authoring_failure!(reason: "version_conflict")
+        render json: { error: "version_conflict" }, status: :conflict
+      else
+        code = if errors[:variable_set_ids].any?
+        "ansible_variable_set_ids_unknown"
+        else
+        "artifact_persistence_invalid"
+        end
+        audit_machine_authoring_failure!(reason: "validation_failed")
+        render json: { error: "validation_failed", codes: [ code ] }, status: :unprocessable_content
+      end
+      end
 
-		  def render_machine_artifact_not_found(reservation)
-			reservation.fail!
-			audit_machine_authoring_failure!(reason: "artifact_not_found")
-			render json: { error: "artifact_not_found" }, status: :not_found
-		  end
+      def render_machine_artifact_not_found(reservation)
+      reservation.fail!
+      audit_machine_authoring_failure!(reason: "artifact_not_found")
+      render json: { error: "not_found" }, status: :not_found
+      end
 
-		  def consume_authoring_rate!(reservation, action:)
-			::Assistant::RateLimiter.consume!(user: machine_user, action: action)
-			true
-		  rescue ::Assistant::RateLimiter::LimitExceeded => error
-			reservation.fail!
-			audit_machine_authoring_failure!(reason: "authoring_rate_limited")
-			render json: {
-			  error: "authoring_rate_limited", retry_after: error.retry_after_seconds
-			}, status: :too_many_requests
-			false
-		  end
+      def consume_authoring_rate!(reservation, action:)
+      ::Assistant::RateLimiter.consume!(user: machine_user, action: action)
+      true
+      rescue ::Assistant::RateLimiter::LimitExceeded => error
+      reservation.fail!
+      audit_machine_authoring_failure!(reason: "authoring_rate_limited")
+      render json: {
+        error: "authoring_rate_limited", retry_after: error.retry_after_seconds
+      }, status: :too_many_requests
+      false
+      end
 
-		  def machine_expected_lock_version(reservation)
-			value = params[:expected_lock_version]
-			return value if value.is_a?(Integer) && value >= 0
+      def machine_expected_lock_version(reservation)
+      value = params[:expected_lock_version]
+      return value if value.is_a?(Integer) && value >= 0
 
-			render_machine_validation_error(reservation, [ "expected_lock_version_invalid" ])
-			nil
-		  end
+      render_machine_validation_error(reservation, [ "expected_lock_version_invalid" ])
+      nil
+      end
 
-		  def audit_machine_authoring!(event:, operation:, target_type:, record:)
-			turn = machine_grant.turn
-			::Assistant::Audit.record!(event: event, attributes: {
-			  correlation_id: machine_grant.turn.correlation_id,
-			  user_id: machine_user&.id,
-			  conversation_id: turn.conversation_id,
-			  turn_id: turn.id,
-			  provider_profile_id: turn.provider_profile_id,
-			  byte_count: request.content_length.to_i,
-			  target_type: target_type,
-			  target_id: record.id,
-			  metadata: { operation: operation, outcome: event == "machine.create" ? "created" : "updated" }
-			})
+      def audit_machine_authoring!(event:, operation:, target_type:, record:)
+      turn = machine_grant.turn
+      ::Assistant::Audit.record!(event: event, attributes: {
+        correlation_id: machine_grant.turn.correlation_id,
+        user_id: machine_user&.id,
+        conversation_id: turn.conversation_id,
+        turn_id: turn.id,
+        provider_profile_id: turn.provider_profile_id,
+        byte_count: request.content_length.to_i,
+        target_type: target_type,
+        target_id: record.id,
+        metadata: { operation: operation, outcome: event == "machine.create" ? "created" : "updated" }
+      })
           end
 
           def persist_and_audit_machine_authoring(reservation:, event:, operation:, target_type:)
@@ -236,10 +236,78 @@ module Api
             )
           end
 
+          def exact_machine_body(reservation, allowed_keys)
+            body = request.request_parameters.to_h.stringify_keys
+            unknown = body.keys - Array(allowed_keys).map(&:to_s)
+            if unknown.any?
+              render_machine_validation_error(reservation, [ "assistant_unknown_input" ])
+              return
+            end
+            body
+          end
+
+          def machine_idempotency_key(tool, input)
+            canonical = JSON.generate(deep_sort_machine_input(input))
+            Digest::SHA256.hexdigest([ machine_grant.turn_id, tool, canonical ].join(":"))
+          end
+
+          def replay_machine_action(reservation, tool:, idempotency_key:)
+            receipt = ::Assistant::ActionReceipt.replay(
+              grant: machine_grant, tool: tool, idempotency_key: idempotency_key
+            )
+            return false unless receipt
+
+            complete_machine_effect!(reservation, receipt: receipt, status: :ok)
+            true
+          end
+
+          def consume_machine_effect!(reservation, launch: false)
+            action = "#{launch ? 'launch' : 'effect'}:#{machine_grant.turn_id}"
+            ::Assistant::RateLimiter.consume!(user: machine_user, action: action)
+            true
+          rescue ::Assistant::RateLimiter::LimitExceeded => error
+            reservation.fail!
+            render json: { error: "effect_rate_limited", retry_after: error.retry_after_seconds },
+              status: :too_many_requests
+            false
+          end
+
+          def issue_machine_receipt(tool:, status:, target_type:, target_id:, idempotency_key:)
+            ::Assistant::ActionReceipt.issue!(
+              grant: machine_grant, tool: tool, status: status,
+              target_type: target_type, target_id: target_id,
+              idempotency_key: idempotency_key, replayed: false
+            )
+          end
+
+          def complete_machine_effect!(reservation, receipt:, status: :ok)
+            payload = {
+              correlation_id: machine_grant.turn.correlation_id,
+              receipt: receipt
+            }
+            reservation.complete_write!(bytes: JSON.generate(payload).bytesize)
+            set_grant_budget_headers
+            render json: payload, status: status
+          end
+
+          def deep_sort_machine_input(value)
+            case value
+            when Hash
+              value.to_h.stringify_keys.sort.to_h do |key, child|
+                [ key, deep_sort_machine_input(child) ]
+              end
+            when Array
+              value.map { |child| deep_sort_machine_input(child) }
+            else
+              value
+            end
+          end
+          private :deep_sort_machine_input
+
           def complete_machine_response!(reservation, payload, status: :ok)
             bytes = JSON.generate(payload).bytesize
             unless reservation.complete!(bytes: bytes)
-              return render json: { error: "result_rejected" }, status: :forbidden
+              return render json: { error: "tool_response_rejected" }, status: :content_too_large
             end
 
             set_grant_budget_headers
@@ -274,17 +342,40 @@ module Api
 
           def render_machine_auth_error(error)
             status = error.code == "invalid_service_token" ? :unauthorized : :forbidden
-            body = if error.code == "invalid_service_token"
-              { error: "invalid_service_token" }
+            code = case error.code
+            when "grant_expired", "grant_revoked"
+              "turn_grant_expired"
+            when "invalid_service_token"
+              "invalid_service_token"
             else
-              { error: "invalid_turn_grant", reason: error.code }
+              "invalid_turn_grant"
             end
+            body = { error: code }
             render json: body, status: status
           end
 
           def render_grant_authorization_error(error)
             audit_machine_authoring_failure!(reason: error.code) if machine_authoring_audit_context
-            render json: { error: "invalid_turn_grant", reason: error.code }, status: :forbidden
+            code = public_grant_error_code(error.code)
+            status = case code
+            when "turn_call_budget_exhausted", "effect_rate_limited"
+              :too_many_requests
+            when "tool_response_rejected"
+              :content_too_large
+            else
+              :forbidden
+            end
+            render json: { error: code }, status: status
+          end
+
+          def public_grant_error_code(code)
+            return "scope_not_granted" if code == "resource_not_allowed"
+            return code if %w[
+              capability_disabled scope_not_granted turn_grant_expired
+              turn_call_budget_exhausted effect_rate_limited tool_response_rejected
+            ].include?(code)
+
+            "invalid_turn_grant"
           end
         end
       end

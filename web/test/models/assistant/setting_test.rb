@@ -34,6 +34,40 @@ class Assistant::SettingTest < ActiveSupport::TestCase
     assert Assistant::Setting.instance.control_center_write_enabled?
   end
 
+  test "operational MCP access defaults on with no disabled capabilities" do
+    setting = Assistant::Setting.instance
+
+    assert setting.operational_access_enabled?
+    assert_equal [], setting.disabled_capability_tools
+    assert_equal [], setting.disabled_capability_effects
+    assert_equal [], setting.disabled_capability_modules
+  end
+
+  test "capability disables accept only exact reviewed names" do
+    setting = Assistant::Setting.instance
+    setting.disabled_capability_tools = [ "submit_whiterabbit_job", "*" ]
+    setting.disabled_capability_effects = [ "execute", "all" ]
+    setting.disabled_capability_modules = [ "targets", "unknown" ]
+
+    refute setting.valid?
+    assert_includes setting.errors[:disabled_capability_tools], "contains unknown names: *"
+    assert_includes setting.errors[:disabled_capability_effects], "contains unknown names: all"
+    assert_includes setting.errors[:disabled_capability_modules], "contains unknown names: unknown"
+  end
+
+  test "blank multi-select sentinels clear capability disables" do
+    setting = Assistant::Setting.instance
+    setting.update!(
+      disabled_capability_tools: [ "" ],
+      disabled_capability_effects: [ "" ],
+      disabled_capability_modules: [ "" ]
+    )
+
+    assert_empty setting.disabled_capability_tools
+    assert_empty setting.disabled_capability_effects
+    assert_empty setting.disabled_capability_modules
+  end
+
   test "disable_control_center_write! flips the flag and audits" do
     user = users(:one)
 

@@ -18,27 +18,14 @@ module Assistant
       max_total_bytes
     ].freeze
 
-    # The closed set of module slugs a grant may authorize for read-only
-    # browsing. No wildcard is ever accepted. Grows as read modules ship.
-    READ_SCOPES = %w[
-      targets
-      cves
-      vulnerabilities
-      sitemap
-      programs
-      control_center_templates
-      control_center_jobs
-      control_center_ansible
-    ].freeze
-
-    # The closed set of independently revocable Control Center authoring
-    # scopes. No wildcard is ever accepted.
-    WRITE_SCOPES = %w[
-      control_center_templates_write
-      control_center_templates_edit
-      control_center_ansible_write
-      control_center_ansible_edit
-    ].freeze
+    READ_EFFECTS = %w[read analyze validate].freeze
+    CATALOG_TOOLS = Assistant::CapabilityCatalog.load.tools
+    READ_SCOPES = CATALOG_TOOLS.filter_map do |tool|
+      tool.fetch("scope") if READ_EFFECTS.include?(tool.fetch("effect"))
+    end.uniq.sort.freeze
+    WRITE_SCOPES = CATALOG_TOOLS.filter_map do |tool|
+      tool.fetch("scope") unless READ_EFFECTS.include?(tool.fetch("effect"))
+    end.uniq.sort.freeze
 
     self.table_name = "assistant_turn_grants"
 
@@ -51,7 +38,11 @@ module Assistant
       format: { with: /\A\h{64}\z/ }
     validates :expires_at, presence: true
     validates :max_calls,
-      numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 8 }
+      numericality: {
+        only_integer: true,
+        greater_than: 0,
+        less_than_or_equal_to: Assistant::Config::HARD_LIMITS.fetch(:max_tool_calls)
+      }
     validates :call_count,
       numericality: { only_integer: true, greater_than_or_equal_to: 0 }
     validates :max_result_bytes, :max_total_bytes,

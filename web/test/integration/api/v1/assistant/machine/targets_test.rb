@@ -67,7 +67,7 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :forbidden
-    assert_equal "result_rejected", response.parsed_body["error"]
+    assert_equal "tool_response_rejected", response.parsed_body["error"]
     assert_equal 0, grant_record.reload.reserved_bytes
   end
 
@@ -78,7 +78,7 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
     get "/api/v1/assistant/machine/targets", headers: headers(grant)
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "get_target returns the full projection" do

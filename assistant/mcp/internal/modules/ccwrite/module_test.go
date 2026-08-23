@@ -19,6 +19,13 @@ func find(t *testing.T, tools []tool.Tool, name string) tool.Tool {
 	return tool.Tool{}
 }
 
+func receipt(toolName, targetType string) string {
+	return `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","receipt":{` +
+		`"receipt_id":"3b241101-e2bb-4255-8caf-4136c566a963","tool":"` + toolName + `","status":"created",` +
+		`"target":{"type":"` + targetType + `","id":"1"},"human_user_id":1,"turn_id":1,` +
+		`"idempotency_digest":"` + strings.Repeat("a", 64) + `","replayed":false,"occurred_at":"2026-08-19T00:00:00Z"}}`
+}
+
 func TestCreateWhiterabbitTemplateScope(t *testing.T) {
 	tl := find(t, Module{}.Tools(), "create_whiterabbit_template")
 	if tl.Scope != "control_center_templates_write" || !tl.WriteScope {
@@ -91,15 +98,15 @@ func TestCreateWhiterabbitTemplateRejectsBadKind(t *testing.T) {
 
 func TestCreateWhiterabbitTemplateValidatesOutput(t *testing.T) {
 	tl := find(t, Module{}.Tools(), "create_whiterabbit_template")
-	good := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{"id":1,"name":"n","lock_version":0}}`
+	good := receipt("create_whiterabbit_template", "whiterabbit_template")
 	if err := tl.Validate([]byte(good)); err != nil {
 		t.Fatalf("valid rejected: %v", err)
 	}
-	extra := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{"id":1,"name":"n","lock_version":0,"extra":1}}`
+	extra := strings.Replace(good, `"replayed":false`, `"replayed":false,"extra":1`, 1)
 	if tl.Validate([]byte(extra)) == nil {
 		t.Fatal("extra artifact key accepted")
 	}
-	extraRoot := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","template":{"id":1,"name":"n","lock_version":0},"extra":1}`
+	extraRoot := strings.TrimSuffix(good, "}") + `,"extra":1}`
 	if tl.Validate([]byte(extraRoot)) == nil {
 		t.Fatal("extra root key accepted")
 	}
@@ -164,11 +171,11 @@ func TestCreateAnsiblePlaybookRejectsUnknownField(t *testing.T) {
 
 func TestCreateAnsiblePlaybookValidatesOutput(t *testing.T) {
 	tl := find(t, Module{}.Tools(), "create_ansible_playbook")
-	good := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","playbook":{"id":1,"name":"n","lock_version":0}}`
+	good := receipt("create_ansible_playbook", "ansible_playbook")
 	if err := tl.Validate([]byte(good)); err != nil {
 		t.Fatalf("valid rejected: %v", err)
 	}
-	extra := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","playbook":{"id":1,"name":"n","lock_version":0,"extra":1}}`
+	extra := strings.Replace(good, `"replayed":false`, `"replayed":false,"extra":1`, 1)
 	if tl.Validate([]byte(extra)) == nil {
 		t.Fatal("extra artifact key accepted")
 	}
@@ -252,7 +259,7 @@ func TestAuthoringToolsAdvertiseExactOutputSchema(t *testing.T) {
 			t.Fatalf("%s output schema: %v", tl.Name, err)
 		}
 		encoded, _ := json.Marshal(schema)
-		for _, required := range []string{`"additionalProperties":false`, `"correlation_id"`, `"lock_version"`} {
+		for _, required := range []string{`"additionalProperties":false`, `"correlation_id"`, `"receipt_id"`} {
 			if !strings.Contains(string(encoded), required) {
 				t.Errorf("%s output schema lacks %s: %s", tl.Name, required, encoded)
 			}

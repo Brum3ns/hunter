@@ -153,10 +153,10 @@ class AssistantComposeTest < Minitest::Test
 
   def test_assistant_codex_environment_is_chatgpt_only_and_exactly_bounded
     expected = {
-      "ASSISTANT_CODEX_INGRESS_TOKEN" => "${ASSISTANT_CODEX_INGRESS_TOKEN:-}",
+      "ASSISTANT_CODEX_INGRESS_TOKEN" => "${HUNTER_ASSISTANT_CODEX_INGRESS_TOKEN:-}",
       "ASSISTANT_CODEX_ALLOWED_HOSTS" => "assistant-codex:8084",
       "ASSISTANT_CODEX_MCP_URL" => "http://hunter-mcp:8080/mcp",
-      "ASSISTANT_CODEX_MCP_TOKEN" => "${ASSISTANT_GATEWAY_MCP_TOKEN}"
+      "ASSISTANT_CODEX_MCP_TOKEN" => "${HUNTER_ASSISTANT_GATEWAY_MCP_TOKEN}"
     }
 
     each_compose do |filename, config|
@@ -169,9 +169,9 @@ class AssistantComposeTest < Minitest::Test
         refute service.fetch("environment").key?(name),
           "#{filename}: assistant-codex exposes provider API-key variable #{name}"
       end
-      assert_equal "${ASSISTANT_CODEX_URL:-http://assistant-codex:8084}",
+      assert_equal "${HUNTER_ASSISTANT_CODEX_URL:-http://assistant-codex:8084}",
         services.fetch("web").fetch("environment").fetch("ASSISTANT_CODEX_URL")
-      assert_equal "${ASSISTANT_CODEX_INGRESS_TOKEN:-}",
+      assert_equal "${HUNTER_ASSISTANT_CODEX_INGRESS_TOKEN:-}",
         services.fetch("web").fetch("environment").fetch("ASSISTANT_CODEX_INGRESS_TOKEN")
     end
   end

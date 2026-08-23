@@ -4,6 +4,13 @@
 
 **Date:** 2026-08-15
 
+**2026-08-19 amendment:** The exact Hunter MCP catalog and this document's old
+prohibition on dedicated Hunter run/send capabilities are superseded by
+[`2026-08-19-assistant-mcp-administrator-proxy-design.md`](2026-08-19-assistant-mcp-administrator-proxy-design.md).
+The exact pinned Codex-owned built-in set, provider isolation, prohibition on
+generic capabilities, and requirement that every Hunter read/effect traverse
+the reviewed Hunter MCP boundary remain in force.
+
 **Approval record:** After the real pinned Codex CLI 0.144.4 capture showed
 Codex-owned built-ins alongside a deferred Hunter MCP catalog, the operator
 approved continuing with this boundary: Codex internal tools may remain, but
@@ -209,4 +216,3 @@ Production remains disabled until the Assistant production checklist records
 the pinned version and digest, both real-binary contract results, image/runtime
 hardening, network denials, login persistence, authenticated browser smoke,
 stable errors, metadata-only audit canaries, and rollback evidence.
-

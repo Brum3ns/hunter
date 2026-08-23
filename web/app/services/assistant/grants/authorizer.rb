@@ -134,16 +134,26 @@ module Assistant
         end
 
         def authorize!(grant, tool, scope, resource_type, resource_id)
-          raise AuthorizationError, "grant_revoked" if grant.revoked_at?
-          raise AuthorizationError, "grant_expired" unless grant.expires_at.future?
-          raise AuthorizationError, "grant_binding_invalid" unless valid_bindings?(grant)
-          raise AuthorizationError, "tool_not_allowed" unless grant.tools.include?(tool)
+          raise AuthorizationError, "turn_grant_expired" if grant.revoked_at?
+          raise AuthorizationError, "turn_grant_expired" unless grant.expires_at.future?
+          raise AuthorizationError, "invalid_turn_grant" unless valid_bindings?(grant)
+          raise AuthorizationError, "scope_not_granted" unless grant.tools.include?(tool)
+          require_live_capability!(tool)
           if scope.present? && !scope_allowed?(grant, scope.to_s)
-            raise AuthorizationError, "scope_not_allowed"
+            raise AuthorizationError, "scope_not_granted"
           end
 
           authorize_resource!(grant, tool, resource_type, resource_id)
-          raise AuthorizationError, "grant_calls_exhausted" if grant.call_count >= grant.max_calls
+          raise AuthorizationError, "turn_call_budget_exhausted" if grant.call_count >= grant.max_calls
+        end
+
+        def require_live_capability!(tool)
+          return if Assistant::Grants::Issuer::LEGACY_TOOLS.include?(tool)
+
+          decision = Assistant::CapabilityPolicy.check(tool: tool)
+          raise AuthorizationError, decision.reason unless decision.allowed?
+        rescue Assistant::CapabilityCatalog::InvalidCatalog
+          raise AuthorizationError, "scope_not_granted"
         end
 
         def scope_allowed?(grant, scope)
@@ -174,7 +184,7 @@ module Assistant
 
         def reserve_budget!(grant)
           projected = grant.returned_bytes + grant.reserved_bytes + grant.max_result_bytes
-          raise AuthorizationError, "grant_budget_exhausted" if projected > grant.max_total_bytes
+          raise AuthorizationError, "tool_response_rejected" if projected > grant.max_total_bytes
 
           grant.call_count += 1
           grant.reserved_bytes += grant.max_result_bytes

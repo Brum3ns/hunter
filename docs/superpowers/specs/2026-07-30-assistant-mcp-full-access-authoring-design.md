@@ -1,8 +1,16 @@
 # Assistant MCP Full-Access Reading and Permission-Free Authoring — Design & Threat-Model Delta
 
-**Status:** APPROVED BY OPERATOR
+**Status:** SUPERSEDED BY THE 2026-08-19 MCP ADMINISTRATOR PROXY DESIGN
 
 **Date:** 2026-07-30
+
+**Supersession note (2026-08-19):** This document remains historical evidence
+for the original read/create/edit implementation. Its narrow capability
+boundary—especially the prohibition on job submission, run launch/cancellation,
+and broader non-secret operational writes—is superseded by
+[`2026-08-19-assistant-mcp-administrator-proxy-design.md`](2026-08-19-assistant-mcp-administrator-proxy-design.md).
+The newer approved threat-model delta is authoritative for future Assistant MCP
+work.
 
 **Approval record:** The operator requested full non-secret Hunter reads and permission-free create/edit for all Whiterabbit templates and Ansible playbooks, selected conflict-safe create semantics, confirmed editing applies to every existing artifact, and authorized specification, planning, implementation, and verification to proceed without further questions.
 

@@ -1,0 +1,522 @@
+paths:
+  /api/v1/assistant/machine/targets/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze matching targets in one bounded server-side operation"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_targets"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Secret-safe aggregate target statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/cves/new:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List CVEs newer than an explicit cursor"
+      x-internal-machine: true
+      x-mcp-tool: "list_new_cves"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "A bounded CVE cursor page." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/cves/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze matching CVEs in one bounded server-side operation"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_cves"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Secret-safe aggregate CVE statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/vulnerabilities/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze matching vulnerabilities in one bounded server-side operation"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_vulnerabilities"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Secret-safe aggregate vulnerability statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/sitemap/endpoints/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze matching sitemap endpoints in one bounded server-side operation"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_endpoints"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Secret-safe aggregate endpoint statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/programs/changes:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List bounded bug-bounty program changes"
+      x-internal-machine: true
+      x-mcp-tool: "list_program_changes"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "A bounded program-change page." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/programs/scope_runs:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List bounded program scope-run history"
+      x-internal-machine: true
+      x-mcp-tool: "list_scope_runs"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "A bounded scope-run page." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/programs/scope_runs/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one sanitized program scope run"
+      x-internal-machine: true
+      x-mcp-tool: "get_scope_run"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Sanitized scope-run detail." }, "404": { $ref: "#/components/responses/NotFound" } }
+  /api/v1/assistant/machine/programs/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze matching programs in one bounded server-side operation"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_programs"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Secret-safe aggregate program statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/control_center/templates/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze Whiterabbit template metadata"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_templates"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Bounded template statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/control_center/templates/validate:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Validate a closed Whiterabbit template without saving"
+      x-internal-machine: true
+      x-mcp-tool: "validate_whiterabbit_template"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Stable validation result codes." }, "422": { description: "Closed input validation failed." } }
+  /api/v1/assistant/machine/control_center/templates/validate_yaml:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Parse and validate Whiterabbit YAML without saving"
+      x-internal-machine: true
+      x-mcp-tool: "validate_whiterabbit_yaml"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Stable validation result codes." }, "422": { description: "Closed input validation failed." } }
+  /api/v1/assistant/machine/control_center/jobs/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze Whiterabbit job history and outcomes"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_jobs"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Bounded job statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/control_center/jobs/resolve_targets:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Resolve a closed target selection without submitting a job"
+      x-internal-machine: true
+      x-mcp-tool: "resolve_job_targets"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssistantJobInput" } } } }
+      responses: { "200": { description: "Count and bounded sample of resolved targets." }, "422": { description: "The selection is invalid." } }
+  /api/v1/assistant/machine/control_center/health:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Read secret-safe Control Center service health"
+      x-internal-machine: true
+      x-mcp-tool: "get_control_center_health"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Safe availability flags." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/control_center/stats:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Read bounded Control Center job statistics"
+      x-internal-machine: true
+      x-mcp-tool: "get_control_center_stats"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Bounded job statistics and trends." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/control_center/ansible/credentials:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List Ansible credential metadata without secret values"
+      x-internal-machine: true
+      x-mcp-tool: "list_ansible_credential_metadata"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Credential metadata and opaque IDs only." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/control_center/ansible/credentials/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch Ansible credential metadata without secret values"
+      x-internal-machine: true
+      x-mcp-tool: "get_ansible_credential_metadata"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Credential metadata and opaque ID only." }, "404": { $ref: "#/components/responses/NotFound" } }
+  /api/v1/assistant/machine/control_center/ansible/playbooks/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze Ansible playbook metadata"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_playbooks"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Bounded playbook statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/control_center/ansible/playbooks/validate:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Validate Ansible playbook YAML without saving"
+      x-internal-machine: true
+      x-mcp-tool: "validate_ansible_playbook"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Stable fail-closed validation result." }, "422": { description: "Closed input validation failed." } }
+  /api/v1/assistant/machine/control_center/ansible/playbooks/export:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Prepare a short-lived human-owned playbook export"
+      x-internal-machine: true
+      x-mcp-tool: "export_ansible_playbooks"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "201": { description: "Action receipt with a short-lived same-origin human download reference; archive bytes are never returned to MCP." }, "422": { description: "Closed input validation failed." } }
+  /api/v1/assistant/machine/control_center/ansible/inventories:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List sanitized Ansible inventories"
+      x-internal-machine: true
+      x-mcp-tool: "list_ansible_inventories"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Bounded inventory metadata." }, "403": { description: "The tool or scope is unavailable." } }
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Create a validated non-secret Ansible inventory"
+      x-internal-machine: true
+      x-mcp-tool: "create_ansible_inventory"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "201": { description: "Metadata-only idempotent action receipt." }, "422": { description: "Closed inventory validation failed." } }
+  /api/v1/assistant/machine/control_center/ansible/inventories/validate:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Validate Ansible inventory YAML without saving"
+      x-internal-machine: true
+      x-mcp-tool: "validate_ansible_inventory"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Stable validation result." }, "422": { description: "Closed input validation failed." } }
+  /api/v1/assistant/machine/control_center/ansible/inventories/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch one sanitized Ansible inventory"
+      x-internal-machine: true
+      x-mcp-tool: "get_ansible_inventory"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Sanitized inventory detail." }, "404": { $ref: "#/components/responses/NotFound" } }
+    patch:
+      tags: ["Assistant Machine"]
+      summary: "Version-edit a validated non-secret Ansible inventory"
+      x-internal-machine: true
+      x-mcp-tool: "edit_ansible_inventory"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Metadata-only idempotent action receipt." }, "409": { description: "The expected lock version is stale." } }
+  /api/v1/assistant/machine/control_center/ansible/inventories/{id}/syntax_check:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Queue a bounded inventory and playbook syntax check"
+      x-internal-machine: true
+      x-mcp-tool: "queue_inventory_syntax_check"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "201": { description: "Metadata-only idempotent action receipt." }, "422": { description: "The request is invalid." } }
+  /api/v1/assistant/machine/control_center/ansible/inventories/{id}/host_key_scan:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Queue bounded host-key discovery for an inventory"
+      x-internal-machine: true
+      x-mcp-tool: "queue_host_key_scan"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "201": { description: "Metadata-only idempotent action receipt." }, "422": { description: "The request is invalid." } }
+  /api/v1/assistant/machine/control_center/ansible/inventories/{id}/confirm_host_keys:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Confirm an exact scanned host-key candidate set"
+      x-internal-machine: true
+      x-mcp-tool: "confirm_inventory_host_keys"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Metadata-only idempotent action receipt." }, "409": { description: "The expected lock version is stale." } }
+  /api/v1/assistant/machine/control_center/ansible/inventories/{id}/connectivity_test:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Queue a bounded inventory connectivity test"
+      x-internal-machine: true
+      x-mcp-tool: "queue_inventory_connectivity_test"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "201": { description: "Metadata-only idempotent action receipt." }, "422": { description: "The request is invalid." } }
+  /api/v1/assistant/machine/control_center/ansible/inventories/{id}/utility_tasks/{task_id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Read one redacted inventory utility-task result"
+      x-internal-machine: true
+      x-mcp-tool: "get_inventory_utility_task"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: task_id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Redacted utility-task state and output metadata." }, "404": { $ref: "#/components/responses/NotFound" } }
+  /api/v1/assistant/machine/control_center/ansible/variable_sets:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List non-secret Ansible variable sets"
+      x-internal-machine: true
+      x-mcp-tool: "list_ansible_variable_sets"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Bounded variable-set metadata." }, "403": { description: "The tool or scope is unavailable." } }
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Create a non-secret Ansible variable set"
+      x-internal-machine: true
+      x-mcp-tool: "create_ansible_variable_set"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "201": { description: "Metadata-only idempotent action receipt." }, "422": { description: "Closed input validation failed." } }
+  /api/v1/assistant/machine/control_center/ansible/variable_sets/{id}:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Fetch a non-secret Ansible variable set"
+      x-internal-machine: true
+      x-mcp-tool: "get_ansible_variable_set"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Variable-set metadata and non-secret typed values." }, "404": { $ref: "#/components/responses/NotFound" } }
+    patch:
+      tags: ["Assistant Machine"]
+      summary: "Version-edit a non-secret Ansible variable set"
+      x-internal-machine: true
+      x-mcp-tool: "edit_ansible_variable_set"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Metadata-only idempotent action receipt." }, "409": { description: "The expected lock version is stale." } }
+  /api/v1/assistant/machine/control_center/ansible/variable_sets/{variable_set_id}/variables:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Create an explicitly non-secret typed Ansible variable"
+      x-internal-machine: true
+      x-mcp-tool: "create_nonsecret_ansible_variable"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: variable_set_id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "201": { description: "Metadata-only idempotent action receipt." }, "422": { description: "Secret-shaped or invalid input is rejected." } }
+  /api/v1/assistant/machine/control_center/ansible/variable_sets/{variable_set_id}/variables/{id}:
+    patch:
+      tags: ["Assistant Machine"]
+      summary: "Version-edit an explicitly non-secret typed Ansible variable"
+      x-internal-machine: true
+      x-mcp-tool: "edit_nonsecret_ansible_variable"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: variable_set_id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Metadata-only idempotent action receipt." }, "409": { description: "The expected lock version is stale." } }
+  /api/v1/assistant/machine/control_center/ansible/run_groups/analyze:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Analyze Ansible run outcomes and history"
+      x-internal-machine: true
+      x-mcp-tool: "analyze_ansible_runs"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Bounded run statistics." }, "403": { description: "The tool or scope is unavailable." } }
+  /api/v1/assistant/machine/control_center/ansible/run_groups/{id}/cancel:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Cancel a nonterminal Ansible run group without deleting it"
+      x-internal-machine: true
+      x-mcp-tool: "cancel_ansible_run_group"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Metadata-only idempotent action receipt." }, "409": { description: "The run group is already terminal." } }
+  /api/v1/assistant/machine/control_center/ansible/runs/{id}/cancel:
+    post:
+      tags: ["Assistant Machine"]
+      summary: "Cancel a nonterminal Ansible run without deleting it"
+      x-internal-machine: true
+      x-mcp-tool: "cancel_ansible_run"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: "Metadata-only idempotent action receipt." }, "409": { description: "The run is already terminal." } }
+  /api/v1/assistant/machine/control_center/ansible/runs/{run_id}/events:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "List redacted Ansible run events in counter order"
+      x-internal-machine: true
+      x-mcp-tool: "list_run_events"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AssistantTurnGrant" }
+        - { name: run_id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: after_counter, in: query, schema: { type: integer, minimum: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses: { "200": { description: "Bounded redacted run-event page." }, "404": { $ref: "#/components/responses/NotFound" } }
+  /api/v1/assistant/machine/control_center/ansible/executor_health:
+    get:
+      tags: ["Assistant Machine"]
+      summary: "Read bounded Ansible executor capacity and queue health"
+      x-internal-machine: true
+      x-mcp-tool: "get_ansible_executor_health"
+      x-mcp-input-schema-version: 1
+      security: [{ assistantServiceToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/AssistantTurnGrant" }]
+      responses: { "200": { description: "Secret-safe executor capacity metadata." }, "403": { description: "The tool or scope is unavailable." } }
+components:
+  schemas:
+    AssistantVulnerabilityInput:
+      type: object
+      properties:
+        name: { type: string, maxLength: 500 }
+        severity: { type: string, maxLength: 32 }
+        type: { type: string, maxLength: 200 }
+        cwe: { type: string, maxLength: 64 }
+        status: { type: string, maxLength: 64 }
+        program: { type: string, maxLength: 255 }
+        tool: { type: string, maxLength: 255 }
+        asset: { type: string, maxLength: 2048 }
+        description: { type: string, maxLength: 16384 }
+        impact: { type: string, maxLength: 16384 }
+        host: { type: string, maxLength: 2048 }
+        url: { type: string, maxLength: 8192 }
+        ip: { type: string, maxLength: 128 }
+        method: { type: string, maxLength: 32 }
+        request: { type: string, maxLength: 16384 }
+        response: { type: string, maxLength: 16384 }
+        curl: { type: string, maxLength: 16384 }
+        tags: { type: array, maxItems: 100, items: { type: string, maxLength: 200 } }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        submitted: { type: boolean }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        extracted: { type: string, maxLength: 16384 }
+      additionalProperties: false
+    AssistantTargetSelection:
+      type: object
+      properties:
+        source: { type: string, enum: [targets, sitemap] }
+        q: { type: string, maxLength: 500 }
+        ids: { type: array, maxItems: 10000, items: { type: string, maxLength: 255 } }
+        exclude_ids: { type: array, maxItems: 10000, items: { type: string, maxLength: 255 } }
+      required: [source]
+      additionalProperties: false
+    AssistantJobInput:
+      type: object
+      properties:
+        template: { type: string, maxLength: 255 }
+        queue_name: { type: string, maxLength: 100 }
+        selections: { type: array, maxItems: 100, items: { $ref: "#/components/schemas/AssistantTargetSelection" } }
+        targets: { type: array, maxItems: 10000, items: { type: string, maxLength: 8192 } }
+        target_chunk: { type: integer, minimum: 0, maximum: 1000000 }
+        delay: { type: integer, minimum: 0, maximum: 86400000 }
+      additionalProperties: false
+    AssistantAnsibleOverride:
+      type: object
+      properties:
+        name: { type: string, pattern: "^[A-Za-z_][A-Za-z0-9_]{0,254}$" }
+        value_type: { type: string, enum: [string, number, boolean, list, dictionary] }
+        value: {}
+      required: [name, value_type, value]
+      additionalProperties: false
+    AssistantAnsibleLaunchInput:
+      type: object
+      properties:
+        playbook_id: { type: integer, minimum: 1 }
+        inventory_id: { type: integer, minimum: 1 }
+        credential_id: { type: [integer, "null"], minimum: 1 }
+        variable_set_ids: { type: array, maxItems: 100, uniqueItems: true, items: { type: integer, minimum: 1 } }
+        overrides: { type: array, maxItems: 100, items: { $ref: "#/components/schemas/AssistantAnsibleOverride" } }
+        host_limit: { type: [string, "null"], maxLength: 255 }
+        check_mode: { type: boolean }
+        timeout_seconds: { type: integer, minimum: 60, maximum: 86400 }
+      required: [playbook_id, inventory_id]
+      additionalProperties: false

@@ -52,6 +52,52 @@ class Assistant::RateLimiterTest < ActiveSupport::TestCase
       Assistant::RateLimitBucket.where(user: users(:one)).order(:action).pluck(:action)
   end
 
+  test "operational effects enforce per-turn and hourly limits" do
+    now = Time.zone.parse("2026-08-19 12:34:30 UTC")
+    turn = assistant_turns(:created)
+
+    with_limits(max_effects_per_turn: 2, max_effects_per_hour: 3) do
+      2.times do
+        Assistant::RateLimiter.consume!(
+          user: users(:one), action: "effect:#{turn.id}", now: now
+        )
+      end
+      error = assert_raises(Assistant::RateLimiter::LimitExceeded) do
+        Assistant::RateLimiter.consume!(
+          user: users(:one), action: "effect:#{turn.id}", now: now
+        )
+      end
+
+      assert_equal "effect_rate_limited", error.code
+    end
+  end
+
+  test "launch limits are independent from ordinary effects" do
+    now = Time.zone.parse("2026-08-19 12:34:30 UTC")
+    turn = assistant_turns(:created)
+
+    with_limits(
+      max_effects_per_turn: 10,
+      max_effects_per_hour: 10,
+      max_launches_per_turn: 1,
+      max_launches_per_hour: 2
+    ) do
+      Assistant::RateLimiter.consume!(
+        user: users(:one), action: "effect:#{turn.id}", now: now
+      )
+      Assistant::RateLimiter.consume!(
+        user: users(:one), action: "launch:#{turn.id}", now: now
+      )
+
+      error = assert_raises(Assistant::RateLimiter::LimitExceeded) do
+        Assistant::RateLimiter.consume!(
+          user: users(:one), action: "launch:#{turn.id}", now: now
+        )
+      end
+      assert_equal "effect_rate_limited", error.code
+    end
+  end
+
   test "hour limits roll the rejected minute increment back" do
     now = Time.zone.parse("2026-07-26 12:34:30 UTC")
 
@@ -119,7 +165,11 @@ class Assistant::RateLimiterTest < ActiveSupport::TestCase
       max_concurrent_turns: 2,
       max_validations_per_turn: 1,
       max_creates_per_minute: 5,
-      max_creates_per_hour: 30
+      max_creates_per_hour: 30,
+      max_effects_per_turn: 32,
+      max_effects_per_hour: 120,
+      max_launches_per_turn: 16,
+      max_launches_per_hour: 60
     }
     stub_methods(Assistant::Config, defaults.merge(overrides), &block)
   end

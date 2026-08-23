@@ -33,6 +33,7 @@ type Spec struct {
 	GetDesc   string
 
 	ListFields  []ListField // extra filters; page+limit are always added
+	PathFields  []string    // required ListFields substituted into {name} path segments
 	SummaryKeys []string    // exact keys of each list item
 	FullKeys    []string    // exact keys of the detail object
 	// ValidateDetail optionally enforces closed nested shapes after FullKeys.

@@ -66,12 +66,12 @@ func TestGetVulnerabilityBuildsPath(t *testing.T) {
 func TestListVulnerabilitiesOutputValidation(t *testing.T) {
 	tl := find(t, "list_vulnerabilities")
 	good := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":1,"page":1,"limit":50,` +
-		`"items":[{"id":"60f7c2d2b1a2c3d4e5f6a7b8","name":"Reflected XSS","severity":"high","status":"triaged","program":"acme"}]}`
+		`"items":[{"id":"60f7c2d2b1a2c3d4e5f6a7b8","version":"v1","name":"Reflected XSS","severity":"high","status":"triaged","program":"acme"}]}`
 	if err := tl.Validate([]byte(good)); err != nil {
 		t.Fatalf("valid output rejected: %v", err)
 	}
 	bad := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","count":1,"page":1,"limit":50,` +
-		`"items":[{"id":"60f7c2d2b1a2c3d4e5f6a7b8","name":"Reflected XSS","severity":"high","status":"triaged","program":"acme","EXTRA":1}]}`
+		`"items":[{"id":"60f7c2d2b1a2c3d4e5f6a7b8","version":"v1","name":"Reflected XSS","severity":"high","status":"triaged","program":"acme","EXTRA":1}]}`
 	if tl.Validate([]byte(bad)) == nil {
 		t.Fatal("accepted invalid output")
 	}
@@ -80,7 +80,7 @@ func TestListVulnerabilitiesOutputValidation(t *testing.T) {
 func TestGetVulnerabilityOutputValidation(t *testing.T) {
 	tl := find(t, "get_vulnerability")
 	full := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","vulnerability":{` +
-		`"id":"60f7c2d2b1a2c3d4e5f6a7b8","name":"Reflected XSS","severity":"high","status":"triaged","program":"acme",` +
+		`"id":"60f7c2d2b1a2c3d4e5f6a7b8","version":"v1","name":"Reflected XSS","severity":"high","status":"triaged","program":"acme",` +
 		`"type":"xss","cwe":"CWE-79","tags":["xss"],"tool":"burp","asset":"web","date":"2026-01-01",` +
 		`"description":"d","impact":"i","host":"app.acme.test","url":"https://app.acme.test/x","ip":"10.0.0.1","port":443,"target_input":"app.acme.test","method":"GET",` +
 		`"submitted":"2026-01-01","status_updated_at":"2026-01-02","confidence":"confirmed",` +
@@ -93,7 +93,7 @@ func TestGetVulnerabilityOutputValidation(t *testing.T) {
 	}
 	// Secret/PII fields must never validate as accepted output shape.
 	leaked := `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","vulnerability":{` +
-		`"id":"60f7c2d2b1a2c3d4e5f6a7b8","name":"Reflected XSS","severity":"high","status":"triaged","program":"acme",` +
+		`"id":"60f7c2d2b1a2c3d4e5f6a7b8","version":"v1","name":"Reflected XSS","severity":"high","status":"triaged","program":"acme",` +
 		`"type":"xss","cwe":"CWE-79","tags":["xss"],"tool":"burp","asset":"web","date":"2026-01-01",` +
 		`"description":"d","impact":"i","host":"app.acme.test","url":"https://app.acme.test/x","ip":"10.0.0.1","port":443,"target_input":"app.acme.test","method":"GET",` +
 		`"submitted":"2026-01-01","status_updated_at":"2026-01-02","confidence":"confirmed",` +
@@ -131,5 +131,51 @@ func TestGetVulnerabilityDescriptionNonEmpty(t *testing.T) {
 	tl := find(t, "get_vulnerability")
 	if tl.Description == "" {
 		t.Fatal("get_vulnerability description empty")
+	}
+}
+
+func TestVulnerabilityWriteToolsUseClosedInputsAndDedicatedRoutes(t *testing.T) {
+	create := find(t, "create_vulnerability")
+	request, err := create.Decode([]byte(`{"vulnerability":{"name":"XSS","program":"acme","host":"a.test","severity":"high"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	call, err := create.BuildRequest(request)
+	if err != nil || call.Method != "POST" || call.Path != "/api/v1/assistant/machine/vulnerabilities" {
+		t.Fatalf("create call: %+v %v", call, err)
+	}
+	if _, err := create.Decode([]byte(`{"vulnerability":{"name":"XSS","token":"secret"}}`)); err == nil {
+		t.Fatal("unknown secret field accepted")
+	}
+	if _, err := create.Decode([]byte(`{"vulnerability":{"name":"XSS","request":"Authorization: Bearer secret-value"}}`)); err == nil {
+		t.Fatal("secret-bearing content accepted")
+	}
+
+	update := find(t, "update_vulnerability")
+	request, err = update.Decode([]byte(`{"id":"60f7c2d2b1a2c3d4e5f6a7b8","expected_version":"v1","vulnerability":{"status":"closed"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	call, err = update.BuildRequest(request)
+	if err != nil || call.Method != "PATCH" || call.Path != "/api/v1/assistant/machine/vulnerabilities/60f7c2d2b1a2c3d4e5f6a7b8" {
+		t.Fatalf("update call: %+v %v", call, err)
+	}
+}
+
+func TestVulnerabilityWriteToolsValidateActionReceipts(t *testing.T) {
+	valid := []byte(`{
+		"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962",
+		"receipt":{
+			"receipt_id":"5d6d2d1f-f225-4e63-82e7-f4f23e9648cb","tool":"create_vulnerability",
+			"status":"created","target":{"type":"vulnerability","id":"60f7c2d2b1a2c3d4e5f6a7b8"},
+			"human_user_id":1,"turn_id":1,"idempotency_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"replayed":false,"occurred_at":"2026-08-19T00:00:00Z"
+		}
+	}`)
+	if err := find(t, "create_vulnerability").Validate(valid); err != nil {
+		t.Fatalf("valid receipt rejected: %v", err)
+	}
+	if err := find(t, "create_vulnerability").Validate([]byte(`{"receipt":{"secret":"x"}}`)); err == nil {
+		t.Fatal("open receipt accepted")
 	}
 }

@@ -36,7 +36,7 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
     get "/api/v1/assistant/machine/sitemap/endpoints", headers: headers(grant)
 
     assert_response :forbidden
-    assert_equal "scope_not_allowed", response.parsed_body["reason"]
+    assert_equal "scope_not_granted", response.parsed_body["error"]
   end
 
   test "list_endpoints narrows by the status filter, accepting a comma-joined string" do

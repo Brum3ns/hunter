@@ -5,7 +5,9 @@ package programs
 import (
 	"encoding/json"
 	"errors"
+	"regexp"
 
+	"hunter.local/assistant/mcp/internal/analysismodule"
 	"hunter.local/assistant/mcp/internal/readmodule"
 	"hunter.local/assistant/mcp/internal/tool"
 )
@@ -13,7 +15,7 @@ import (
 type Module struct{}
 
 func (Module) Tools() []tool.Tool {
-	return readmodule.Build(readmodule.Spec{
+	tools := readmodule.Build(readmodule.Spec{
 		ListTool: "list_programs", GetTool: "get_program", Scope: "programs",
 		BasePath: "/api/v1/assistant/machine/programs", DetailKey: "program",
 		ListDesc: "List and count bug-bounty programs, optionally filtered by status, bounty, collaboration, scope size, report volume, platform, or scope type. Use q for dork search (see the q field for keys).",
@@ -54,6 +56,44 @@ func (Module) Tools() []tool.Tool {
 		},
 		ValidateDetail: validateDetail,
 	})
+	tools = append(tools, analysismodule.Build(analysismodule.Spec{
+		Name: "analyze_programs", Scope: "programs_read", Path: "/api/v1/assistant/machine/programs/analyze",
+		Description: "Aggregate all matching programs server-side by platform, status, bounty mode, and tag.",
+		Fields: []readmodule.ListField{
+			{Name: "q", Kind: "string", MaxLen: 200}, {Name: "status", Kind: "string", MaxLen: 20},
+			{Name: "bounty", Kind: "string", MaxLen: 20}, {Name: "collaboration", Kind: "string", MaxLen: 20},
+			{Name: "platforms", Kind: "string", MaxLen: 200}, {Name: "scope_types", Kind: "string", MaxLen: 200},
+		},
+		GroupKeys: []string{"platform_counts", "status_counts", "bounty_counts", "tag_counts"},
+	}))
+	tools = append(tools, readmodule.BuildList(readmodule.Spec{
+		ListTool: "list_program_changes", Scope: "programs_read",
+		BasePath: "/api/v1/assistant/machine/programs/changes",
+		ListDesc: "List the configured administrator's recent program changes.",
+		ListFields: []readmodule.ListField{
+			{Name: "platform", Kind: "string", MaxLen: 100}, {Name: "kind", Kind: "string", MaxLen: 100},
+			{Name: "sid", Kind: "string", MaxLen: 255},
+		},
+		SummaryKeys: []string{"id", "platform", "program_sid", "program_name", "kind", "old_value", "new_value", "detected_at", "scope_run_id"},
+	})...)
+	runID := regexp.MustCompile("^[1-9][0-9]{0,18}$")
+	tools = append(tools, readmodule.Build(readmodule.Spec{
+		ListTool: "list_scope_runs", GetTool: "get_scope_run", Scope: "programs_read",
+		BasePath: "/api/v1/assistant/machine/programs/scope_runs", DetailKey: "scope_run",
+		ListDesc: "List bounded Scope collection runs.", GetDesc: "Get one Scope collection run.",
+		ListFields: []readmodule.ListField{
+			{Name: "mine", Kind: "string", MaxLen: 5}, {Name: "kind", Kind: "string", MaxLen: 50},
+			{Name: "platform", Kind: "string", MaxLen: 100}, {Name: "status", Kind: "string", MaxLen: 10},
+		},
+		SummaryKeys: scopeRunKeys, FullKeys: scopeRunKeys, IDPattern: runID,
+	})...)
+	return tools
+}
+
+var scopeRunKeys = []string{
+	"id", "kind", "platform", "trigger", "mode", "bug_bounty", "vdp", "programs", "success",
+	"in_flight", "exit_status", "duration_ms", "stdout_bytes", "stdout_excerpt", "stderr_excerpt",
+	"error_class", "started_at", "finished_at", "user",
 }
 
 func validateDetail(detail map[string]json.RawMessage) error {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"hunter.local/assistant/mcp/internal/analysismodule"
 	"hunter.local/assistant/mcp/internal/readmodule"
 	"hunter.local/assistant/mcp/internal/tool"
 )
@@ -13,7 +14,12 @@ import (
 type Module struct{}
 
 func (Module) Tools() []tool.Tool {
-	return readmodule.Build(readmodule.Spec{
+	fields := []readmodule.ListField{
+		{Name: "q", Kind: "string", MaxLen: 200}, {Name: "program", Kind: "string", MaxLen: 200},
+		{Name: "severity", Kind: "string", MaxLen: 40}, {Name: "status", Kind: "string", MaxLen: 40},
+		{Name: "tool", Kind: "string", MaxLen: 100},
+	}
+	tools := readmodule.Build(readmodule.Spec{
 		ListTool: "list_vulnerabilities", GetTool: "get_vulnerability", Scope: "vulnerabilities",
 		BasePath: "/api/v1/assistant/machine/vulnerabilities", DetailKey: "vulnerability",
 		ListDesc: "List and count tracked vulnerabilities, optionally filtered by program, severity, status, or tool. Use q for dork search (see the q field for keys).",
@@ -26,15 +32,22 @@ func (Module) Tools() []tool.Tool {
 			{Name: "status", Kind: "string", MaxLen: 40, Description: "Filter by report status (e.g. open, triaged, resolved)."},
 			{Name: "tool", Kind: "string", MaxLen: 100, Description: "Filter by the tool that produced the finding."},
 		},
-		SummaryKeys: []string{"id", "name", "severity", "status", "program"},
+		SummaryKeys: []string{"id", "version", "name", "severity", "status", "program"},
 		FullKeys: []string{
-			"id", "name", "severity", "status", "program",
+			"id", "version", "name", "severity", "status", "program",
 			"type", "cwe", "tags", "tool", "asset", "date", "description", "impact",
 			"host", "url", "ip", "port", "target_input", "method", "submitted", "status_updated_at", "confidence",
 			"evidence",
 		},
 		ValidateDetail: validateDetail,
 	})
+	tools = append(tools, analysismodule.Build(analysismodule.Spec{
+		Name: "analyze_vulnerabilities", Scope: "vulnerabilities_read",
+		Path:        "/api/v1/assistant/machine/vulnerabilities/analyze",
+		Description: "Aggregate all matching vulnerabilities server-side by severity, status, program, and type.",
+		Fields:      fields, GroupKeys: []string{"severity_counts", "status_counts", "program_counts", "type_counts"},
+	}))
+	return append(tools, vulnerabilityWriteTools()...)
 }
 
 func validateDetail(detail map[string]json.RawMessage) error {

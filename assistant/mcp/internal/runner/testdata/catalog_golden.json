@@ -1,5 +1,830 @@
 [
   {
+    "name": "analyze_ansible_runs",
+    "description": "Analyze all Ansible run groups server-side and return bounded aggregate counts.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "analyze_cves",
+    "description": "Aggregate all matching CVEs server-side by severity, ecosystem, language, and fix availability.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "cwe": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "ecosystem": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "has_fix": {
+          "maxLength": 5,
+          "type": "string"
+        },
+        "language": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "min_severity": {
+          "maxLength": 10,
+          "type": "string"
+        },
+        "modified_after": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "package": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "published_after": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "tag": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "vendor": {
+          "maxLength": 100,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "analyze_endpoints",
+    "description": "Aggregate all matching sitemap endpoints server-side by method, status, content type, and origin.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "content_type": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "has_query": {
+          "maxLength": 5,
+          "type": "string"
+        },
+        "methods": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 500,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 40,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "analyze_jobs",
+    "description": "Analyze all matching Whiterabbit jobs server-side and return bounded aggregate counts.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "maxLength": 40,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "analyze_playbooks",
+    "description": "Analyze all Ansible playbooks server-side and return bounded aggregate counts.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "analyze_programs",
+    "description": "Aggregate all matching programs server-side by platform, status, bounty mode, and tag.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "bounty": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "collaboration": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "platforms": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "scope_types": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 20,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "analyze_targets",
+    "description": "Aggregate all matching targets server-side by technology, status, program, and webserver.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "program": {
+          "description": "Program name.",
+          "maxLength": 200,
+          "type": "string"
+        },
+        "q": {
+          "description": "Dork/free-text target search.",
+          "maxLength": 200,
+          "type": "string"
+        },
+        "status": {
+          "description": "HTTP status.",
+          "maxLength": 40,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "analyze_templates",
+    "description": "Analyze all matching Whiterabbit templates server-side and return bounded aggregate counts.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "maxLength": 40,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "analyze_vulnerabilities",
+    "description": "Aggregate all matching vulnerabilities server-side by severity, status, program, and type.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "program": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "severity": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "tool": {
+          "maxLength": 100,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "cancel_ansible_run",
+    "description": "Request cancellation of one nonterminal Ansible run without deleting it.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "cancel_ansible_run_group",
+    "description": "Request cancellation of one nonterminal Ansible run group without deleting it.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "confirm_inventory_host_keys",
+    "description": "Confirm an exact scanned host-key candidate set with an inventory lock precondition.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "expected_fingerprint": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "host": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "known_hosts_line": {
+                "maxLength": 16384,
+                "type": "string"
+              },
+              "port": {
+                "maximum": 65535,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "scanned_fingerprint": {
+                "maxLength": 512,
+                "type": "string"
+              }
+            },
+            "required": [
+              "host",
+              "port",
+              "known_hosts_line",
+              "expected_fingerprint",
+              "scanned_fingerprint"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1000,
+          "minItems": 1,
+          "type": "array"
+        },
+        "expected_lock_version": {
+          "maximum": 9999999999999999,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "expected_lock_version",
+        "candidates"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "create_ansible_inventory",
+    "description": "Create a validated nonsecret Ansible inventory.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "inventory": {
+          "additionalProperties": false,
+          "properties": {
+            "default_credential_id": {
+              "maximum": 9999999999999999,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "variable_set_ids": {
+              "items": {
+                "maximum": 9999999999999999,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "maxItems": 100,
+              "minItems": 0,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "yaml_content": {
+              "maxLength": 262144,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "yaml_content"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "inventory"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
     "name": "create_ansible_playbook",
     "description": "Create a new validated Ansible playbook in Control Center without a confirmation prompt. Never overwrites, edits, deletes, or runs an existing playbook.",
     "input_schema": {
@@ -56,34 +881,525 @@
           "additionalProperties": false,
           "required": [
             "correlation_id",
-            "playbook"
+            "receipt"
           ],
           "properties": {
             "correlation_id": {
               "type": "string",
               "format": "uuid"
             },
-            "playbook": {
+            "receipt": {
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "id",
-                "name",
-                "lock_version"
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
               ],
               "properties": {
-                "id": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
                   "type": "integer",
                   "minimum": 1
                 },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "lock_version": {
+                "turn_id": {
                   "type": "integer",
-                  "minimum": 0
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "create_ansible_variable_set",
+    "description": "Create an Ansible variable set without secret values.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "variable_set": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "maxLength": 4000,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "variable_set"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "create_nonsecret_ansible_variable",
+    "description": "Create one explicitly nonsecret typed Ansible variable.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "variable": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "position": {
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {},
+            "value_type": {
+              "enum": [
+                "string",
+                "number",
+                "boolean",
+                "list",
+                "dictionary"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value_type",
+            "value"
+          ],
+          "type": "object"
+        },
+        "variable_set_id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "variable_set_id",
+        "variable"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "create_vulnerability",
+    "description": "Create one nonsecret vulnerability using the reviewed field set.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "vulnerability": {
+          "additionalProperties": false,
+          "properties": {
+            "asset": {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "curl": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "cwe": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "description": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "extracted": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "host": {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            "impact": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "ip": {
+              "maxLength": 128,
+              "type": "string"
+            },
+            "method": {
+              "maxLength": 32,
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "port": {
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "program": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "request": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "response": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "severity": {
+              "maxLength": 32,
+              "type": "string"
+            },
+            "status": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "submitted": {
+              "type": "boolean"
+            },
+            "tags": {
+              "items": {
+                "maxLength": 200,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "tool": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "type": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "url": {
+              "maxLength": 8192,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "vulnerability"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               }
             }
@@ -209,34 +1525,219 @@
           "additionalProperties": false,
           "required": [
             "correlation_id",
-            "template"
+            "receipt"
           ],
           "properties": {
             "correlation_id": {
               "type": "string",
               "format": "uuid"
             },
-            "template": {
+            "receipt": {
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "id",
-                "name",
-                "lock_version"
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
               ],
               "properties": {
-                "id": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
                   "type": "integer",
                   "minimum": 1
                 },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "lock_version": {
+                "turn_id": {
                   "type": "integer",
-                  "minimum": 0
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "edit_ansible_inventory",
+    "description": "Version-edit one validated nonsecret Ansible inventory.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "changes": {
+          "additionalProperties": false,
+          "properties": {
+            "default_credential_id": {
+              "maximum": 9999999999999999,
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "variable_set_ids": {
+              "items": {
+                "maximum": 9999999999999999,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "maxItems": 100,
+              "minItems": 0,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "yaml_content": {
+              "maxLength": 262144,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "expected_lock_version": {
+          "maximum": 9999999999999999,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "expected_lock_version",
+        "changes"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               }
             }
@@ -309,34 +1810,341 @@
           "additionalProperties": false,
           "required": [
             "correlation_id",
-            "playbook"
+            "receipt"
           ],
           "properties": {
             "correlation_id": {
               "type": "string",
               "format": "uuid"
             },
-            "playbook": {
+            "receipt": {
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "id",
-                "name",
-                "lock_version"
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
               ],
               "properties": {
-                "id": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
                   "type": "integer",
                   "minimum": 1
                 },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "lock_version": {
+                "turn_id": {
                   "type": "integer",
-                  "minimum": 0
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "edit_ansible_variable_set",
+    "description": "Version-edit an Ansible variable set without secret values.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "changes": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "maxLength": 4000,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "expected_lock_version": {
+          "maximum": 9999999999999999,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "expected_lock_version",
+        "changes"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "edit_nonsecret_ansible_variable",
+    "description": "Version-edit one existing nonsecret typed Ansible variable.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "changes": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "position": {
+              "maximum": 1000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {},
+            "value_type": {
+              "enum": [
+                "string",
+                "number",
+                "boolean",
+                "list",
+                "dictionary"
+              ],
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "expected_lock_version": {
+          "maximum": 9999999999999999,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "variable_set_id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "variable_set_id",
+        "id",
+        "expected_lock_version",
+        "changes"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               }
             }
@@ -468,34 +2276,72 @@
           "additionalProperties": false,
           "required": [
             "correlation_id",
-            "template"
+            "receipt"
           ],
           "properties": {
             "correlation_id": {
               "type": "string",
               "format": "uuid"
             },
-            "template": {
+            "receipt": {
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "id",
-                "name",
-                "lock_version"
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
               ],
               "properties": {
-                "id": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
                   "type": "integer",
                   "minimum": 1
                 },
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "lock_version": {
+                "turn_id": {
                   "type": "integer",
-                  "minimum": 0
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               }
             }
@@ -505,34 +2351,27 @@
     }
   },
   {
-    "name": "get_artifact_example",
-    "description": "Return one explicitly granted sanitized artifact example.",
+    "name": "export_ansible_playbooks",
+    "description": "Create a short-lived human-owned browser download for selected playbooks; archive bytes never enter the model.",
     "input_schema": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "type",
-        "id"
-      ],
       "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "program",
-            "target",
-            "cve",
-            "vulnerability",
-            "whiterabbit_template",
-            "ansible_playbook"
-          ]
-        },
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 255,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        "ids": {
+          "items": {
+            "maximum": 9999999999999999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
         }
-      }
+      },
+      "required": [
+        "ids"
+      ],
+      "type": "object"
     },
     "output_schema": {
       "type": "object",
@@ -548,23 +2387,147 @@
     }
   },
   {
-    "name": "get_authoring_policy",
-    "description": "Return the non-secret authoring policy for one artifact type.",
+    "name": "get_ansible_credential_metadata",
+    "description": "Get safe metadata for one Ansible credential by opaque integer ID; never returns authentication material.",
     "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "artifact_type"
+        "result"
       ],
       "properties": {
-        "artifact_type": {
-          "type": "string",
-          "enum": [
-            "whiterabbit_template",
-            "ansible_playbook"
-          ]
+        "result": {
+          "type": "object"
         }
       }
+    }
+  },
+  {
+    "name": "get_ansible_executor_health",
+    "description": "Read bounded Ansible executor capacity and queue age metadata.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_ansible_inventory",
+    "description": "Get one validated inventory without raw known_hosts or credential material.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_ansible_variable_set",
+    "description": "Get one Ansible variable set; secret values are always null.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_control_center_health",
+    "description": "Read safe RabbitMQ and Mongo Control Center availability flags.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_control_center_stats",
+    "description": "Read bounded Control Center job statistics and trends.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
     },
     "output_schema": {
       "type": "object",
@@ -625,6 +2588,42 @@
       },
       "required": [
         "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_inventory_utility_task",
+    "description": "Read a redacted inventory utility-task result.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "task_id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "task_id"
       ],
       "type": "object"
     },
@@ -797,34 +2796,22 @@
     }
   },
   {
-    "name": "get_selected_context",
-    "description": "Return one explicitly granted sanitized Hunter context record.",
+    "name": "get_scope_run",
+    "description": "Get one Scope collection run.",
     "input_schema": {
-      "type": "object",
       "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        }
+      },
       "required": [
-        "type",
         "id"
       ],
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "program",
-            "target",
-            "cve",
-            "vulnerability",
-            "whiterabbit_template",
-            "ansible_playbook"
-          ]
-        },
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 255,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
-        }
-      }
+      "type": "object"
     },
     "output_schema": {
       "type": "object",
@@ -902,37 +2889,6 @@
     }
   },
   {
-    "name": "get_validation_result",
-    "description": "Return a validation result bound to this turn.",
-    "input_schema": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 255,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
-        }
-      }
-    },
-    "output_schema": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "result"
-      ],
-      "properties": {
-        "result": {
-          "type": "object"
-        }
-      }
-    }
-  },
-  {
     "name": "get_vulnerability",
     "description": "Return the full record for one vulnerability by its Mongo ObjectId hex id.",
     "input_schema": {
@@ -948,6 +2904,281 @@
       "required": [
         "id"
       ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "launch_ansible_run_group",
+    "description": "Launch one validated Ansible run using existing reviewed artifacts and opaque credential metadata.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "check_mode": {
+          "type": "boolean"
+        },
+        "credential_id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "host_limit": {
+          "maxLength": 255,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inventory_id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "overrides": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "maxLength": 255,
+                "type": "string"
+              },
+              "value": {},
+              "value_type": {
+                "enum": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "list",
+                  "dictionary"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "value_type",
+              "value"
+            ],
+            "type": "object"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "playbook_id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "timeout_seconds": {
+          "maximum": 86400,
+          "minimum": 60,
+          "type": "integer"
+        },
+        "variable_set_ids": {
+          "items": {
+            "maximum": 9999999999999999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "playbook_id",
+        "inventory_id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "list_ansible_credential_metadata",
+    "description": "List safe Ansible credential metadata and configured flags; never returns authentication material.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "description": "Max items per page (default and max 50).",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "description": "1-based page number (default 1).",
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_ansible_inventories",
+    "description": "List safe Ansible inventory metadata and approved host-key fingerprints.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "description": "Max items per page (default and max 50).",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "description": "1-based page number (default 1).",
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_ansible_variable_sets",
+    "description": "List Ansible variable sets without secret values.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "description": "Max items per page (default and max 50).",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "description": "1-based page number (default 1).",
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
       "type": "object"
     },
     "output_schema": {
@@ -1117,6 +3348,27 @@
     }
   },
   {
+    "name": "list_hunter_capabilities",
+    "description": "List the exact Hunter MCP capabilities currently enabled for this Assistant turn, with safe authority metadata and effective workflow limits.",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
     "name": "list_jobs",
     "description": "List and count Control Center Whiterabbit job runs, optionally filtered by status.",
     "input_schema": {
@@ -1156,6 +3408,85 @@
     }
   },
   {
+    "name": "list_new_cves",
+    "description": "List newly first-seen CVEs from a bounded cursor.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "cwe": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "ecosystem": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "has_fix": {
+          "maxLength": 5,
+          "type": "string"
+        },
+        "language": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "min_severity": {
+          "maxLength": 10,
+          "type": "string"
+        },
+        "modified_after": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "package": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "published_after": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "q": {
+          "maxLength": 200,
+          "type": "string"
+        },
+        "since": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "since_id": {
+          "maxLength": 255,
+          "type": "string"
+        },
+        "tag": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "vendor": {
+          "maxLength": 100,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
     "name": "list_playbooks",
     "description": "List and count Control Center Ansible playbooks, ordered by name. Page with page/limit.",
     "input_schema": {
@@ -1172,6 +3503,52 @@
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_program_changes",
+    "description": "List the configured administrator's recent program changes.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "limit": {
+          "description": "Max items per page (default and max 50).",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "description": "1-based page number (default 1).",
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "platform": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "sid": {
+          "maxLength": 255,
+          "type": "string"
         }
       },
       "type": "object"
@@ -1349,6 +3726,9 @@
           "type": "integer"
         }
       },
+      "required": [
+        "run_id"
+      ],
       "type": "object"
     },
     "output_schema": {
@@ -1381,6 +3761,56 @@
           "maximum": 100000,
           "minimum": 1,
           "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_scope_runs",
+    "description": "List bounded Scope collection runs.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "maxLength": 50,
+          "type": "string"
+        },
+        "limit": {
+          "description": "Max items per page (default and max 50).",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "mine": {
+          "maxLength": 5,
+          "type": "string"
+        },
+        "page": {
+          "description": "1-based page number (default 1).",
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "platform": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 10,
+          "type": "string"
         }
       },
       "type": "object"
@@ -1546,36 +3976,399 @@
     }
   },
   {
-    "name": "validate_ansible_draft",
-    "description": "Validate an Ansible draft without saving or executing it.",
+    "name": "queue_host_key_scan",
+    "description": "Queue host-key discovery for one inventory.",
     "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "draft"
+        "result"
       ],
       "properties": {
-        "draft": {
+        "result": {
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "name",
-            "source"
+            "correlation_id",
+            "receipt"
           ],
           "properties": {
-            "name": {
+            "correlation_id": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "format": "uuid"
             },
-            "source": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 65536
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
             }
           }
         }
       }
+    }
+  },
+  {
+    "name": "queue_inventory_connectivity_test",
+    "description": "Queue a bounded connectivity test using an opaque existing credential ID.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "credential_id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "queue_inventory_syntax_check",
+    "description": "Queue an inventory/playbook syntax check.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "playbook_id": {
+          "maximum": 9999999999999999,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "playbook_id"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "resolve_job_targets",
+    "description": "Resolve and sample a bounded Whiterabbit target selection without submitting a job.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "delay": {
+          "maximum": 86400000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "queue_name": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "selections": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "exclude_ids": {
+                "items": {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                "maxItems": 10000,
+                "type": "array"
+              },
+              "ids": {
+                "items": {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                "maxItems": 10000,
+                "type": "array"
+              },
+              "q": {
+                "maxLength": 500,
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "targets",
+                  "sitemap"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "source"
+            ],
+            "type": "object"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "target_chunk": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "targets": {
+          "items": {
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "template": {
+          "maxLength": 255,
+          "type": "string"
+        }
+      },
+      "type": "object"
     },
     "output_schema": {
       "type": "object",
@@ -1591,70 +4384,558 @@
     }
   },
   {
-    "name": "validate_whiterabbit_draft",
-    "description": "Validate a Whiterabbit draft without saving or sending it.",
+    "name": "submit_whiterabbit_job",
+    "description": "Submit one validated Whiterabbit job using exact target selections or manual targets.",
     "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "delay": {
+          "maximum": 86400000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "queue_name": {
+          "maxLength": 100,
+          "type": "string"
+        },
+        "selections": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "exclude_ids": {
+                "items": {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                "maxItems": 10000,
+                "type": "array"
+              },
+              "ids": {
+                "items": {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                "maxItems": 10000,
+                "type": "array"
+              },
+              "q": {
+                "maxLength": 500,
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "targets",
+                  "sitemap"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "source"
+            ],
+            "type": "object"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "target_chunk": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "targets": {
+          "items": {
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "template": {
+          "maxLength": 255,
+          "type": "string"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "draft"
+        "result"
       ],
       "properties": {
-        "draft": {
+        "result": {
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "name",
-            "commands"
+            "correlation_id",
+            "receipt"
           ],
           "properties": {
-            "name": {
+            "correlation_id": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "format": "uuid"
             },
-            "kind": {
-              "type": "string",
-              "maxLength": 40
-            },
-            "description": {
-              "type": "string",
-              "maxLength": 4000
-            },
-            "commands": {
-              "type": "array",
-              "maxItems": 50,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "command",
-                  "args"
-                ],
-                "properties": {
-                  "command": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 255
-                  },
-                  "args": {
-                    "type": "array",
-                    "maxItems": 200,
-                    "items": {
-                      "type": "string",
-                      "maxLength": 4096
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
                     }
-                  },
-                  "operator": {
-                    "type": "string",
-                    "maxLength": 4
                   }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               }
             }
           }
         }
       }
+    }
+  },
+  {
+    "name": "update_vulnerability",
+    "description": "Update one vulnerability through its safe version precondition.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "type": "string"
+        },
+        "vulnerability": {
+          "additionalProperties": false,
+          "properties": {
+            "asset": {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "curl": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "cwe": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "description": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "extracted": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "host": {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            "impact": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "ip": {
+              "maxLength": 128,
+              "type": "string"
+            },
+            "method": {
+              "maxLength": 32,
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "port": {
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "program": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "request": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "response": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "severity": {
+              "maxLength": 32,
+              "type": "string"
+            },
+            "status": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "submitted": {
+              "type": "boolean"
+            },
+            "tags": {
+              "items": {
+                "maxLength": 200,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "tool": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "type": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "url": {
+              "maxLength": 8192,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "vulnerability",
+        "id",
+        "expected_version"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation_id",
+            "receipt"
+          ],
+          "properties": {
+            "correlation_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receipt": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_id",
+                "tool",
+                "status",
+                "target",
+                "human_user_id",
+                "turn_id",
+                "idempotency_digest",
+                "replayed",
+                "occurred_at"
+              ],
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tool": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "human_user_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "turn_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "idempotency_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "replayed": {
+                  "type": "boolean"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "validate_ansible_inventory",
+    "description": "Validate Ansible inventory YAML without saving it.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "yaml_content": {
+          "maxLength": 262144,
+          "type": "string"
+        }
+      },
+      "required": [
+        "yaml_content"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "validate_ansible_playbook",
+    "description": "Run Hunter's fail-closed Assistant Ansible validator without saving.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "yaml_content": {
+          "maxLength": 65536,
+          "type": "string"
+        }
+      },
+      "required": [
+        "yaml_content"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "validate_whiterabbit_template",
+    "description": "Validate a complete Whiterabbit template without saving it.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "additionalProperties": false,
+          "properties": {
+            "commands": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "args": {
+                    "items": {
+                      "maxLength": 4096,
+                      "type": "string"
+                    },
+                    "maxItems": 200,
+                    "type": "array"
+                  },
+                  "command": {
+                    "maxLength": 255,
+                    "type": "string"
+                  },
+                  "operator": {
+                    "maxLength": 2,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "command"
+                ],
+                "type": "object"
+              },
+              "maxItems": 50,
+              "minItems": 1,
+              "type": "array"
+            },
+            "description": {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            "kind": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "output": {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            "tags": {
+              "items": {
+                "maxLength": 200,
+                "type": "string"
+              },
+              "maxItems": 50,
+              "type": "array"
+            },
+            "target": {
+              "additionalProperties": false,
+              "properties": {
+                "output": {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                "separator": {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                "type": {
+                  "maxLength": 100,
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "name",
+            "kind",
+            "commands"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "type": "object"
+    },
+    "output_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  {
+    "name": "validate_whiterabbit_yaml",
+    "description": "Parse and validate Whiterabbit template YAML without saving it.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "yaml": {
+          "maxLength": 65536,
+          "type": "string"
+        }
+      },
+      "required": [
+        "yaml"
+      ],
+      "type": "object"
     },
     "output_schema": {
       "type": "object",

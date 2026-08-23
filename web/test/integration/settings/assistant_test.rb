@@ -23,10 +23,17 @@ class Settings::AssistantTest < ActionDispatch::IntegrationTest
     assert_select "input[name='settings[transcript_retention_days]'][min='1'][max='30']"
     assert_select "input[name='settings[audit_retention_days]'][min='1'][max='365']"
     assert_select "input[name='settings[control_center_write_enabled]']"
-	assert_select "input[name='settings[conversation_management_enabled]']"
-	assert_includes response.body, "create and explicitly edit"
-	assert_includes response.body, "rename and reorder"
-    assert_includes response.body, "never delete or run"
+    assert_select "input[name='settings[operational_access_enabled]']"
+    assert_select "input[name='settings[conversation_management_enabled]']"
+    assert_select "select[name='settings[disabled_capability_tools][]'] option", count: 70
+    assert_select "select[name='settings[disabled_capability_effects][]'] option"
+    assert_select "select[name='settings[disabled_capability_modules][]'] option"
+    assert_includes response.body, "including for active turn grants"
+    assert_includes response.body, "64 tool calls"
+    assert_includes response.body, "administrator-equivalent operational access"
+    assert_includes response.body, "rename and reorder"
+    assert_includes response.body, "never see secrets"
+    assert_includes response.body, "delete records"
     assert_select "section#assistant article[data-assistant-backend]", count: 2
     assert_select "section#assistant article[data-assistant-backend='codex']", text: /OpenAI/
     assert_select "section#assistant article[data-assistant-backend='claude_code']", text: /Anthropic/

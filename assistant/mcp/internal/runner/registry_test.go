@@ -3,6 +3,7 @@ package runner
 import (
 	"testing"
 
+	"hunter.local/assistant/mcp/internal/modules/targets"
 	"hunter.local/assistant/mcp/internal/tool"
 )
 
@@ -40,4 +41,31 @@ func TestRegistryPanicsOnDuplicate(t *testing.T) {
 		}
 	}()
 	NewRegistry().Add(mod{names: []string{"x", "x"}})
+}
+
+func TestReviewedRegistryAppliesGeneratedAuthorityMetadata(t *testing.T) {
+	r := NewRegistry()
+	r.AddReviewed(targets.Module{})
+	definition, ok := r.Lookup("list_targets")
+	if !ok {
+		t.Fatal("list_targets missing")
+	}
+	if definition.Module != "targets" || definition.Effect != "read" ||
+		definition.Scope != "targets_read" || definition.MachineMethod != "GET" ||
+		definition.MachinePath != "/api/v1/assistant/machine/targets" ||
+		definition.InputSchemaVersion != 1 || definition.OutputSchemaVersion != 1 {
+		t.Fatalf("reviewed metadata not applied: %+v", definition)
+	}
+	if err := r.RequireReviewedCatalog(); err == nil {
+		t.Fatal("incomplete reviewed catalog accepted")
+	}
+}
+
+func TestReviewedRegistryRejectsUnknownLegacyOrInjectedTools(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("unknown reviewed tool accepted")
+		}
+	}()
+	NewRegistry().AddReviewed(mod{names: []string{"request"}})
 }

@@ -71,14 +71,14 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     assert_equal "text/javascript", response.media_type
   end
 
-  test "shell discloses non-secret reads and permission-free bounded authoring" do
+  test "shell discloses broad MCP operations and permanent exclusions" do
     sign_in_as(@admin)
     get root_path
 
     assert_response :success
-    assert_select "#hunter-assistant-capability-disclosure", text: /read non-secret Hunter data/i
-    assert_select "#hunter-assistant-capability-disclosure", text: /create and explicitly edit validated Whiterabbit templates and Ansible playbooks without a confirmation prompt/i
-    assert_select "#hunter-assistant-capability-disclosure", text: /never delete or run/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /administrator-equivalent operational access through the reviewed Hunter MCP catalog/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /submit Whiterabbit jobs.*Ansible utilities and launches.*cancel work/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /never see or change secrets, delete Hunter records, administer users, tokens, providers, or Assistant security settings/i
   end
 
   test "server-rendered profile data remains escaped and no secret metadata is present" do

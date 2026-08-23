@@ -13,7 +13,7 @@ module Api
             # `lease_digest`, or `runner_id`.
             class RunsController < ReadController
               def show
-                reservation = authorize_tool!("get_run", scope: "control_center_ansible")
+                reservation = authorize_tool!("get_run", scope: "control_center_ansible_runs_read")
                 run = ::ControlCenter::Ansible::Run.find_by(id: params[:id])
                 return machine_not_found(reservation) unless run
 
@@ -21,6 +21,27 @@ module Api
                   reservation, key: :run,
                   value: ::Assistant::Machine::ControlCenter::Ansible::RunProjection.full(run)
                 )
+              end
+
+              def cancel
+                tool = "cancel_ansible_run"
+                reservation = authorize_tool!(tool, scope: "control_center_ansible_runs_cancel")
+                body = exact_machine_body(reservation, [])
+                return unless body
+                run = ::ControlCenter::Ansible::Run.find_by(id: params[:id])
+                return machine_not_found(reservation) unless run
+                idempotency_key = machine_idempotency_key(tool, { id: run.id })
+                return if replay_machine_action(reservation, tool: tool, idempotency_key: idempotency_key)
+                return unless consume_machine_effect!(reservation, launch: true)
+                ::ControlCenter::Ansible::RunCancellation.cancel_run!(run)
+                receipt = issue_machine_receipt(
+                  tool: tool, status: "cancelled", target_type: "ansible_run",
+                  target_id: run.id, idempotency_key: idempotency_key
+                )
+                complete_machine_effect!(reservation, receipt: receipt)
+              rescue ::ControlCenter::Ansible::RunCancellation::Conflict
+                reservation.fail!
+                render json: { error: "conflict" }, status: :conflict
               end
             end
           end

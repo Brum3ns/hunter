@@ -17,8 +17,8 @@ module Assistant
             "kind" => safe_text(template.kind),
             "description" => safe_text(template.description),
             "tags" => Array(template.tags).first(50).map { |tag| safe_text(tag) },
-			"lock_version" => template.lock_version,
-			"created_by" => safe_text(template.created_by),
+      "lock_version" => template.lock_version,
+      "created_by" => safe_text(template.created_by),
             "updated_at" => template.updated_at
           }
         end
