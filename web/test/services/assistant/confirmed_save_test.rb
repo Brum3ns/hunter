@@ -23,14 +23,11 @@ class Assistant::ConfirmedSaveTest < ActiveSupport::TestCase
 
   setup do
     @user = users(:one)
-    @original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     @original_ansible_allowlist = ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"]
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
   end
 
   teardown do
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = @original_command_allowlist
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = @original_ansible_allowlist
   end
 
@@ -71,22 +68,26 @@ class Assistant::ConfirmedSaveTest < ActiveSupport::TestCase
     end
   end
 
-  test "revalidates against the current command policy before persistence" do
-    draft = whiterabbit_draft
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "nuclei"
+  test "revalidates and persists an arbitrary command despite a stale retired allowlist" do
+    attributes = TEMPLATE_ATTRIBUTES.deep_dup
+    attributes["commands"] = [
+      { "command" => "nuclei", "args" => [ "-tags", "crlf" ], "operator" => "" }
+    ]
+    draft = whiterabbit_draft(content: JSON.generate(attributes))
+    original = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
+    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
 
-    assert_no_difference -> { ControlCenter::Template.count } do
-      result = Assistant::ConfirmedSave.call(draft: draft, user: @user, destination: nil)
+    result = Assistant::ConfirmedSave.call(draft: draft, user: @user, destination: nil)
 
-      refute result.success?
-      assert_includes result.errors, "validation_failed"
-      assert_includes result.errors, "assistant_command_not_allowed"
-    end
+    assert result.success?, result.errors.inspect
+    assert_equal "nuclei", result.record.commands.first.fetch("command")
+  ensure
+    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original
   end
 
   test "requires ownership and a valid result from the current validation version" do
     foreign = whiterabbit_draft(conversation: assistant_conversations(:other_user), turn: assistant_turns(:other_user))
-    stale = whiterabbit_draft(validation_version: "old-version")
+    stale = whiterabbit_draft(validation_version: "whiterabbit-v1")
 
     result = Assistant::ConfirmedSave.call(draft: foreign, user: @user, destination: nil)
     refute result.success?

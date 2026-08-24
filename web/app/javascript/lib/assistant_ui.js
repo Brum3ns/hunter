@@ -43,7 +43,6 @@ export const DISABLED_COPY = Object.freeze({
   disabled_by_environment: "Assistant disabled by deployment configuration.",
   disabled_by_administrator: "Assistant disabled by an administrator.",
   missing_admin_username: "Assistant disabled: deployment configuration is incomplete.",
-  missing_command_allowlist: "Assistant disabled: deployment configuration is incomplete.",
   missing_ansible_module_allowlist: "Assistant disabled: deployment configuration is incomplete.",
   invalid_retention_window: "Assistant disabled: retention configuration is invalid.",
 })

@@ -106,7 +106,6 @@ module Assistant
 
     REQUIRED_SETTINGS = {
       "ADMIN_USERNAME" => "missing_admin_username",
-      "CONTROL_CENTER_COMMAND_ALLOWLIST" => "missing_command_allowlist",
       "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST" => "missing_ansible_module_allowlist"
     }.freeze
 

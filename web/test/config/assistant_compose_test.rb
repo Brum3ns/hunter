@@ -257,6 +257,23 @@ class AssistantComposeTest < Minitest::Test
     end
   end
 
+  def test_whiterabbit_command_allowlist_is_absent_from_active_deployment_configuration
+    each_compose do |filename, config|
+      environment = config.fetch("services").fetch("web").fetch("environment")
+      refute environment.key?("CONTROL_CENTER_COMMAND_ALLOWLIST"),
+        "#{filename}: web still receives the retired command allowlist"
+    end
+
+    refute_includes ROOT.join(".env.example").read, "HUNTER_CONTROL_CENTER_COMMAND_ALLOWLIST"
+  end
+
+  def test_first_boot_runbook_uses_host_side_ansible_allowlist_assignment
+    runbook_lines = ROOT.join("docs/runbooks/hunter-assistant-first-boot.md").read.lines(chomp: true)
+
+    assert runbook_lines.include?("HUNTER_ASSISTANT_ANSIBLE_MODULE_ALLOWLIST=ansible.builtin.debug"),
+      "first-boot runbook must use the host-side Ansible allowlist assignment consumed by Compose"
+  end
+
   def test_service_specific_mandatory_access_profiles_default_deny_dangerous_operations
     profiles = {
       "gateway" => "hunter-assistant-gateway",

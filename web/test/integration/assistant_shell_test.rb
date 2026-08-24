@@ -71,14 +71,18 @@ class AssistantShellTest < ActionDispatch::IntegrationTest
     assert_equal "text/javascript", response.media_type
   end
 
-  test "shell discloses broad MCP operations and permanent exclusions" do
+  test "shell discloses broad MCP operations and unrestricted Whiterabbit worker effects" do
     sign_in_as(@admin)
     get root_path
 
     assert_response :success
     assert_select "#hunter-assistant-capability-disclosure", text: /administrator-equivalent operational access through the reviewed Hunter MCP catalog/i
-    assert_select "#hunter-assistant-capability-disclosure", text: /submit Whiterabbit jobs.*Ansible utilities and launches.*cancel work/i
-    assert_select "#hunter-assistant-capability-disclosure", text: /never see or change secrets, delete Hunter records, administer users, tokens, providers, or Assistant security settings/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /Whiterabbit templates with any executable/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /network, filesystem, process, privilege, or destructive effects/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /exfiltration/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /no dedicated Hunter secret-value or record-delete tool/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /no dedicated Hunter governance tool/i
+    assert_select "#hunter-assistant-capability-disclosure", text: /Disabling the assistant or the relevant template-write or job-submit gate prevents new actions, but does not erase saved templates or reverse completed external effects/i
   end
 
   test "server-rendered profile data remains escaped and no secret metadata is present" do

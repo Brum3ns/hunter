@@ -19,14 +19,12 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
 
   test "validates a structured Whiterabbit template without persisting it" do
     body = { template: {
-      name: "httpx-safe", kind: "cmdscript", description: "safe",
-      commands: [ { command: "httpx", args: [ "-silent" ], operator: "" } ]
+      name: "nuclei-safe", kind: "cmdscript", description: "safe",
+      commands: [ { command: "nuclei", args: [ "-silent" ], operator: "" } ]
     } }
-    stub_methods(ControlCenter::TemplateValidator, allowlist: [ "httpx" ]) do
-      assert_no_difference -> { ControlCenter::Template.count } do
-        post "/api/v1/assistant/machine/control_center/templates/validate",
-          params: body, headers: headers(grant("validate_whiterabbit_template")), as: :json
-      end
+    assert_no_difference -> { ControlCenter::Template.count } do
+      post "/api/v1/assistant/machine/control_center/templates/validate",
+        params: body, headers: headers(grant("validate_whiterabbit_template")), as: :json
     end
 
     assert_response :success
@@ -51,17 +49,15 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
 
   test "submits a validated Whiterabbit job with a launch receipt" do
     template = ControlCenter::Template.create!(
-      name: "httpx-submit", kind: "cmdscript",
-      commands: [ { "command" => "httpx", "args" => [], "operator" => "" } ]
+      name: "unrestricted-submit", kind: "cmdscript",
+      commands: [ { "command" => "bash", "args" => [ "-c", "printf ok" ], "operator" => "" } ]
     )
     body = { template: template.name, queue_name: "test", targets: [ "a.example.test" ],
       selections: [], target_chunk: 10, delay: 0 }
 
-    stub_methods(ControlCenter::TemplateValidator, call: []) do
-      assert_enqueued_with(job: ControlCenter::SubmitJob) do
-        post "/api/v1/assistant/machine/control_center/jobs", params: body,
-          headers: headers(grant("submit_whiterabbit_job")), as: :json
-      end
+    assert_enqueued_with(job: ControlCenter::SubmitJob) do
+      post "/api/v1/assistant/machine/control_center/jobs", params: body,
+        headers: headers(grant("submit_whiterabbit_job")), as: :json
     end
 
     assert_response :created

@@ -7,10 +7,8 @@ class AssistantEndToEndTest < ActionDispatch::IntegrationTest
   setup do
     @admin = users(:one)
     @original_admin_username = ENV["ADMIN_USERNAME"]
-    @original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     @original_ansible_allowlist = ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"]
     ENV["ADMIN_USERNAME"] = @admin.username
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = "ansible.builtin.debug"
     Assistant::Setting.instance.enable!
     sign_in_as(@admin)
@@ -18,7 +16,6 @@ class AssistantEndToEndTest < ActionDispatch::IntegrationTest
 
   teardown do
     ENV["ADMIN_USERNAME"] = @original_admin_username
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = @original_command_allowlist
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = @original_ansible_allowlist
   end
 

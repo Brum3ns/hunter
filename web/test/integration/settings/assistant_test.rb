@@ -32,8 +32,12 @@ class Settings::AssistantTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "64 tool calls"
     assert_includes response.body, "administrator-equivalent operational access"
     assert_includes response.body, "rename and reorder"
-    assert_includes response.body, "never see secrets"
-    assert_includes response.body, "delete records"
+    assert_includes response.body, "any executable"
+    assert_includes response.body, "destructive effects"
+    assert_includes response.body, "exfiltration"
+    assert_includes response.body, "Whiterabbit worker"
+    assert_includes response.body, "no dedicated secret-value or record-delete tool"
+    assert_includes response.body, "no dedicated Hunter governance tool"
     assert_select "section#assistant article[data-assistant-backend]", count: 2
     assert_select "section#assistant article[data-assistant-backend='codex']", text: /OpenAI/
     assert_select "section#assistant article[data-assistant-backend='claude_code']", text: /Anthropic/

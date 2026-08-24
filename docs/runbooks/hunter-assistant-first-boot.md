@@ -58,16 +58,16 @@ freshly generated. Confirm with:
 grep -c '^ASSISTANT_' .env      # expect 8 or more
 ```
 
-Two activation gates were set to their **narrowest working values**. Widen them
-deliberately if you need more:
+The Assistant's remaining content-policy activation gate is the Ansible module
+allowlist. Keep it at the narrowest value your playbooks require:
 
-```
-CONTROL_CENTER_COMMAND_ALLOWLIST=curl
-ASSISTANT_ANSIBLE_MODULE_ALLOWLIST=ansible.builtin.debug
+```text
+HUNTER_ASSISTANT_ANSIBLE_MODULE_ALLOWLIST=ansible.builtin.debug
 ```
 
-An empty `CONTROL_CENTER_COMMAND_ALLOWLIST` means *any* binary is permitted,
-which is why the Assistant refuses to activate until it is set explicitly.
+Whiterabbit executable names are intentionally unrestricted. Template and job
+authorization is enforced by Hunter's dedicated tool/scopes and live gates, not
+by deployment command configuration.
 
 ## Step 1 — Boot from clean
 
@@ -174,8 +174,7 @@ docker compose exec web bin/rails runner 'pp Assistant::Activation.state'
 **Expect:** `active: true`, `reason: "active"`, and one slug per provider key you
 set. If it reports `no_provider_credentials`, one of the keys is empty,
 whitespace-only, still `replace_with_your_key`, or over 16 KiB. If it reports
-`missing_command_allowlist` or `missing_ansible_module_allowlist`, see
-"Before you start".
+`missing_ansible_module_allowlist`, see "Before you start".
 
 ## Step 5 — Confirm the negative paths
 

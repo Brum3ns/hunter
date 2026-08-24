@@ -74,13 +74,13 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
     end
   end
 
-  test "missing configuration yields reason codes instead of raising" do
+  test "missing configuration yields active reason codes instead of raising" do
     stub_methods(Assistant::Config, configured: ->(_key) { nil }) do
       reasons = Assistant::Config.configuration_reasons
 
       assert_includes reasons, "missing_admin_username"
-      assert_includes reasons, "missing_command_allowlist"
       assert_includes reasons, "missing_ansible_module_allowlist"
+      refute_includes reasons, "missing_command_allowlist"
     end
   end
 
@@ -110,10 +110,9 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
     end
   end
 
-  test "a complete configuration yields no reason codes" do
+  test "configuration is complete without a Whiterabbit command setting" do
     values = {
       "ADMIN_USERNAME" => "admin",
-      "CONTROL_CENTER_COMMAND_ALLOWLIST" => "httpx,nuclei",
       "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST" => "ansible.builtin.uri"
     }
 
@@ -122,12 +121,11 @@ class Assistant::ConfigTest < ActiveSupport::TestCase
     end
   end
 
-  # The three required settings are populated so this drives the retention
+  # The required settings are populated so this drives the retention
   # branch specifically rather than collecting missing-setting reasons.
   test "an out-of-range retention window yields its own reason code" do
     values = {
       "ADMIN_USERNAME" => "admin",
-      "CONTROL_CENTER_COMMAND_ALLOWLIST" => "httpx,nuclei",
       "ASSISTANT_ANSIBLE_MODULE_ALLOWLIST" => "ansible.builtin.uri",
       "ASSISTANT_TRANSCRIPT_DAYS" => "31"
     }

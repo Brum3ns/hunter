@@ -12,9 +12,18 @@ class ControlCenter::TemplateValidatorTest < ActiveSupport::TestCase
     assert_includes V.call([]), "at least one command is required"
   end
 
-  test "allows any command by default (no shell, no allowlist)" do
-    assert_empty V.call([{ "command" => "rm", "args" => ["-rf", "/tmp/x"], "operator" => "" }])
-    assert_empty V.call([{ "command" => "/usr/local/bin/mytool", "args" => [], "operator" => "" }])
+  test "accepts every structurally valid command even when the retired setting is present" do
+    original = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
+    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
+
+    commands = %w[nuclei dalfox katana feroxbuster gowitness dnsx bash python sudo docker rm]
+    commands << "/opt/tools/custom-scanner"
+
+    commands.each do |name|
+      assert_empty V.call([{ "command" => name, "args" => [], "operator" => "" }]), name
+    end
+  ensure
+    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original
   end
 
   test "rejects an invalid operator" do
@@ -32,27 +41,46 @@ class ControlCenter::TemplateValidatorTest < ActiveSupport::TestCase
     assert_empty V.call(cmds)
   end
 
-  test "rejects a NUL or newline in args" do
-    errors = V.call([{ "command" => "httpx", "args" => ["a\nb"], "operator" => "" }])
-    assert(errors.any? { |e| e.include?("args[0]") })
+  test "rejects NUL, CR, and LF in command names and arguments" do
+    { "NUL" => "\0", "CR" => "\r", "LF" => "\n" }.each do |label, character|
+      command_errors = V.call([
+        { "command" => "bad#{character}name", "args" => [], "operator" => "" }
+      ])
+      assert_includes command_errors,
+        "commands[0].command contains a forbidden character (NUL or newline)", label
+
+      argument_errors = V.call([
+        { "command" => "httpx", "args" => [ "bad#{character}argument" ], "operator" => "" }
+      ])
+      assert_includes argument_errors,
+        "commands[0].args[0] contains a forbidden character (NUL or newline)", label
+    end
   end
 
-  test "rejects a newline in the command name" do
-    errors = V.call([{ "command" => "ht\ntpx", "args" => [], "operator" => "" }])
-    assert(errors.any? { |e| e.include?("command") && e.include?("forbidden") })
+  test "accepts exactly 50 commands and rejects 51" do
+    valid_commands = Array.new(50) do |index|
+      { "command" => "command-#{index}", "args" => [], "operator" => "" }
+    end
+
+    assert_empty V.call(valid_commands)
+    assert_equal [ "too many commands (max 50)" ],
+      V.call(valid_commands + [ { "command" => "command-50", "args" => [], "operator" => "" } ])
   end
 
-  test "allowlist is nil when the env is empty or unset" do
-    assert_nil V.allowlist
+  test "accepts exactly 200 arguments and rejects 201" do
+    valid_arguments = Array.new(200) { |index| "argument-#{index}" }
+    command = ->(args) { [ { "command" => "httpx", "args" => args, "operator" => "" } ] }
+
+    assert_empty V.call(command.call(valid_arguments))
+    assert_equal [ "commands[0] has too many args (max 200)" ],
+      V.call(command.call(valid_arguments + [ "argument-200" ]))
   end
 
-  test "enforces the allowlist only when the env is set" do
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx, nuclei"
-    assert_equal %w[httpx nuclei], V.allowlist
-    assert_empty V.call([{ "command" => "httpx", "args" => [], "operator" => "" }])
-    errors = V.call([{ "command" => "rm", "args" => [], "operator" => "" }])
-    assert(errors.any? { |e| e.include?("is not allowed") })
-  ensure
-    ENV.delete("CONTROL_CENTER_COMMAND_ALLOWLIST")
+  test "accepts a 4096-character argument and rejects 4097 characters" do
+    command = ->(argument) { [ { "command" => "httpx", "args" => [ argument ], "operator" => "" } ] }
+
+    assert_empty V.call(command.call("a" * 4_096))
+    assert_equal [ "commands[0].args[0] is too long (max 4096)" ],
+      V.call(command.call("a" * 4_097))
   end
 end

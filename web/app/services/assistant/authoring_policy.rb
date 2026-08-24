@@ -27,8 +27,8 @@ module Assistant
         kinds: ControlCenter::Template::KINDS,
         operators: ControlCenter::TemplateValidator::ALLOWED_OPERATORS,
         placeholders: PLACEHOLDERS,
-        command_allowlist: Array(ControlCenter::TemplateValidator.allowlist).map(&:to_s).reject(&:blank?).uniq,
-        required_validation: [ "closed_schema", "command_allowlist", "template_validator" ]
+        command_policy: "unrestricted",
+        required_validation: [ "closed_schema", "secret_material", "template_validator" ]
       }
     end
     private_class_method :whiterabbit

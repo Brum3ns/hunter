@@ -453,6 +453,7 @@ test("a current server-valid draft alone receives a save control", () => {
 test("a disabled assistant renders its reason as text", () => {
   assert.equal(typeof ui.renderDisabledNotice, "function")
   assert(Object.isFrozen(ui.DISABLED_COPY), "DISABLED_COPY must be a frozen map")
+  assert.equal(ui.DISABLED_COPY.missing_command_allowlist, undefined)
 
   const notice = new FakeElement("p")
   const composer = new FakeElement("textarea")

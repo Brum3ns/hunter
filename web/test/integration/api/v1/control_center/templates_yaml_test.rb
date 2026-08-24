@@ -14,17 +14,20 @@ class Api::V1::ControlCenter::TemplatesYamlTest < ActionDispatch::IntegrationTes
     assert_equal "probe", body["template"]["name"]
   end
 
-  test "validate_yaml surfaces the command allowlist when one is configured" do
+  test "a retired allowlist value cannot narrow YAML validation" do
     sign_in_as(@user)
+    original = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
+
     post "/api/v1/control_center/templates/validate_yaml",
-         params: { yaml: "name: bad\ncommands:\n  - command: rm\n    args: [-rf]\n" }, as: :json
+      params: { yaml: "name: nuclei-crlf\ncommands:\n  - command: nuclei\n    args: [-tags, crlf]\n" },
+      as: :json
+
     assert_response :success
-    body = JSON.parse(response.body)
-    assert_equal false, body["valid"]
-    assert(body["errors"].any? { |e| e.include?("is not allowed") })
+    assert_equal true, response.parsed_body["valid"]
+    assert_empty response.parsed_body["errors"]
   ensure
-    ENV.delete("CONTROL_CENTER_COMMAND_ALLOWLIST")
+    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original
   end
 
   test "validate_yaml accepts any command by default" do
@@ -62,15 +65,19 @@ class Api::V1::ControlCenter::TemplatesYamlTest < ActionDispatch::IntegrationTes
     assert ControlCenter::Template.exists?(name: "custom")
   end
 
-  test "create via yaml respects a configured allowlist" do
+  test "create via YAML persists an arbitrary command despite a retired allowlist value" do
     sign_in_as(@user)
+    original = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
+
     post "/api/v1/control_center/templates",
-         params: { yaml: "name: evil\ncommands:\n  - command: rm\n    args: [-rf]\n" }, as: :json
-    assert_response :unprocessable_entity
-    assert_not ControlCenter::Template.exists?(name: "evil")
+      params: { yaml: "name: unrestricted-bash\ncommands:\n  - command: bash\n    args: [-c, 'printf ok']\n" },
+      as: :json
+
+    assert_response :created
+    assert_equal "bash", ControlCenter::Template.find_by!(name: "unrestricted-bash").commands.first.fetch("command")
   ensure
-    ENV.delete("CONTROL_CENTER_COMMAND_ALLOWLIST")
+    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = original
   end
 
   test "serialize includes rendered yaml" do

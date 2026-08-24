@@ -3,14 +3,9 @@ module ControlCenter
   # (validate-on-save) and the /validate endpoints (dry run). Returns
   # human-readable error strings; empty means valid.
   #
-  # Security model: Whiterabbit executes every command via Go's
-  # exec.Command(name, args...) — argv, with NO shell (operators pipe stdout->stdin
-  # in Go). So shell metacharacters, spaces, and quotes in args are passed
-  # literally and cannot inject commands; only NUL and CR/LF are forbidden because
-  # they corrupt JSON/YAML serialization and the newline-delimited target file.
-  # Placeholders (__TARGET_FILE__, __TARGET_STDIN__, __UUID__) are ordinary tokens
-  # substituted by the worker at run time, so they validate freely. The command
-  # allowlist is OPT-IN: empty/unset means any command may run.
+  # Executable names are deliberately unrestricted. Whiterabbit passes name and
+  # args to Go's exec.Command without an implicit shell; selecting a shell or
+  # interpreter explicitly gives that program its ordinary semantics.
   module TemplateValidator
     module_function
 
@@ -23,21 +18,11 @@ module ControlCenter
     # are all allowed because they are passed literally as argv).
     FORBIDDEN_CHARS = /[\x00\r\n]/
 
-    # Optional command allowlist. nil (env empty/unset) means any command is
-    # allowed. Set CONTROL_CENTER_COMMAND_ALLOWLIST to a comma-separated list to
-    # restrict which binaries templates may invoke.
-    def allowlist
-      raw = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"].to_s.strip
-      return nil if raw.empty?
-      raw.split(",").map(&:strip).reject(&:empty?)
-    end
-
     def call(commands)
       errors = []
       commands = Array(commands)
       errors << "at least one command is required" if commands.empty?
       errors << "too many commands (max #{MAX_COMMANDS})" if commands.size > MAX_COMMANDS
-      list = allowlist
 
       commands.each_with_index do |raw, i|
         cmd = (raw || {}).to_h.transform_keys(&:to_s)
@@ -47,7 +32,6 @@ module ControlCenter
 
         errors << "commands[#{i}].command is required" if name.empty?
         errors << "commands[#{i}].command contains a forbidden character (NUL or newline)" if name.match?(FORBIDDEN_CHARS)
-        errors << "commands[#{i}].command #{name.inspect} is not allowed" if list && !name.empty? && !list.include?(name)
         errors << "commands[#{i}].operator #{operator.inspect} is invalid" unless ALLOWED_OPERATORS.include?(operator)
         errors << "commands[#{i}] has too many args (max #{MAX_ARGS})" if args.size > MAX_ARGS
 

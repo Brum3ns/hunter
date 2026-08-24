@@ -13,15 +13,12 @@ class Api::V1::Assistant::ConfirmedSavesTest < ActionDispatch::IntegrationTest
   setup do
     @admin = users(:one)
     @original_admin_username = ENV["ADMIN_USERNAME"]
-    @original_command_allowlist = ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"]
     ENV["ADMIN_USERNAME"] = @admin.username
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = "httpx"
     sign_in_as(@admin)
   end
 
   teardown do
     ENV["ADMIN_USERNAME"] = @original_admin_username
-    ENV["CONTROL_CENTER_COMMAND_ALLOWLIST"] = @original_command_allowlist
   end
 
   test "a separate confirmed request saves the complete reviewed draft" do

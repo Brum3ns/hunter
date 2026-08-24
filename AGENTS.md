@@ -199,3 +199,33 @@ in the Assistant production checklist.
   dedicated-tool, closed-schema, non-wildcard, revocation, validation,
   idempotency, attribution, disclosure, audit, or production-gate conditions is
   a new capability change requiring another approved threat-model delta.
+
+- **Unrestricted Whiterabbit command authoring and execution** (approved delta:
+  `docs/superpowers/specs/2026-08-23-unrestricted-whiterabbit-command-authoring-design.md`).
+  The configured Assistant administrator may use any structurally valid
+  executable name and arguments in templates created or edited through the
+  dedicated Whiterabbit tools, and may submit those templates through the
+  separately authorized job tool when their message requests it, conditioned
+  on all of the following remaining true:
+  - Validation still enforces closed schemas, bounds, operators, NUL/newline
+    rejection, and Assistant secret-input detection; it performs no executable
+    classification or allowlisting.
+  - Template validation, create, edit, target resolution, and job submission
+    remain separately named MCP tools with exact non-wildcard scopes, live
+    human-controlled gates, budgets, idempotency, human attribution, action
+    receipts, and metadata-only audit.
+  - Selecting a shell, interpreter, privilege/container/file utility, custom
+    binary, or future binary is explicitly permitted. The operator accepts that
+    submitted jobs can cause arbitrary network, filesystem, process, privilege,
+    destructive, or exfiltration effects available to the Whiterabbit worker.
+  - This exception adds no generic MCP shell/network/filesystem/request/execution
+    tool, no secret-value API, no Hunter record-destroy API, no governance tool,
+    and no direct worker identity or callback access.
+  - Production activation remains gated by candidate-specific evidence in
+    `docs/security/hunter-assistant-production-checklist.md` and an independent
+    review explicitly acknowledging arbitrary worker execution.
+
+  Any wider direct execution path, removal of the remaining schema,
+  authorization, revocation, budget, idempotency, attribution, disclosure,
+  audit, or production gates, or expansion beyond the Whiterabbit workflow,
+  requires another approved threat-model delta.

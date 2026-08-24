@@ -48,7 +48,7 @@
         </span>
         <div class="min-w-0">
           <h2 id="hunter-assistant-title" class="truncate text-sm font-semibold tracking-tight text-zinc-950 dark:text-zinc-100">Hunter assistant</h2>
-          <p class="truncate text-[11px] text-zinc-500 dark:text-zinc-500">Broad Hunter operations through MCP · no secrets or deletion</p>
+          <p class="truncate text-[11px] text-zinc-500 dark:text-zinc-500">Broad Hunter operations through MCP · unrestricted Whiterabbit jobs</p>
         </div>
       </div>
       <button type="button" data-action="assistant#close" data-assistant-initial-focus aria-label="Close Hunter assistant"
@@ -70,7 +70,7 @@
       </summary>
       <p id="hunter-assistant-capability-disclosure"
          class="border-t border-zinc-200 bg-white px-4 py-3 text-[11px] leading-5 text-zinc-600 dark:border-white/10 dark:bg-[#0d0d0e] dark:text-zinc-400">
-        The assistant has administrator-equivalent operational access through the reviewed Hunter MCP catalog: it can inspect and analyze workflows, create and version-edit non-secret records and artifacts, submit Whiterabbit jobs, run reviewed Ansible utilities and launches, cancel work, monitor results, and prepare short-lived human-owned exports. Effects are attributed to you and audited. It can never see or change secrets, delete Hunter records, administer users, tokens, providers, or Assistant security settings, or use a generic API, network, shell, or filesystem proxy. You can directly rename, reorder, or delete your own conversation history; those actions are never available to the LLM.
+        The assistant has administrator-equivalent operational access through the reviewed Hunter MCP catalog. It can create and edit Whiterabbit templates with any executable and submit them without another prompt. Those jobs can cause arbitrary network, filesystem, process, privilege, or destructive effects available to the Whiterabbit worker; they can also cause exfiltration of worker-accessible data. You are responsible for target authorization and requested effects. Hunter attributes and metadata-audits these actions, applies exact tools/scopes, budgets, and live gates, and exposes no dedicated Hunter secret-value or record-delete tool, no dedicated Hunter governance tool for administering users, tokens, providers, or Assistant security settings, and no generic MCP proxy. Disabling the assistant or the relevant template-write or job-submit gate prevents new actions, but does not erase saved templates or reverse completed external effects. You can directly rename, reorder, or delete your own conversation history; those actions are never available to the LLM.
       </p>
     </details>
 

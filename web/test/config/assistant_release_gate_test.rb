@@ -78,6 +78,9 @@ class AssistantReleaseGateTest < Minitest::Test
     assert_includes agents, "## Assistant capability change rule"
     assert_includes agents, "approved threat-model delta"
     assert_includes agents, "Wildcard scopes"
+    assert_includes agents, "Unrestricted Whiterabbit command authoring and execution"
+    assert_includes checklist, "Unrestricted Whiterabbit command authoring and execution"
+    assert_includes checklist, "arbitrary worker execution"
 
     %w[
       Reviewer

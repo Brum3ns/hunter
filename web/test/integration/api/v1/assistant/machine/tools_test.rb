@@ -103,28 +103,27 @@ class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
       tools: [ "get_authoring_policy", "validate_whiterabbit_draft" ]
     )
 
-    stub_methods(ControlCenter::TemplateValidator, allowlist: [ "httpx" ]) do
-      get "/api/v1/assistant/machine/policies/whiterabbit_template",
-        headers: headers(grant_token)
-      assert_response :success
-      assert_equal 1, response.parsed_body.dig("policy", "schema_version")
-      assert_equal [ "httpx" ], response.parsed_body.dig("policy", "command_allowlist")
-      refute_includes response.body, "secret_ref"
+    get "/api/v1/assistant/machine/policies/whiterabbit_template",
+      headers: headers(grant_token)
+    assert_response :success
+    assert_equal 1, response.parsed_body.dig("policy", "schema_version")
+    assert_equal "unrestricted", response.parsed_body.dig("policy", "command_policy")
+    refute response.parsed_body.fetch("policy").key?("command_allowlist")
+    refute_includes response.body, "secret_ref"
 
-      assert_no_difference -> { ControlCenter::Template.count } do
-        post "/api/v1/assistant/machine/validations/whiterabbit_template",
-          params: {
-            draft: {
-              name: "x", kind: "cmdscript", description: "",
-              commands: [ { command: "httpx", args: [], operator: "" } ]
-            }
-          }, headers: headers(grant_token), as: :json
-      end
+    assert_no_difference -> { ControlCenter::Template.count } do
+      post "/api/v1/assistant/machine/validations/whiterabbit_template",
+        params: {
+          draft: {
+            name: "x", kind: "cmdscript", description: "",
+            commands: [ { command: "nuclei", args: [], operator: "" } ]
+          }
+        }, headers: headers(grant_token), as: :json
     end
     assert_response :success
     assert_equal assistant_turns(:created).correlation_id, response.parsed_body["correlation_id"]
     assert_equal "valid", response.parsed_body.dig("validation", "status")
-    assert_equal "whiterabbit-v1", response.parsed_body.dig("validation", "version")
+    assert_equal "whiterabbit-v2", response.parsed_body.dig("validation", "version")
     assert_equal "x", response.parsed_body.dig("validation", "normalized", "name")
   end
 
