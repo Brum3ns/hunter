@@ -62,8 +62,36 @@ jobs:
 
       - name: Assistant Go race and real Codex boundary tests
         run: |
+          set -eu
           npm install -g @openai/codex@0.144.4
           test "$(codex --version)" = "codex-cli 0.144.4"
+
+          # setup-node installs Node in its toolcache, but the real-Codex
+          # contract tests replace PATH with the production image's restricted
+          # value. Expose that same runtime location for this step only.
+          node_bin="$(command -v node)"
+          if ! env -i PATH=/usr/local/bin:/usr/bin:/bin node --version >/dev/null 2>&1; then
+            node_link=/usr/local/bin/node
+            if [ -e "$node_link" ] || [ -L "$node_link" ]; then
+              echo "/usr/local/bin/node exists but is unavailable through the restricted PATH" >&2
+              exit 1
+            fi
+            if [ -w /usr/local/bin ]; then
+              ln -s "$node_bin" "$node_link"
+              remove_node_link() { rm -f "$node_link"; }
+            else
+              sudo ln -s "$node_bin" "$node_link"
+              remove_node_link() { sudo rm -f "$node_link"; }
+            fi
+            cleanup_node_link() {
+              if [ "$(readlink "$node_link")" = "$node_bin" ]; then
+                remove_node_link
+              fi
+            }
+            trap cleanup_node_link EXIT
+          fi
+          env -i PATH=/usr/local/bin:/usr/bin:/bin node --version
+
           for module in assistant/codex assistant/claude assistant/gateway assistant/mcp assistant/validator; do
             ( cd "$module" && go test -race ./... )
           done
