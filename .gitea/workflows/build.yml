@@ -101,7 +101,7 @@ jobs:
 
       - name: gitleaks (working tree and full history secret scan)
         run: |
-          go install github.com/zricethezav/gitleaks/v8@latest
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
           GITLEAKS="$(go env GOPATH)/bin/gitleaks"
           "$GITLEAKS" dir --redact --no-banner --config ops/assistant/gitleaks.toml .
           "$GITLEAKS" git --redact --no-banner --config ops/assistant/gitleaks.toml .
@@ -277,7 +277,7 @@ jobs:
 
       - name: Repository, image-layer, and resolved-Compose secret-leak gate
         run: |
-          go install github.com/zricethezav/gitleaks/v8@latest
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
           export PATH="$(go env GOPATH)/bin:$PATH"
           ops/assistant/check_secret_leaks.sh
 
