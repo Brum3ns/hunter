@@ -23,7 +23,8 @@ module Assistant
     ].freeze
     METADATA_KEYS = %w[
       operation reason limit outcome request_id source count receipt_id effect
-      idempotency_digest replayed module tool
+      idempotency_digest replayed module tool authorization_mode
+      authorization_subject_digest
     ].freeze
 
     module_function

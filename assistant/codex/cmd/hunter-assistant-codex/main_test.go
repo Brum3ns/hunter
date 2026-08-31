@@ -188,7 +188,7 @@ func TestChatRejectsMissingUnknownAndCrossFieldTypes(t *testing.T) {
 		{name: "unknown field", body: `{"prompt":"hello","model":"arbitrary"}`},
 		{name: "numeric prompt", body: `{"prompt":7}`},
 		{name: "numeric thread id", body: `{"prompt":"hello","thread_id":7}`},
-		{name: "object grant", body: `{"prompt":"hello","turn_grant":{}}`},
+		{name: "retired turn grant", body: `{"prompt":"hello","turn_grant":"grant-secret"}`},
 		{name: "trailing JSON", body: `{"prompt":"hello"}{}`},
 	}
 
@@ -211,7 +211,7 @@ func TestChatReturnsExactSuccessAndSpawnsCodexOnce(t *testing.T) {
 		"'{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Hello there.\"}}' "+
 		"'{\"type\":\"turn.completed\"}'\n"+
 		"printf '%s\\n' 'raw-stderr-auth-secret' >&2\nexit 0\n")
-	request := validChatRequest(strings.NewReader(`{"prompt":"hello","thread_id":null,"turn_grant":"grant-secret"}`))
+	request := validChatRequest(strings.NewReader(`{"prompt":"hello","thread_id":null}`))
 	response := httptest.NewRecorder()
 
 	newChatHandler("ingress-secret", []string{testHost}, bin, chat.Config{WorkingDir: dir}).ServeHTTP(response, request)
@@ -234,7 +234,7 @@ func TestChatReturnsExactSuccessAndSpawnsCodexOnce(t *testing.T) {
 	if string(count) != "spawned\n" {
 		t.Fatalf("one HTTP request must spawn exactly one process, got %q", count)
 	}
-	if strings.Contains(response.Body.String(), "raw-stderr-auth-secret") || strings.Contains(response.Body.String(), "grant-secret") || strings.Contains(response.Body.String(), "ingress-secret") {
+	if strings.Contains(response.Body.String(), "raw-stderr-auth-secret") || strings.Contains(response.Body.String(), "ingress-secret") {
 		t.Fatalf("response leaked a credential or raw stderr: %s", response.Body.String())
 	}
 }
@@ -280,13 +280,13 @@ func TestChatMapsCodexFailuresToClosedErrorsWithoutRawData(t *testing.T) {
 			bin := writeFakeCodex(t, dir, "failure", "printf '%s\\n' '{\"type\":\"thread.started\",\"thread_id\":\"raw-thread-secret\"}' "+
 				"'{\"type\":\"turn.failed\",\"error\":{\"category\":\""+test.category+"\",\"message\":\"raw-stdout-secret\"}}'\n"+
 				"printf '%s\\n' 'raw-stderr-secret' >&2\nexit 1\n")
-			request := validChatRequest(strings.NewReader(`{"prompt":"raw-prompt-secret","turn_grant":"raw-grant-secret"}`))
+			request := validChatRequest(strings.NewReader(`{"prompt":"raw-prompt-secret"}`))
 			response := httptest.NewRecorder()
 
 			newChatHandler("ingress-secret", []string{testHost}, bin, chat.Config{WorkingDir: dir}).ServeHTTP(response, request)
 
 			assertErrorResponse(t, response, test.status, test.code)
-			for _, secret := range []string{"raw-provider-category", "raw-thread-secret", "raw-stdout-secret", "raw-stderr-secret", "raw-prompt-secret", "raw-grant-secret", "ingress-secret"} {
+			for _, secret := range []string{"raw-provider-category", "raw-thread-secret", "raw-stdout-secret", "raw-stderr-secret", "raw-prompt-secret", "ingress-secret"} {
 				if strings.Contains(response.Body.String(), secret) {
 					t.Fatalf("response leaked %q: %s", secret, response.Body.String())
 				}

@@ -7,19 +7,21 @@ module Assistant
     ].freeze
 
     class << self
-      def replay(grant:, tool:, idempotency_key:)
+      def replay(authorization:, tool:, idempotency_key:)
         digest = Digest::SHA256.hexdigest(idempotency_key.to_s)
         event = Assistant::AuditEvent.where(
-          event: "machine.action_receipt", turn_id: grant.turn_id, tool: tool.to_s
+          event: "machine.action_receipt", tool: tool.to_s
+        ).where(
+          "metadata ->> 'authorization_subject_digest' = ?", authorization.subject_digest
         ).where("metadata ->> 'idempotency_digest' = ?", digest).order(:id).last
         return unless event
 
-        issue!(grant: grant, tool: tool, status: "idempotent_replay",
+        issue!(authorization: authorization, tool: tool, status: "idempotent_replay",
           target_type: event.target_type, target_id: event.target_id,
           idempotency_key: idempotency_key, replayed: true)
       end
 
-      def issue!(grant:, tool:, status:, target_type:, target_id:, idempotency_key:, replayed:)
+      def issue!(authorization:, tool:, status:, target_type:, target_id:, idempotency_key:, replayed:)
         capability = Assistant::CapabilityCatalog.load.tool!(tool)
         validate!(
           capability: capability,
@@ -36,30 +38,27 @@ module Assistant
           "tool" => capability.fetch("name"),
           "status" => replayed ? "idempotent_replay" : status.to_s,
           "target" => { "type" => target_type.to_s, "id" => target_id.to_s },
-          "human_user_id" => grant.user_id,
-          "turn_id" => grant.turn_id,
+          "human_user_id" => authorization.user.id,
+          "turn_id" => authorization.turn_id,
           "idempotency_digest" => digest,
           "replayed" => !!replayed,
           "occurred_at" => Time.current.iso8601
         })
 
-        Assistant::Audit.record!(event: "machine.action_receipt", attributes: {
-          correlation_id: grant.turn.correlation_id,
-          user_id: grant.user_id,
-          conversation_id: grant.conversation_id,
-          turn_id: grant.turn_id,
-          provider_profile_id: grant.provider_profile_id,
+        attributes = authorization.audit_attributes.deep_dup
+        attributes.merge!(
           status: receipt.fetch("status"),
           tool: receipt.fetch("tool"),
           target_type: target_type.to_s,
-          target_id: target_id.to_s,
-          metadata: {
-            receipt_id: receipt_id,
-            effect: capability.fetch("effect"),
-            idempotency_digest: digest,
-            replayed: !!replayed
-          }
-        })
+          target_id: target_id.to_s
+        )
+        attributes[:metadata].merge!(
+          receipt_id: receipt_id,
+          effect: capability.fetch("effect"),
+          idempotency_digest: digest,
+          replayed: !!replayed
+        )
+        Assistant::Audit.record!(event: "machine.action_receipt", attributes: attributes)
 
         receipt
       end

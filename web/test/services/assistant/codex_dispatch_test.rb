@@ -17,11 +17,10 @@ class Assistant::CodexDispatchTest < ActiveSupport::TestCase
     conversation = Assistant::Conversation.start!(user: @user, provider_profile: @profile)
     captured = {}
     calls = 0
-    fake = lambda do |turn:, prompt:, turn_grant: nil|
+    fake = lambda do |turn:, prompt:|
       calls += 1
       captured[:prompt] = prompt
       captured[:turn] = turn
-      captured[:turn_grant] = turn_grant&.dup
       successful_events(turn, "Hello from Codex")
     end
 
@@ -48,8 +47,7 @@ class Assistant::CodexDispatchTest < ActiveSupport::TestCase
     assert_equal 1, calls
     assert_equal "hi codex", captured[:prompt]
     assert_equal "Hello from Codex", conversation.messages.where(role: "assistant").sole.body
-    grant = captured.fetch(:turn).turn_grant
-    assert_equal Assistant::TurnGrant.digest(captured.fetch(:turn_grant)), grant.token_digest
+    assert_not_nil captured.fetch(:turn).turn_grant
   end
 
   test "a Codex client exception fails the turn with a closed code and revokes its grant" do
@@ -77,8 +75,7 @@ class Assistant::CodexDispatchTest < ActiveSupport::TestCase
         Assistant::TurnJob.new.perform(
           turn_id: turn.id,
           backend: "codex",
-          prompt: "secret prompt canary",
-          turn_grant: "raw grant canary"
+          prompt: "secret prompt canary"
         )
       rescue StandardError => error
         escaped = error
@@ -91,7 +88,6 @@ class Assistant::CodexDispatchTest < ActiveSupport::TestCase
     assert_nil escaped
     refute_includes turn.error_code, sensitive
     refute_includes turn.error_code, "secret prompt canary"
-    refute_includes turn.error_code, "raw grant canary"
   end
 
   private

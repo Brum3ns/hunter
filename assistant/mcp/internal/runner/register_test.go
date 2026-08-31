@@ -11,11 +11,6 @@ func TestPublicErrorMapping(t *testing.T) {
 	cases := map[error]string{
 		ErrUnknownTool:           "unknown_tool",
 		ErrInvalidInput:          "invalid_tool_input",
-		ErrResourceDenied:        "scope_not_granted",
-		ErrScopeDenied:           "scope_not_granted",
-		ErrToolDenied:            "scope_not_granted",
-		ErrGrantExpired:          "turn_grant_expired",
-		ErrCallBudgetExhausted:   "turn_call_budget_exhausted",
 		ErrResponseRejected:      "tool_response_rejected",
 		context.Canceled:         "tool_call_cancelled",
 		context.DeadlineExceeded: "tool_call_cancelled",

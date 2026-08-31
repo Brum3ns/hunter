@@ -45,6 +45,7 @@ class AssistantComposeTest < Minitest::Test
   HARDENING_KEYS = %w[
     read_only cap_drop security_opt tmpfs pids_limit mem_limit cpus user init privileged
   ].freeze
+  MCP_HOST_PORT = "${HUNTER_ASSISTANT_MCP_BIND_IP:-127.0.0.1}:${HUNTER_ASSISTANT_MCP_PORT:-8080}:8080".freeze
 
   def test_both_compose_definitions_isolate_and_harden_assistant_services
     each_compose do |filename, config|
@@ -53,7 +54,12 @@ class AssistantComposeTest < Minitest::Test
 
       ASSISTANT_SERVICES.each do |name|
         assert services.key?(name), "#{filename}: missing #{name}"
-        assert_empty services.fetch(name).fetch("ports", []), "#{filename}: #{name} publishes a port"
+        if name == "hunter-mcp"
+          assert_equal [ MCP_HOST_PORT ], services.fetch(name).fetch("ports", []),
+            "#{filename}: hunter-mcp must publish only its configurable host listener"
+        else
+          assert_empty services.fetch(name).fetch("ports", []), "#{filename}: #{name} publishes a port"
+        end
         expected_profiles = LEGACY_PROFILE_SERVICES.include?(name) ? [ "legacy-gateway" ] : []
         assert_equal expected_profiles, services.fetch(name).fetch("profiles", []),
           "#{filename}: #{name} has unexpected Compose profile placement"
@@ -124,6 +130,22 @@ class AssistantComposeTest < Minitest::Test
           "#{filename}: assistant-validator shares #{shared.join(', ')} with #{forbidden_peer}"
       end
     end
+  end
+
+  def test_hunter_mcp_keeps_outbound_routing_filter_but_has_no_inbound_host_or_origin_filter
+    each_compose do |filename, config|
+      environment = config.fetch("services").fetch("hunter-mcp").fetch("environment")
+
+      assert_equal "web:5000", environment.fetch("ASSISTANT_HUNTER_ALLOWED_HOSTS")
+      refute environment.key?("ASSISTANT_MCP_ALLOWED_HOSTS"),
+        "#{filename}: retired inbound Host allowlist is still configured"
+      refute environment.key?("ASSISTANT_MCP_ALLOWED_ORIGINS"),
+        "#{filename}: retired inbound Origin allowlist is still configured"
+    end
+
+    env_example = ROOT.join(".env.example").read
+    assert_includes env_example, "HUNTER_ASSISTANT_MCP_BIND_IP=127.0.0.1"
+    assert_includes env_example, "HUNTER_ASSISTANT_MCP_PORT=8080"
   end
 
   def test_assistant_claude_has_a_persistent_home_volume

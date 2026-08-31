@@ -19,13 +19,11 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
 
   test "direct turn creation ignores browser context and never returns the raw grant" do
     delivery = nil
-    raw_grant_reference = nil
 
     with_enabled_assistant do
       stub_methods(Assistant::Context::Resolver, find: ->(**) { flunk "direct chat resolved browser context" }) do
         stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
-          raw_grant_reference = attributes.fetch(:turn_grant)
-          delivery = attributes.merge(turn_grant: raw_grant_reference.dup)
+          delivery = attributes
         }) do
           post "/api/v1/assistant/conversations/#{@conversation.id}/turns", params: {
             message: "Draft a safe probe",
@@ -45,10 +43,7 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
     assert_equal "codex", delivery.fetch(:backend)
     assert_equal "Draft a safe probe", delivery.fetch(:prompt)
     refute delivery.key?(:envelope)
-    raw_grant = delivery.fetch(:turn_grant)
-    assert raw_grant.present?
-    assert_equal "", raw_grant_reference, "the in-memory raw grant was not cleared after enqueue"
-    refute_includes response.body, raw_grant
+    refute delivery.key?(:turn_grant)
     refute_includes response.body, turn.turn_grant.token_digest
     refute_includes response.body, "turn_grant"
 
@@ -56,7 +51,7 @@ class Api::V1::Assistant::TurnsTest < ActionDispatch::IntegrationTest
     assert_response :success
     summary = response.parsed_body.fetch("turns").find { |item| item.fetch("id") == turn.id }
     assert_equal "queued", summary.fetch("status")
-    refute_includes response.body, raw_grant
+    refute_includes response.body, turn.turn_grant.token_digest
   end
 
   test "a legacy conversation is retired before rate authority audit or enqueue side effects" do

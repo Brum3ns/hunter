@@ -40,7 +40,7 @@ module Api
             )
             items = docs.map { |doc| ::Assistant::Machine::CveProjection.summary(::Cve.new(doc)) }
             complete_read_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               count: items.length,
               limit: limit,
               items: items,
@@ -66,7 +66,7 @@ module Api
               docs.map { |doc| ::Cve.new(doc) }, count: count
             )
             complete_read_response!(reservation,
-              { correlation_id: machine_grant.turn.correlation_id }.merge(payload))
+              { correlation_id: machine_correlation_id }.merge(payload))
           end
         end
       end

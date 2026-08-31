@@ -118,7 +118,7 @@ func TestCredentialProjectionValidatorRejectsAuthenticationMaterial(t *testing.T
 func TestExportValidatorRequiresBrowserReferenceAndNeverArchiveBytes(t *testing.T) {
 	candidate := findTool(t, "export_ansible_playbooks")
 	receipt := `{"receipt_id":"3b241101-e2bb-4255-8caf-4136c566a963","tool":"export_ansible_playbooks",` +
-		`"status":"exported","target":{"type":"assistant_export_artifact","id":"1"},"human_user_id":1,"turn_id":1,` +
+		`"status":"exported","target":{"type":"assistant_export_artifact","id":"1"},"human_user_id":1,"turn_id":null,` +
 		`"idempotency_digest":"` + strings.Repeat("a", 64) + `","replayed":false,"occurred_at":"2026-08-19T00:00:00Z",` +
 		`"artifact":{"kind":"ansible_playbooks","filename":"playbooks.zip","byte_count":100,"expires_at":"2026-08-19T00:15:00Z",` +
 		`"browser_download_reference":"/assistant/exports/signed-id"}}`

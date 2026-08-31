@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybookExportsTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -15,11 +17,12 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybookExportsTest <
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "returns only a short-lived human-owned browser reference" do
     post "/api/v1/assistant/machine/control_center/ansible/playbooks/export",
-      params: { ids: [ @playbook.id ] }, headers: machine_headers(grant), as: :json
+      params: { ids: [ @playbook.id ] }, headers: machine_headers, as: :json
 
     assert_response :created
     receipt = response.parsed_body.fetch("receipt")
@@ -45,13 +48,13 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybookExportsTest <
   test "rejects unbounded and missing selections without an artifact" do
     assert_no_difference "Assistant::ExportArtifact.count" do
       post "/api/v1/assistant/machine/control_center/ansible/playbooks/export",
-        params: { ids: [] }, headers: machine_headers(grant), as: :json
+        params: { ids: [] }, headers: machine_headers, as: :json
     end
     assert_response :unprocessable_content
 
     assert_no_difference "Assistant::ExportArtifact.count" do
       post "/api/v1/assistant/machine/control_center/ansible/playbooks/export",
-        params: { ids: [ 99_999_999 ] }, headers: machine_headers(grant), as: :json
+        params: { ids: [ 99_999_999 ] }, headers: machine_headers, as: :json
     end
     assert_response :not_found
   end
@@ -62,13 +65,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybookExportsTest <
     assistant_turns(:created).user
   end
 
-  def grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created), resources: [], tools: [ "export_ansible_playbooks" ]
-    )
-  end
-
-  def machine_headers(raw)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => raw }
+  def machine_headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

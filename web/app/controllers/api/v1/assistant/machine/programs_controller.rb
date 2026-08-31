@@ -54,7 +54,7 @@ module Api
               result.programs, count: result.total
             )
             complete_read_response!(reservation,
-              { correlation_id: machine_grant.turn.correlation_id }.merge(payload))
+              { correlation_id: machine_correlation_id }.merge(payload))
           end
 
           def changes

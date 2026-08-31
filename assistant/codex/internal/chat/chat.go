@@ -38,9 +38,8 @@ type Config struct {
 }
 
 type Request struct {
-	Prompt    string
-	ThreadID  string
-	TurnGrant string
+	Prompt   string
+	ThreadID string
 }
 
 type Response struct {
@@ -106,21 +105,17 @@ func buildInvocation(cfg Config, req Request) invocation {
 		"TMPDIR=/tmp",
 	}
 
-	if mcpEnabled(cfg, req) {
+	if mcpEnabled(cfg) {
 		args = append(args,
 			"--config", "mcp_servers.hunter.url="+tomlString(cfg.MCPURL),
 			"--config", `mcp_servers.hunter.bearer_token_env_var="HUNTER_MCP_TOKEN"`,
-			"--config", `mcp_servers.hunter.env_http_headers={"X-Hunter-Turn-Grant"="HUNTER_TURN_GRANT"}`,
 			"--config", "mcp_servers.hunter.enabled_tools="+tomlStringArray(cfg.AllowedTools),
 			"--config", "mcp_servers.hunter.required=true",
 		)
 		if cfg.SystemPrompt != "" {
 			args = append(args, "--config", "developer_instructions="+tomlString(cfg.SystemPrompt))
 		}
-		env = append(env,
-			"HUNTER_MCP_TOKEN="+cfg.MCPToken,
-			"HUNTER_TURN_GRANT="+req.TurnGrant,
-		)
+		env = append(env, "HUNTER_MCP_TOKEN="+cfg.MCPToken)
 	}
 
 	if req.ThreadID != "" {
@@ -130,15 +125,8 @@ func buildInvocation(cfg Config, req Request) invocation {
 	return invocation{Args: args, Env: env}
 }
 
-func mcpEnabled(cfg Config, req Request) bool {
-	return cfg.MCPURL != "" && cfg.MCPToken != "" && len(cfg.AllowedTools) > 0 && validGrant(req.TurnGrant)
-}
-
-func validGrant(grant string) bool {
-	if len(grant) == 0 || len(grant) > 1024 {
-		return false
-	}
-	return !strings.ContainsAny(grant, "\x00\r\n\t ")
+func mcpEnabled(cfg Config) bool {
+	return cfg.MCPURL != "" && cfg.MCPToken != "" && len(cfg.AllowedTools) > 0
 }
 
 func tomlString(value string) string {

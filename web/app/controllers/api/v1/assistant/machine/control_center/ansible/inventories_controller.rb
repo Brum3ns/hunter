@@ -41,7 +41,7 @@ module Api
                   { "name" => "validation", "yaml_content" => body["yaml_content"] }, partial: false
                 )
                 complete_read_response!(reservation, {
-                  correlation_id: machine_grant.turn.correlation_id,
+                  correlation_id: machine_correlation_id,
                   valid: input.valid?, codes: input.codes
                 })
               end

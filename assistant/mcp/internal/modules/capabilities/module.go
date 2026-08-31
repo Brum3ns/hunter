@@ -3,6 +3,7 @@
 package capabilities
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"regexp"
@@ -28,7 +29,7 @@ var (
 func (Module) Tools() []tool.Tool {
 	return []tool.Tool{{
 		Name:        "list_hunter_capabilities",
-		Description: "List the exact Hunter MCP capabilities currently enabled for this Assistant turn, with safe authority metadata and effective workflow limits.",
+		Description: "List the exact Hunter MCP capabilities currently enabled for this authenticated MCP client, with safe authority metadata and per-call/hourly workflow limits.",
 		InputSchema: inputSchema, OutputSchema: tool.ResultSchema,
 		Scope:  "hunter_capabilities_read",
 		Decode: decode, BuildRequest: build, Validate: validate,
@@ -50,13 +51,15 @@ func build(tool.Request) (tool.Call, error) {
 func validate(payload []byte) error {
 	var root map[string]json.RawMessage
 	if codec.DecodeRawClosed(payload, &root) != nil ||
-		!codec.ExactKeys(root, []string{"correlation_id", "catalog_version", "limits", "tools"}) {
+		!codec.ExactKeys(root, []string{"correlation_id", "authorization_mode", "catalog_version", "limits", "tools"}) {
 		return errRejected
 	}
-	var correlationID string
+	var correlationID, authorizationMode string
 	var version int
 	if json.Unmarshal(root["correlation_id"], &correlationID) != nil ||
 		!readmodule.UUIDPattern.MatchString(correlationID) ||
+		json.Unmarshal(root["authorization_mode"], &authorizationMode) != nil ||
+		authorizationMode != "token_only" ||
 		json.Unmarshal(root["catalog_version"], &version) != nil || version != 1 {
 		return errRejected
 	}
@@ -65,18 +68,27 @@ func validate(payload []byte) error {
 	if codec.DecodeRawClosed(root["limits"], &limits) != nil || !codec.ExactKeys(limits, limitKeys) {
 		return errRejected
 	}
-	values := make(map[string]int, len(limits))
-	for name, raw := range limits {
+	for _, name := range []string{
+		"calls_per_turn", "calls_hard_ceiling", "result_bytes_per_turn",
+		"effects_per_turn", "launches_per_turn",
+	} {
+		if !bytes.Equal(bytes.TrimSpace(limits[name]), []byte("null")) {
+			return errRejected
+		}
+	}
+	values := make(map[string]int, 3)
+	for _, name := range []string{
+		"result_bytes_per_call", "effects_per_hour", "launches_per_hour",
+	} {
 		var value int
-		if json.Unmarshal(raw, &value) != nil || value <= 0 {
+		if json.Unmarshal(limits[name], &value) != nil || value <= 0 {
 			return errRejected
 		}
 		values[name] = value
 	}
-	if values["calls_per_turn"] > values["calls_hard_ceiling"] || values["calls_hard_ceiling"] > 128 ||
-		values["result_bytes_per_call"] > 1<<20 || values["result_bytes_per_turn"] > 16<<20 ||
-		values["effects_per_turn"] > 64 || values["effects_per_hour"] > 240 ||
-		values["launches_per_turn"] > 32 || values["launches_per_hour"] > 120 {
+	if values["result_bytes_per_call"] > 1<<20 ||
+		values["effects_per_hour"] > 240 ||
+		values["launches_per_hour"] > 120 {
 		return errRejected
 	}
 

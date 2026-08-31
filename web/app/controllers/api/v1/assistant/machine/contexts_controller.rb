@@ -3,6 +3,8 @@ module Api
     module Assistant
       module Machine
         class ContextsController < BaseController
+          require_turn_grant_authorization!
+
           def show
             reservation = authorize_tool!(
               "get_selected_context",
@@ -21,7 +23,7 @@ module Api
               type: params[:resource_type], record: record
             )
             complete_machine_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               context: context
             })
           rescue ::Assistant::Context::Catalog::UnsafeContentError

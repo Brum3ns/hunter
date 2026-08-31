@@ -5,6 +5,8 @@ class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
     # Activation is now derived from provider credential environment variables,
     # not this env var, so stub Config.enabled? directly to simulate an installed key.
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -14,6 +16,7 @@ class Api::V1::Assistant::Machine::ToolsTest < ActionDispatch::IntegrationTest
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "grant introspection returns safe scope and remaining budgets" do

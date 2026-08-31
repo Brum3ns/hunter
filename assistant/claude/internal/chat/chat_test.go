@@ -75,7 +75,7 @@ func TestRunPassesMCPConfigAndCleansItUp(t *testing.T) {
 	t.Setenv("CLAUDE_FAKE_RC", "0")
 
 	cfg := Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok", AllowedTools: []string{"mcp__hunter__list_targets"}}
-	req := Request{Prompt: "hi", TurnGrant: "grant-abc"}
+	req := Request{Prompt: "hi"}
 
 	if _, err := Run(context.Background(), binPath, cfg, req); err != nil {
 		t.Fatalf("err: %v", err)
@@ -123,10 +123,10 @@ func TestBuildInvocationNoMCPWithResume(t *testing.T) {
 	cleanup()
 }
 
-func TestBuildInvocationWithMCPValidGrant(t *testing.T) {
+func TestBuildInvocationWithBearerOnlyMCP(t *testing.T) {
 	tools := []string{"mcp__hunter__list_targets", "mcp__hunter__get_target"}
 	cfg := Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "shared-tok", AllowedTools: tools}
-	req := Request{Prompt: "hi", SessionID: "sess_1", TurnGrant: "grant-abc"}
+	req := Request{Prompt: "hi", SessionID: "sess_1"}
 
 	args, path, cleanup, err := buildInvocation(cfg, req)
 	if err != nil {
@@ -178,8 +178,11 @@ func TestBuildInvocationWithMCPValidGrant(t *testing.T) {
 	if hunter.Headers["Authorization"] != "Bearer shared-tok" {
 		t.Fatalf("got authorization header %q", hunter.Headers["Authorization"])
 	}
-	if hunter.Headers["X-Hunter-Turn-Grant"] != "grant-abc" {
-		t.Fatalf("got grant header %q", hunter.Headers["X-Hunter-Turn-Grant"])
+	if len(hunter.Headers) != 1 {
+		t.Fatalf("want only Authorization header, got %#v", hunter.Headers)
+	}
+	if _, exists := hunter.Headers["X-Hunter-Turn-Grant"]; exists {
+		t.Fatalf("retired turn-grant header present: %#v", hunter.Headers)
 	}
 
 	cleanup()
@@ -198,7 +201,7 @@ func TestBuildInvocationAllowedToolsAreReadOnlyMCPNames(t *testing.T) {
 		"mcp__hunter__get_cve", "mcp__hunter__list_vulnerabilities", "mcp__hunter__get_vulnerability",
 	}
 	cfg := Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok", AllowedTools: tools}
-	req := Request{Prompt: "hi", TurnGrant: "grant-abc"}
+	req := Request{Prompt: "hi"}
 	_, _, cleanup, err := buildInvocation(cfg, req)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -215,38 +218,24 @@ func TestBuildInvocationAllowedToolsAreReadOnlyMCPNames(t *testing.T) {
 	}
 }
 
-func TestBuildInvocationFallsBackOnEmptyGrant(t *testing.T) {
-	cfg := Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok", AllowedTools: []string{"mcp__hunter__list_targets"}}
-	args, path, cleanup, err := buildInvocation(cfg, Request{Prompt: "hi", TurnGrant: ""})
-	if err != nil {
-		t.Fatalf("err: %v", err)
+func TestBuildInvocationRequiresCompleteBearerConfiguration(t *testing.T) {
+	complete := Config{
+		MCPURL:       "http://hunter-mcp:8080/mcp",
+		MCPToken:     "tok",
+		AllowedTools: []string{"mcp__hunter__list_targets"},
 	}
-	defer cleanup()
-	if path != "" {
-		t.Fatalf("want no config file for empty grant, got %q", path)
+	tests := []struct {
+		name string
+		cfg  Config
+	}{
+		{name: "missing URL", cfg: Config{MCPToken: complete.MCPToken, AllowedTools: complete.AllowedTools}},
+		{name: "missing bearer", cfg: Config{MCPURL: complete.MCPURL, AllowedTools: complete.AllowedTools}},
+		{name: "missing tools", cfg: Config{MCPURL: complete.MCPURL, MCPToken: complete.MCPToken}},
 	}
-	want := []string{"-p", "hi", "--output-format", "json", "--allowedTools", ""}
-	if !slices.Equal(args, want) {
-		t.Fatalf("got %v want %v", args, want)
-	}
-}
 
-// TestBuildInvocationFallsBackOnInvalidGrant covers every way a grant can be
-// malformed per the gateway's validGrant rule: a missing or malformed grant
-// must NEVER cause an (unauthenticated) MCP config file to be written.
-func TestBuildInvocationFallsBackOnInvalidGrant(t *testing.T) {
-	cfg := Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok", AllowedTools: []string{"mcp__hunter__list_targets"}}
-	cases := map[string]string{
-		"space":    "has space",
-		"tab":      "has\ttab",
-		"newline":  "has\nnewline",
-		"cr":       "has\rcr",
-		"nul":      "has\x00nul",
-		"too long": strings.Repeat("a", 1025),
-	}
-	for name, grant := range cases {
-		t.Run(name, func(t *testing.T) {
-			_, path, cleanup, err := buildInvocation(cfg, Request{Prompt: "hi", TurnGrant: grant})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			args, path, cleanup, err := buildInvocation(test.cfg, Request{Prompt: "hi"})
 			if err != nil {
 				t.Fatalf("err: %v", err)
 			}
@@ -254,23 +243,11 @@ func TestBuildInvocationFallsBackOnInvalidGrant(t *testing.T) {
 			if path != "" {
 				t.Fatalf("want no config file, got %q", path)
 			}
+			want := []string{"-p", "hi", "--output-format", "json", "--allowedTools", ""}
+			if !slices.Equal(args, want) {
+				t.Fatalf("got %v want %v", args, want)
+			}
 		})
-	}
-}
-
-func TestBuildInvocationNoMCPWhenURLEmptyEvenWithValidGrant(t *testing.T) {
-	// A valid grant alone must not enable MCP; cfg.MCPURL must also be set.
-	args, path, cleanup, err := buildInvocation(Config{}, Request{Prompt: "hi", TurnGrant: "grant-abc"})
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	defer cleanup()
-	if path != "" {
-		t.Fatalf("want no config file when MCPURL is empty, got %q", path)
-	}
-	want := []string{"-p", "hi", "--output-format", "json", "--allowedTools", ""}
-	if !slices.Equal(args, want) {
-		t.Fatalf("got %v want %v", args, want)
 	}
 }
 
@@ -280,7 +257,7 @@ func TestBuildInvocationAppendsSystemPromptBeforeMCPConfig(t *testing.T) {
 		AllowedTools: []string{"mcp__hunter__list_targets"},
 		SystemPrompt: "POLICY-XYZ",
 	}
-	args, _, cleanup, err := buildInvocation(cfg, Request{Prompt: "hi", TurnGrant: "grant-abc"})
+	args, _, cleanup, err := buildInvocation(cfg, Request{Prompt: "hi"})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -308,7 +285,7 @@ func TestBuildInvocationOmitsSystemPromptWhenEmpty(t *testing.T) {
 		AllowedTools: []string{"mcp__hunter__list_targets"},
 		SystemPrompt: "",
 	}
-	args, _, cleanup, err := buildInvocation(cfg, Request{Prompt: "hi", TurnGrant: "grant-abc"})
+	args, _, cleanup, err := buildInvocation(cfg, Request{Prompt: "hi"})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

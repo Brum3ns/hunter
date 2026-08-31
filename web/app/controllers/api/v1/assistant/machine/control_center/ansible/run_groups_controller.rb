@@ -42,7 +42,7 @@ module Api
                 count = scope.count
                 groups = scope.limit(::Assistant::Machine::WorkflowAnalysis::MAX_ROWS).to_a
                 complete_machine_response!(reservation, {
-                  correlation_id: machine_grant.turn.correlation_id
+                  correlation_id: machine_correlation_id
                 }.merge(::Assistant::Machine::WorkflowAnalysis.ansible_runs(groups, count: count)))
               end
 

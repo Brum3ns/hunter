@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     Assistant::Setting.instance.enable_control_center_write!
@@ -18,13 +20,14 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDisp
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "edits by ID and expected version after validating the complete merged template" do
     patch endpoint, params: {
       expected_lock_version: @template.lock_version,
       changes: { description: "Updated", commands: [ { command: "httpx" } ] }
-    }, headers: headers(edit_grant), as: :json
+    }, headers: headers, as: :json
 
     assert_response :success
     assert_equal "updated", response.parsed_body.dig("receipt", "status")
@@ -35,14 +38,16 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDisp
     assert_nil @template.target
     event = Assistant::AuditEvent.where(event: "machine.edit").order(:id).last
     assert_equal "machine.edit", event.event
-    assert_equal({ "operation" => "edit_whiterabbit_template", "outcome" => "updated" }, event.metadata)
+    assert_equal({ "operation" => "edit_whiterabbit_template", "outcome" => "updated" },
+      event.metadata.slice("operation", "outcome"))
+    assert_equal "token_only", event.metadata.fetch("authorization_mode")
   end
 
   test "edits a template to an arbitrary command" do
     patch endpoint, params: {
       expected_lock_version: @template.lock_version,
       changes: { commands: [ { command: "python", args: [ "-c", "print('ok')" ] } ] }
-    }, headers: headers(edit_grant), as: :json
+    }, headers: headers, as: :json
 
     assert_response :success
     assert_equal "python", @template.reload.commands.first.fetch("command")
@@ -52,7 +57,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDisp
     original = @template.attributes
 
     patch endpoint, params: { expected_lock_version: 99, changes: { description: "Lost" } },
-      headers: headers(edit_grant), as: :json
+      headers: headers, as: :json
 
     assert_response :conflict
     assert_equal "version_conflict", response.parsed_body["error"]
@@ -69,37 +74,35 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDisp
     patch endpoint, params: {
       expected_lock_version: @template.lock_version,
       changes: { commands: [ { command: "bad\nname" } ] }
-    }, headers: headers(edit_grant), as: :json
+    }, headers: headers, as: :json
 
     assert_response :unprocessable_content
     assert_equal "validation_failed", response.parsed_body["error"]
     assert_equal original, @template.reload.attributes
   end
 
-  test "requires exact edit scope and never treats create authority as edit authority" do
-    grant = edit_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:write_scopes, [ "control_center_templates_write" ])
+  test "requires the exact edit capability to remain enabled" do
+    Assistant::Setting.instance.update!(
+      disabled_capability_tools: [ "edit_whiterabbit_template" ]
+    )
     patch endpoint, params: { expected_lock_version: 0, changes: { description: "No" } },
-      headers: headers(grant), as: :json
+      headers: headers, as: :json
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
     assert_equal "Original", @template.reload.description
   end
 
   test "an audit failure rolls back the artifact edit" do
-    grant = edit_grant
-    grant_record = Assistant::TurnGrant.order(:id).last
     assert_raises RuntimeError do
       stub_methods(Assistant::Audit, record!: ->(**) { raise "audit unavailable" }) do
         patch endpoint, params: {
           expected_lock_version: @template.lock_version, changes: { description: "Must roll back" }
-        }, headers: headers(grant), as: :json
+        }, headers: headers, as: :json
       end
     end
 
     assert_equal "Original", @template.reload.description
     assert_equal 0, @template.lock_version
-    assert_equal 0, grant_record.reload.reserved_bytes
   end
 
   private
@@ -112,13 +115,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesEditTest < ActionDisp
     assistant_turns(:created).user
   end
 
-  def edit_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created), resources: [], tools: [ "edit_whiterabbit_template" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

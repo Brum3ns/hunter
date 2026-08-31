@@ -28,7 +28,7 @@ module Assistant
 
     queue_as :default
 
-    def perform(turn_id:, envelope: nil, backend: nil, prompt: nil, turn_grant: nil)
+    def perform(turn_id:, envelope: nil, backend: nil, prompt: nil)
       turn = Assistant::Turn.find_by(id: turn_id)
       return unless turn&.status == "queued"
 
@@ -38,17 +38,13 @@ module Assistant
         case backend
         when "codex"
           begin
-            Assistant::CodexClient.run_turn(
-              turn: turn, prompt: prompt, turn_grant: turn_grant
-            )
+            Assistant::CodexClient.run_turn(turn: turn, prompt: prompt)
           rescue StandardError
             [ error_event(turn, "codex_error") ]
           end
         when "claude_code"
           begin
-            Assistant::ClaudeCodeClient.run_turn(
-              turn: turn, prompt: prompt, turn_grant: turn_grant
-            )
+            Assistant::ClaudeCodeClient.run_turn(turn: turn, prompt: prompt)
           rescue StandardError
             [ error_event(turn, "claude_error") ]
           end

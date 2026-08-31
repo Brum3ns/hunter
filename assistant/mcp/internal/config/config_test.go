@@ -60,6 +60,8 @@ func TestSecretFromEnvNeverEchoesTheValue(t *testing.T) {
 func TestLoadReadsBothMachineTokensFromTheEnvironment(t *testing.T) {
 	t.Setenv("ASSISTANT_GATEWAY_MCP_TOKEN", "gateway-mcp-token")
 	t.Setenv("ASSISTANT_MCP_HUNTER_TOKEN", "mcp-hunter-token")
+	t.Setenv("ASSISTANT_MCP_ALLOWED_HOSTS", "this-is-no-longer-an-ingress-control")
+	t.Setenv("ASSISTANT_MCP_ALLOWED_ORIGINS", "https://also-ignored.example")
 
 	settings, err := Load()
 	if err != nil {

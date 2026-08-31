@@ -10,6 +10,8 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
 
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     Assistant::Setting.instance.enable_control_center_write!
@@ -20,11 +22,12 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "creates a valid cmdscript template with an unrestricted command" do
     post "/api/v1/assistant/machine/control_center/templates",
-      params: { template: VALID_TEMPLATE }, headers: headers(write_grant), as: :json
+      params: { template: VALID_TEMPLATE }, headers: headers, as: :json
 
     assert_response :created
     body = response.parsed_body
@@ -40,39 +43,35 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
     event = Assistant::AuditEvent.where(event: "machine.create").order(:id).last
     assert_equal "machine.create", event.event
     assert_equal "create_whiterabbit_template", event.metadata["operation"]
-    assert_equal assistant_turns(:created).id, event.turn_id
-    assert_equal assistant_turns(:created).conversation_id, event.conversation_id
-    assert_equal assistant_turns(:created).provider_profile_id, event.provider_profile_id
+    assert_equal machine_user.id, event.user_id
+    assert_nil event.turn_id
+    assert_nil event.conversation_id
+    assert_nil event.provider_profile_id
+    assert_equal "token_only", event.metadata.fetch("authorization_mode")
     assert_operator event.byte_count, :>, 0
   end
 
   test "an audit failure rolls back the artifact create" do
-    grant = write_grant
-    grant_record = Assistant::TurnGrant.order(:id).last
     assert_no_difference -> { ControlCenter::Template.count } do
       assert_raises RuntimeError do
         stub_methods(Assistant::Audit, record!: ->(**) { raise "audit unavailable" }) do
           post "/api/v1/assistant/machine/control_center/templates",
-            params: { template: VALID_TEMPLATE }, headers: headers(grant), as: :json
+            params: { template: VALID_TEMPLATE }, headers: headers, as: :json
         end
       end
     end
-    assert_equal 0, grant_record.reload.reserved_bytes
   end
 
   test "an unexpected persistence failure releases the result reservation" do
-    grant = write_grant
-    grant_record = Assistant::TurnGrant.order(:id).last
 
     assert_raises RuntimeError do
       stub_methods(ControlCenter::Templates::Persist,
         call: ->(**) { raise "persistence unavailable" }) do
         post "/api/v1/assistant/machine/control_center/templates",
-          params: { template: VALID_TEMPLATE }, headers: headers(grant), as: :json
+          params: { template: VALID_TEMPLATE }, headers: headers, as: :json
       end
     end
 
-    assert_equal 0, grant_record.reload.reserved_bytes
   end
 
   test "creates a natural minimal command and preserves full safe template fields" do
@@ -82,7 +81,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
         commands: [ { command: "httpx" } ],
         target: { type: "file", separator: "newline", output: "__TARGET_FILE__" }
       }
-    }, headers: headers(write_grant), as: :json
+    }, headers: headers, as: :json
 
     assert_response :created
     record = ControlCenter::Template.find(response.parsed_body.dig("receipt", "target", "id"))
@@ -105,7 +104,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
 
     assert_difference -> { ControlCenter::Template.count }, 1 do
       post "/api/v1/assistant/machine/control_center/templates",
-        params: { template: body }, headers: headers(write_grant), as: :json
+        params: { template: body }, headers: headers, as: :json
     end
 
     assert_response :created
@@ -126,7 +125,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
 
     assert_no_difference -> { ControlCenter::Template.count } do
       post "/api/v1/assistant/machine/control_center/templates",
-        params: { template: body }, headers: headers(write_grant), as: :json
+        params: { template: body }, headers: headers, as: :json
     end
 
     assert_response :unprocessable_content
@@ -141,7 +140,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
 
     assert_no_difference -> { ControlCenter::Template.count } do
       post "/api/v1/assistant/machine/control_center/templates",
-        params: { template: VALID_TEMPLATE }, headers: headers(write_grant), as: :json
+        params: { template: VALID_TEMPLATE }, headers: headers, as: :json
     end
 
     assert_response :conflict
@@ -150,34 +149,30 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
     assert_equal "machine.create_rejected", event.event
     assert_equal({
       "operation" => "create_whiterabbit_template", "outcome" => "rejected", "reason" => "conflict"
-    }, event.metadata)
+    }, event.metadata.slice("operation", "outcome", "reason"))
+    assert_equal "token_only", event.metadata.fetch("authorization_mode")
   end
 
-  test "refuses a grant without the write scope" do
-    grant = write_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:write_scopes, [])
+  test "refuses create when the exact capability is disabled" do
+    Assistant::Setting.instance.update!(
+      disabled_capability_tools: [ "create_whiterabbit_template" ]
+    )
 
     assert_no_difference -> { ControlCenter::Template.count } do
       post "/api/v1/assistant/machine/control_center/templates",
-        params: { template: VALID_TEMPLATE }, headers: headers(grant), as: :json
+        params: { template: VALID_TEMPLATE }, headers: headers, as: :json
     end
 
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
-  test "a committed create still returns 201 even when the byte budget is exhausted at completion" do
-    grant = write_grant
-    record = Assistant::TurnGrant.order(:id).last
-    # Shrink the per-call byte budget below the (small, fixed) create
-    # response so completion sees a byte_limit overrun even though the
-    # budget pre-check at authorize time passed. This simulates the byte
-    # gate firing at completion time for an already-committed write.
-    record.update_column(:max_result_bytes, 1)
-
+  test "a committed create still returns 201 when its token-only response exceeds the byte ceiling" do
     assert_difference -> { ControlCenter::Template.count }, 1 do
-      post "/api/v1/assistant/machine/control_center/templates",
-        params: { template: VALID_TEMPLATE }, headers: headers(grant), as: :json
+      stub_methods(Assistant::Config, max_result_bytes: 1) do
+        post "/api/v1/assistant/machine/control_center/templates",
+          params: { template: VALID_TEMPLATE }, headers: headers, as: :json
+      end
     end
 
     assert_response :created
@@ -186,22 +181,15 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
     assert receipt.dig("target", "id").present?
     assert ControlCenter::Template.exists?(receipt.dig("target", "id"))
 
-    record.reload
-    assert_not_nil record.revoked_at
-    assert Assistant::AuditEvent.exists?(event: "grant.result_rejected", status: "rejected")
+    assert Assistant::AuditEvent.exists?(event: "machine.result_rejected", status: "rejected")
   end
 
   test "refuses to create when the control center write toggle is off" do
-    # Toggle-off is a runtime re-check on an already-issued grant (the Issuer
-    # already excludes the create tool for grants issued *after* the toggle
-    # flips off; this exercises the other half of the double gate — a grant
-    # issued while the toggle was on, used after it flips off).
-    grant = write_grant
     Assistant::Setting.instance.disable_control_center_write!(user: machine_user)
 
     assert_no_difference -> { ControlCenter::Template.count } do
       post "/api/v1/assistant/machine/control_center/templates",
-        params: { template: VALID_TEMPLATE }, headers: headers(grant), as: :json
+        params: { template: VALID_TEMPLATE }, headers: headers, as: :json
     end
 
     assert_response :forbidden
@@ -217,15 +205,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesCreateTest < ActionDi
     assistant_turns(:created).user
   end
 
-  def write_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created),
-      resources: [],
-      tools: [ "create_whiterabbit_template" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

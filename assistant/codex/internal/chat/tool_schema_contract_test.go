@@ -72,7 +72,7 @@ func TestRealCodexEnforcesApprovedHunterMCPBoundary(t *testing.T) {
 			return
 		}
 		if r.Header.Get("Authorization") != "Bearer schema-mcp-token" ||
-			r.Header.Get("X-Hunter-Turn-Grant") != "schema-turn-grant" {
+			r.Header.Get("X-Hunter-Turn-Grant") != "" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -142,7 +142,7 @@ func TestRealCodexEnforcesApprovedHunterMCPBoundary(t *testing.T) {
 		MCPToken:     "schema-mcp-token",
 		AllowedTools: allowedTools,
 		SystemPrompt: "Use only the reviewed Hunter tools.",
-	}, Request{Prompt: "Reply with the single word captured.", TurnGrant: "schema-turn-grant"})
+	}, Request{Prompt: "Reply with the single word captured."})
 
 	providerConfig := []string{
 		"--config", `model="gpt-5.4"`,

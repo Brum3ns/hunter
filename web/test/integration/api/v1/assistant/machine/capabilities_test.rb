@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::CapabilitiesTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     Assistant::Setting.instance.update!(
@@ -18,24 +20,26 @@ class Api::V1::Assistant::Machine::CapabilitiesTest < ActionDispatch::Integratio
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "lists only the live enabled catalog and reviewed workflow limits" do
-    get "/api/v1/assistant/machine/capabilities", headers: headers(grant)
+    get "/api/v1/assistant/machine/capabilities", headers: headers
 
     assert_response :success
     body = response.parsed_body
     assert_equal 1, body.fetch("catalog_version")
-    assert_equal assistant_turns(:created).correlation_id, body.fetch("correlation_id")
+    assert_match(/\A[0-9a-f-]{36}\z/, body.fetch("correlation_id"))
+    assert_equal "token_only", body.fetch("authorization_mode")
     assert_equal({
-      "calls_per_turn" => 64,
-      "calls_hard_ceiling" => 128,
-      "result_bytes_per_call" => 1_048_576,
-      "result_bytes_per_turn" => 16_777_216,
-      "effects_per_turn" => 32,
-      "effects_per_hour" => 120,
-      "launches_per_turn" => 16,
-      "launches_per_hour" => 60
+      "calls_per_turn" => nil,
+      "calls_hard_ceiling" => nil,
+      "result_bytes_per_call" => Assistant::Config.max_result_bytes,
+      "result_bytes_per_turn" => nil,
+      "effects_per_turn" => nil,
+      "effects_per_hour" => Assistant::Config.max_effects_per_hour,
+      "launches_per_turn" => nil,
+      "launches_per_hour" => Assistant::Config.max_launches_per_hour
     }, body.fetch("limits"))
 
     names = body.fetch("tools").pluck("name")
@@ -53,16 +57,7 @@ class Api::V1::Assistant::Machine::CapabilitiesTest < ActionDispatch::Integratio
 
   private
 
-  def grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created), resources: [], tools: [ "list_hunter_capabilities" ]
-    )
-  end
-
-  def headers(raw_grant)
-    {
-      "Authorization" => "Bearer #{@service_token}",
-      "X-Hunter-Turn-Grant" => raw_grant
-    }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

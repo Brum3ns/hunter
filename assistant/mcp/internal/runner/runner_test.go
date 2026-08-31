@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"hunter.local/assistant/mcp/internal/redact"
 	"hunter.local/assistant/mcp/internal/tool"
@@ -12,17 +11,19 @@ import (
 )
 
 type fakeBackend struct {
-	grant         transport.Grant
-	introspectErr error
-	payload       []byte
-	doErr         error
+	payload []byte
+	doErr   error
+	calls   int
+	method  string
+	path    string
+	body    []byte
 }
 
-func (f fakeBackend) Introspect(context.Context, string) (transport.Grant, error) {
-	return f.grant, f.introspectErr
-}
-
-func (f fakeBackend) Do(context.Context, string, string, string, []byte) ([]byte, error) {
+func (f *fakeBackend) Do(_ context.Context, method, path string, body []byte) ([]byte, error) {
+	f.calls++
+	f.method = method
+	f.path = path
+	f.body = append([]byte(nil), body...)
 	return f.payload, f.doErr
 }
 
@@ -35,7 +36,9 @@ func passTool(t tool.Tool) tool.Tool {
 		t.Decode = func([]byte) (tool.Request, error) { return tool.Request{}, nil }
 	}
 	if t.BuildRequest == nil {
-		t.BuildRequest = func(tool.Request) (tool.Call, error) { return tool.Call{Method: "GET", Path: "/p"}, nil }
+		t.BuildRequest = func(tool.Request) (tool.Call, error) {
+			return tool.Call{Method: "GET", Path: "/api/v1/assistant/machine/fixed"}, nil
+		}
 	}
 	if t.Validate == nil {
 		t.Validate = func([]byte) error { return nil }
@@ -49,143 +52,99 @@ func newRunner(b Backend, t tool.Tool) *Runner {
 	return New(b, reg, redact.NewChecker(64<<10))
 }
 
-func liveGrant(g transport.Grant) transport.Grant {
-	if g.ExpiresAt.IsZero() {
-		g.ExpiresAt = time.Now().Add(time.Minute)
-	}
-	if g.CallsRemaining == 0 {
-		g.CallsRemaining = 64
-	}
-	if g.BytesRemaining == 0 {
-		g.BytesRemaining = 16 << 20
-	}
-	return g
-}
-
-func TestDispatchScopeDenied(t *testing.T) {
-	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), payload: []byte(`{"result":1}`)}
-	_, err := newRunner(b, tool.Tool{Name: "list_x", Scope: "targets"}).Dispatch(context.Background(), "g", "list_x", []byte(`{}`))
-	if !errors.Is(err, ErrScopeDenied) {
-		t.Fatalf("want ErrScopeDenied, got %v", err)
-	}
-}
-
-func TestDispatchScopeGrantedHappyPath(t *testing.T) {
-	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"list_x"}, ReadScopes: []string{"targets"}}), payload: []byte(`{"ok":1}`)}
-	out, err := newRunner(b, tool.Tool{Name: "list_x", Scope: "targets"}).Dispatch(context.Background(), "g", "list_x", []byte(`{}`))
-	if err != nil || string(out) != `{"ok":1}` {
-		t.Fatalf("happy path failed: %q %v", out, err)
-	}
-}
-
-func TestDispatchUnknownAndEmptyGrant(t *testing.T) {
-	b := fakeBackend{grant: liveGrant(transport.Grant{})}
-	r := newRunner(b, tool.Tool{Name: "list_x"})
-	if _, err := r.Dispatch(context.Background(), "", "list_x", []byte(`{}`)); !errors.Is(err, ErrToolDenied) {
-		t.Fatalf("empty grant: %v", err)
-	}
-	if _, err := r.Dispatch(context.Background(), "g", "nope", []byte(`{}`)); !errors.Is(err, ErrUnknownTool) {
-		t.Fatalf("unknown tool: %v", err)
-	}
-}
-
-func TestDispatchExpiredGrant(t *testing.T) {
-	b := fakeBackend{grant: transport.Grant{Tools: []string{"list_x"}, ExpiresAt: time.Now().Add(-time.Minute)}}
-	if _, err := newRunner(b, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); !errors.Is(err, ErrGrantExpired) {
-		t.Fatalf("want ErrGrantExpired, got %v", err)
-	}
-}
-
-func TestDispatchToolNotInGrant(t *testing.T) {
-	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"other"}})}
-	if _, err := newRunner(b, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); !errors.Is(err, ErrToolDenied) {
-		t.Fatalf("want ErrToolDenied, got %v", err)
-	}
-}
-
-func TestDispatchResourceDenied(t *testing.T) {
-	res := tool.Resource{Type: "target", ID: "denied"}
+func TestDispatchUsesOnlyTheRegisteredFixedRequestWithoutIntrospection(t *testing.T) {
+	b := &fakeBackend{payload: []byte(`{"ok":true}`)}
 	tl := tool.Tool{
-		Name:             "get_x",
-		RequiresResource: true,
-		Decode:           func([]byte) (tool.Request, error) { return tool.Request{Resource: &res}, nil },
+		Name: "list_x",
+		Decode: func(raw []byte) (tool.Request, error) {
+			if string(raw) != `{"q":"safe"}` {
+				return tool.Request{}, errors.New("unexpected input")
+			}
+			return tool.Request{Payload: "decoded"}, nil
+		},
+		BuildRequest: func(request tool.Request) (tool.Call, error) {
+			if request.Payload != "decoded" {
+				return tool.Call{}, errors.New("unexpected request")
+			}
+			return tool.Call{Method: "POST", Path: "/api/v1/assistant/machine/fixed", Body: []byte(`{"safe":true}`)}, nil
+		},
 	}
-	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"get_x"}, Resources: []tool.Resource{{Type: "target", ID: "allowed"}}})}
-	if _, err := newRunner(b, tl).Dispatch(context.Background(), "g", "get_x", []byte(`{}`)); !errors.Is(err, ErrResourceDenied) {
-		t.Fatalf("want ErrResourceDenied, got %v", err)
+
+	out, err := newRunner(b, tl).Dispatch(context.Background(), "list_x", []byte(`{"q":"safe"}`))
+	if err != nil || string(out) != `{"ok":true}` {
+		t.Fatalf("Dispatch: out=%q err=%v", out, err)
+	}
+	if b.calls != 1 || b.method != "POST" || b.path != "/api/v1/assistant/machine/fixed" || string(b.body) != `{"safe":true}` {
+		t.Fatalf("backend call=%d %s %s %s", b.calls, b.method, b.path, b.body)
 	}
 }
 
-func TestDispatchRequiresResourceButNoneDecoded(t *testing.T) {
-	tl := tool.Tool{Name: "get_x", RequiresResource: true} // Decode returns empty Request (nil resource)
-	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"get_x"}})}
-	if _, err := newRunner(b, tl).Dispatch(context.Background(), "g", "get_x", []byte(`{}`)); !errors.Is(err, ErrInvalidInput) {
-		t.Fatalf("want ErrInvalidInput, got %v", err)
+func TestDispatchRejectsUnknownInvalidAndMissingResourceBeforeBackendIO(t *testing.T) {
+	b := &fakeBackend{payload: []byte(`{}`)}
+	invalid := tool.Tool{Name: "known", Decode: func([]byte) (tool.Request, error) {
+		return tool.Request{}, errors.New("invalid")
+	}}
+	r := newRunner(b, invalid)
+	if _, err := r.Dispatch(context.Background(), "unknown", []byte(`{}`)); !errors.Is(err, ErrUnknownTool) {
+		t.Fatalf("unknown: %v", err)
+	}
+	if _, err := r.Dispatch(context.Background(), "known", []byte(`{"extra":1}`)); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("invalid: %v", err)
+	}
+
+	requires := newRunner(b, tool.Tool{Name: "resource", RequiresResource: true})
+	if _, err := requires.Dispatch(context.Background(), "resource", []byte(`{}`)); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("resource: %v", err)
+	}
+	if b.calls != 0 {
+		t.Fatalf("backend calls=%d, want zero", b.calls)
 	}
 }
 
-func TestDispatchCancellationPropagates(t *testing.T) {
-	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), doErr: context.Canceled}
-	if _, err := newRunner(b, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); !errors.Is(err, context.Canceled) {
-		t.Fatalf("want context.Canceled, got %v", err)
+func TestDispatchPropagatesCancellationAndStableHunterOutcomes(t *testing.T) {
+	cancelled := &fakeBackend{doErr: context.Canceled}
+	if _, err := newRunner(cancelled, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "list_x", []byte(`{}`)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancellation: %v", err)
 	}
-}
 
-func TestDispatchPreservesStableHunterOutcome(t *testing.T) {
-	b := fakeBackend{
-		grant: liveGrant(transport.Grant{Tools: []string{"edit_x"}}),
-		doErr: &transport.HunterError{Code: "destination_stale"},
-	}
-	_, err := newRunner(b, tool.Tool{Name: "edit_x"}).Dispatch(context.Background(), "g", "edit_x", []byte(`{}`))
+	stable := &fakeBackend{doErr: &transport.HunterError{Code: "destination_stale"}}
+	_, err := newRunner(stable, tool.Tool{Name: "edit_x"}).Dispatch(context.Background(), "edit_x", []byte(`{}`))
 	if got := PublicError(err); got != "destination_stale" {
-		t.Fatalf("PublicError = %q, want destination_stale", got)
+		t.Fatalf("PublicError=%q", got)
+	}
+
+	untrusted := &fakeBackend{doErr: errors.New("attacker controlled backend detail")}
+	_, err = newRunner(untrusted, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "list_x", []byte(`{}`))
+	if got := PublicError(err); got != "tool_response_rejected" {
+		t.Fatalf("PublicError=%q", got)
 	}
 }
 
-func TestDispatchPreservesStableGrantIntrospectionOutcome(t *testing.T) {
-	b := fakeBackend{introspectErr: &transport.HunterError{Code: "turn_grant_expired"}}
-	_, err := newRunner(b, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "g", "list_x", []byte(`{}`))
-	if got := PublicError(err); got != "turn_grant_expired" {
-		t.Fatalf("PublicError = %q, want turn_grant_expired", got)
+func TestDispatchKeepsResponseSizeRedactionAndClosedOutputValidation(t *testing.T) {
+	for name, b := range map[string]*fakeBackend{
+		"size":      {payload: make([]byte, (64<<10)+1)},
+		"sensitive": {payload: []byte(`{"authorization":"Bearer abcd1234"}`)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := newRunner(b, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "list_x", []byte(`{}`)); !errors.Is(err, ErrResponseRejected) {
+				t.Fatalf("got %v", err)
+			}
+		})
+	}
+
+	invalidOutput := &fakeBackend{payload: []byte(`{"extra":true}`)}
+	tl := tool.Tool{Name: "list_x", Validate: func([]byte) error { return errors.New("closed output") }}
+	if _, err := newRunner(invalidOutput, tl).Dispatch(context.Background(), "list_x", []byte(`{}`)); !errors.Is(err, ErrResponseRejected) {
+		t.Fatalf("validation: %v", err)
 	}
 }
 
-func TestDispatchEnforcesLocalHardCallAndByteCeilings(t *testing.T) {
-	b := fakeBackend{
-		grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), payload: []byte(`{}`),
-	}
+func TestDispatchHasNoLocalPerTurnCallState(t *testing.T) {
+	b := &fakeBackend{payload: []byte(`{}`)}
 	r := newRunner(b, tool.Tool{Name: "list_x"})
-	for range 128 {
-		if _, err := r.Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); err != nil {
-			t.Fatalf("reviewed call rejected early: %v", err)
+	for range 256 {
+		if _, err := r.Dispatch(context.Background(), "list_x", []byte(`{}`)); err != nil {
+			t.Fatalf("call rejected by local state: %v", err)
 		}
-	}
-	if _, err := r.Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); !errors.Is(err, ErrCallBudgetExhausted) {
-		t.Fatalf("hard call ceiling got %v", err)
-	}
-
-	large := fakeBackend{
-		grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), payload: make([]byte, (1<<20)+1),
-	}
-	reg := NewRegistry()
-	reg.Add(staticModule{t: passTool(tool.Tool{Name: "list_x"})})
-	largeRunner := New(large, reg, redact.NewChecker(2<<20))
-	if _, err := largeRunner.Dispatch(context.Background(), "large", "list_x", []byte(`{}`)); !errors.Is(err, ErrResponseRejected) {
-		t.Fatalf("per-call byte ceiling got %v", err)
-	}
-}
-
-func TestDispatchValidateRejection(t *testing.T) {
-	tl := tool.Tool{Name: "list_x", Validate: func([]byte) error { return errors.New("bad output") }}
-	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), payload: []byte(`{"ok":1}`)}
-	if _, err := newRunner(b, tl).Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); !errors.Is(err, ErrResponseRejected) {
-		t.Fatalf("want ErrResponseRejected, got %v", err)
-	}
-}
-
-func TestDispatchRedactionRejection(t *testing.T) {
-	b := fakeBackend{grant: liveGrant(transport.Grant{Tools: []string{"list_x"}}), payload: []byte(`{"authorization":"Bearer abcd1234"}`)}
-	if _, err := newRunner(b, tool.Tool{Name: "list_x"}).Dispatch(context.Background(), "g", "list_x", []byte(`{}`)); !errors.Is(err, ErrResponseRejected) {
-		t.Fatalf("want ErrResponseRejected on redaction, got %v", err)
 	}
 }

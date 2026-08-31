@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -12,13 +14,14 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "list_templates returns a bounded projection ordered by name" do
     template(name: "zzz-probe", kind: "cmdscript", commands: [ { "command" => "curl", "args" => [] } ])
     template(name: "aaa-probe", kind: "workflow", commands: [ { "command" => "curl", "args" => [] } ])
 
-    get "/api/v1/assistant/machine/control_center/templates", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/control_center/templates", headers: headers
 
     assert_response :success
     body = response.parsed_body
@@ -29,21 +32,20 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
     assert_equal %w[id name kind description tags lock_version created_by updated_at], item.keys
   end
 
-  test "list_templates is refused without the control_center_templates scope" do
-    grant = read_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:read_scopes, [])
+  test "list_templates is refused when its live capability is disabled" do
+    Assistant::Setting.instance.update!(disabled_capability_tools: [ "list_templates" ])
 
-    get "/api/v1/assistant/machine/control_center/templates", headers: headers(grant)
+    get "/api/v1/assistant/machine/control_center/templates", headers: headers
 
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
   test "list_templates narrows by the kind filter" do
     template(name: "a", kind: "cmdscript", commands: [ { "command" => "curl", "args" => [] } ])
     template(name: "b", kind: "workflow", commands: [ { "command" => "curl", "args" => [] } ])
 
-    get "/api/v1/assistant/machine/control_center/templates", params: { kind: "workflow" }, headers: headers(read_grant)
+    get "/api/v1/assistant/machine/control_center/templates", params: { kind: "workflow" }, headers: headers
 
     assert_response :success
     body = response.parsed_body
@@ -58,7 +60,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
       target: { "type" => "host" }, created_by: "someone"
     )
 
-    get "/api/v1/assistant/machine/control_center/templates/#{record.id}", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/control_center/templates/#{record.id}", headers: headers
 
     assert_response :success
     result = response.parsed_body["template"]
@@ -82,7 +84,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
       target: { "type" => "host", "separator" => "token=do-not-return", "unknown" => "do-not-return" }
     )
 
-    get "/api/v1/assistant/machine/control_center/templates/#{record.id}", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/control_center/templates/#{record.id}", headers: headers
 
     assert_response :success
     result = response.parsed_body["template"]
@@ -94,10 +96,9 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
   end
 
   test "get_template releases the reservation on a miss" do
-    get "/api/v1/assistant/machine/control_center/templates/999999999", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/control_center/templates/999999999", headers: headers
 
     assert_response :not_found
-    assert_equal 0, Assistant::TurnGrant.order(:id).last.reload.reserved_bytes
   end
 
   private
@@ -109,15 +110,7 @@ class Api::V1::Assistant::Machine::ControlCenter::TemplatesTest < ActionDispatch
     )
   end
 
-  def read_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created),
-      resources: [],
-      tools: [ "list_templates", "get_template" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

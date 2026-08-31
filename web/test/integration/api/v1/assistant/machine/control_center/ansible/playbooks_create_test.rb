@@ -33,6 +33,8 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
 
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     Assistant::Setting.instance.enable_control_center_write!
@@ -45,12 +47,13 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = @original_allowlist
   end
 
   test "creates a valid playbook using only an allowlisted module" do
     post "/api/v1/assistant/machine/control_center/ansible/playbooks",
-      params: { playbook: VALID_PLAYBOOK }, headers: headers(write_grant), as: :json
+      params: { playbook: VALID_PLAYBOOK }, headers: headers, as: :json
 
     assert_response :created
     body = response.parsed_body
@@ -75,7 +78,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
 
     post "/api/v1/assistant/machine/control_center/ansible/playbooks",
       params: { playbook: { name: "maximum-source", source: source } },
-      headers: headers(write_grant), as: :json
+      headers: headers, as: :json
 
     assert_response :created
     record = ControlCenter::Ansible::Playbook.find(response.parsed_body.dig("receipt", "target", "id"))
@@ -86,7 +89,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     assert_no_difference -> { ::ControlCenter::Ansible::Playbook.count } do
       post "/api/v1/assistant/machine/control_center/ansible/playbooks",
         params: { playbook: { name: "assistant-playbook", source: SHELL_YAML } },
-        headers: headers(write_grant), as: :json
+        headers: headers, as: :json
     end
 
     assert_response :unprocessable_content
@@ -98,7 +101,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     assert_no_difference -> { ::ControlCenter::Ansible::Playbook.count } do
       post "/api/v1/assistant/machine/control_center/ansible/playbooks",
         params: { playbook: { name: "assistant-playbook", source: URL_YAML } },
-        headers: headers(write_grant), as: :json
+        headers: headers, as: :json
     end
 
     assert_response :unprocessable_content
@@ -107,41 +110,36 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
   end
 
   test "returns a stable validation code for an unknown variable set" do
-    grant = write_grant
-    grant_record = Assistant::TurnGrant.order(:id).last
 
     assert_no_difference -> { ::ControlCenter::Ansible::Playbook.count } do
       post "/api/v1/assistant/machine/control_center/ansible/playbooks",
         params: { playbook: VALID_PLAYBOOK.merge(variable_set_ids: [ 9_999_999 ]) },
-        headers: headers(grant), as: :json
+        headers: headers, as: :json
     end
 
     assert_response :unprocessable_content
     assert_equal "validation_failed", response.parsed_body["error"]
     assert_equal [ "ansible_variable_set_ids_unknown" ], response.parsed_body["codes"]
-    assert_equal 0, grant_record.reload.reserved_bytes
   end
 
-  test "refuses a grant without the write scope" do
-    grant = write_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:write_scopes, [])
+  test "refuses create when the exact capability is disabled" do
+    Assistant::Setting.instance.update!(disabled_capability_tools: [ "create_ansible_playbook" ])
 
     assert_no_difference -> { ::ControlCenter::Ansible::Playbook.count } do
       post "/api/v1/assistant/machine/control_center/ansible/playbooks",
-        params: { playbook: VALID_PLAYBOOK }, headers: headers(grant), as: :json
+        params: { playbook: VALID_PLAYBOOK }, headers: headers, as: :json
     end
 
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
   test "refuses to create when the control center write toggle is off" do
-    grant = write_grant
     Assistant::Setting.instance.disable_control_center_write!(user: machine_user)
 
     assert_no_difference -> { ::ControlCenter::Ansible::Playbook.count } do
       post "/api/v1/assistant/machine/control_center/ansible/playbooks",
-        params: { playbook: VALID_PLAYBOOK }, headers: headers(grant), as: :json
+        params: { playbook: VALID_PLAYBOOK }, headers: headers, as: :json
     end
 
     assert_response :forbidden
@@ -154,15 +152,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksCreateTest <
     assistant_turns(:created).user
   end
 
-  def write_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created),
-      resources: [],
-      tools: [ "create_ansible_playbook" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

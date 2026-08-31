@@ -27,7 +27,7 @@ module Assistant
 
     module_function
 
-    def run_turn(turn:, prompt:, turn_grant: nil, poster: method(:post))
+    def run_turn(turn:, prompt:, poster: method(:post))
       return [ error_event(turn, "codex_not_configured") ] if
         ENV["ASSISTANT_CODEX_URL"].to_s.strip.empty?
 
@@ -35,7 +35,6 @@ module Assistant
         "prompt" => prompt,
         "thread_id" => turn.conversation.codex_thread_id
       }
-      request_body["turn_grant"] = turn_grant if turn_grant.present?
       body = poster.call(request_body)
 
       if body.is_a?(Hash) && body.key?("error")

@@ -33,12 +33,11 @@ module Assistant
 
     # `poster` is injectable for tests: a lambda taking the request body hash and
     # returning the parsed response hash. Defaults to the real HTTP POST.
-    def run_turn(turn:, prompt:, turn_grant: nil, poster: method(:post))
+    def run_turn(turn:, prompt:, poster: method(:post))
       url = ENV["ASSISTANT_CLAUDE_URL"].to_s
       return [ error_event(turn, "claude_not_configured") ] if url.strip.empty?
 
       request_body = { "prompt" => prompt, "session_id" => turn.conversation.claude_session_id }
-      request_body["turn_grant"] = turn_grant if turn_grant.present?
       body = poster.call(request_body)
 
       if body.is_a?(Hash) && body.key?("error")

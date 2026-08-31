@@ -13,7 +13,7 @@ func TestHTTPHandlerExposesOnlyStatusHealthAndAuthenticatedMCP(t *testing.T) {
 	mcpHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 	})
-	authenticator := auth.NewMiddleware("gateway-secret", []string{"hunter-mcp:8080"}, nil, 1024)
+	authenticator := auth.NewMiddleware("gateway-secret", 1024)
 	handler := newHTTPHandler(mcpHandler, authenticator)
 
 	health := httptest.NewRequest(http.MethodGet, "http://localhost/healthz", nil)
@@ -36,7 +36,6 @@ func TestHTTPHandlerExposesOnlyStatusHealthAndAuthenticatedMCP(t *testing.T) {
 	}
 
 	request.Header.Set("Authorization", "Bearer gateway-secret")
-	request.Header.Set("X-Hunter-Turn-Grant", "turn-grant")
 	authorized := httptest.NewRecorder()
 	handler.ServeHTTP(authorized, request)
 	if authorized.Code != http.StatusAccepted {
@@ -52,7 +51,7 @@ func TestHTTPHandlerExposesOnlyStatusHealthAndAuthenticatedMCP(t *testing.T) {
 }
 
 func TestHealthRejectsNonGETMethods(t *testing.T) {
-	handler := newHTTPHandler(http.NotFoundHandler(), auth.NewMiddleware("token", []string{"hunter-mcp:8080"}, nil, 1024))
+	handler := newHTTPHandler(http.NotFoundHandler(), auth.NewMiddleware("token", 1024))
 	request := httptest.NewRequest(http.MethodPost, "http://localhost/healthz", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)

@@ -19,7 +19,8 @@ module Api
             end
 
             complete_read_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
+              authorization_mode: machine_authorization.authorization_mode,
               catalog_version: catalog.version,
               limits: effective_limits,
               tools: tools
@@ -29,15 +30,14 @@ module Api
           private
 
           def effective_limits
-            grant = machine_grant
             {
-              calls_per_turn: grant.max_calls,
-              calls_hard_ceiling: ::Assistant::Config::HARD_LIMITS.fetch(:max_tool_calls),
-              result_bytes_per_call: grant.max_result_bytes,
-              result_bytes_per_turn: grant.max_total_bytes,
-              effects_per_turn: ::Assistant::Config.max_effects_per_turn,
+              calls_per_turn: nil,
+              calls_hard_ceiling: nil,
+              result_bytes_per_call: ::Assistant::Config.max_result_bytes,
+              result_bytes_per_turn: nil,
+              effects_per_turn: nil,
               effects_per_hour: ::Assistant::Config.max_effects_per_hour,
-              launches_per_turn: ::Assistant::Config.max_launches_per_turn,
+              launches_per_turn: nil,
               launches_per_hour: ::Assistant::Config.max_launches_per_hour
             }
           end

@@ -7,6 +7,13 @@ module Api
           # the transport ceiling must match the reviewed per-call ceiling.
           MAX_REQUEST_BYTES = ::Assistant::Config.max_result_bytes
 
+          class_attribute :turn_grant_authorization_required,
+            instance_writer: false, default: false
+
+          def self.require_turn_grant_authorization!
+            self.turn_grant_authorization_required = true
+          end
+
           skip_before_action :authenticate_api!
           skip_before_action :authorize_scope!
           skip_forgery_protection
@@ -14,7 +21,7 @@ module Api
           prepend_before_action :machine_response_headers
           prepend_before_action :limit_request_body!
           before_action :authenticate_machine_service!
-          before_action :authenticate_turn_grant!
+          before_action :authenticate_machine_authorization!
           before_action :require_machine_assistant_enabled!
 
           rescue_from ::Assistant::MachineAuthenticator::Error, with: :render_machine_auth_error
@@ -42,10 +49,18 @@ module Api
             )
           end
 
-          def authenticate_turn_grant!
-            Current.assistant_turn_grant = ::Assistant::MachineAuthenticator.authenticate_grant!(
-              raw_turn_grant
-            )
+          def authenticate_machine_authorization!
+            authorization = if self.class.turn_grant_authorization_required
+              ::Assistant::Machine::Authorization.turn_grant!(
+                service_identity: Current.assistant_service_identity,
+                raw_grant: raw_turn_grant
+              )
+            else
+              ::Assistant::Machine::Authorization.token_only!(
+                service_identity: Current.assistant_service_identity
+              )
+            end
+            Current.assistant_machine_authorization = authorization
           end
 
           def require_machine_assistant_enabled!
@@ -64,11 +79,27 @@ module Api
           end
 
           def machine_grant
-            Current.assistant_turn_grant
+            machine_authorization.grant
           end
 
           def machine_user
-            machine_grant.turn.user
+            machine_authorization.user
+          end
+
+          def machine_authorization
+            Current.assistant_machine_authorization
+          end
+
+          def machine_correlation_id
+            machine_authorization.correlation_id
+          end
+
+          def machine_audit_attributes
+            machine_authorization.audit_attributes
+          end
+
+          def machine_authorization_subject
+            machine_authorization.subject_digest
           end
 
           def require_control_center_write_enabled!(reservation)
@@ -96,7 +127,7 @@ module Api
 
       def machine_authoring_response(reservation, key:, record:, status:)
             payload = {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               key => { id: record.id, name: record.name, lock_version: record.lock_version }
             }
             reservation.complete_write!(bytes: JSON.generate(payload).bytesize)
@@ -160,19 +191,18 @@ module Api
       nil
       end
 
-      def audit_machine_authoring!(event:, operation:, target_type:, record:)
-      turn = machine_grant.turn
-      ::Assistant::Audit.record!(event: event, attributes: {
-        correlation_id: machine_grant.turn.correlation_id,
-        user_id: machine_user&.id,
-        conversation_id: turn.conversation_id,
-        turn_id: turn.id,
-        provider_profile_id: turn.provider_profile_id,
-        byte_count: request.content_length.to_i,
-        target_type: target_type,
-        target_id: record.id,
-        metadata: { operation: operation, outcome: event == "machine.create" ? "created" : "updated" }
-      })
+          def audit_machine_authoring!(event:, operation:, target_type:, record:)
+            attributes = machine_audit_attributes.deep_dup
+            attributes.merge!(
+              byte_count: request.content_length.to_i,
+              target_type: target_type,
+              target_id: record.id
+            )
+            attributes[:metadata].merge!(
+              operation: operation,
+              outcome: event == "machine.create" ? "created" : "updated"
+            )
+            ::Assistant::Audit.record!(event: event, attributes: attributes)
           end
 
           def persist_and_audit_machine_authoring(reservation:, event:, operation:, target_type:)
@@ -192,16 +222,21 @@ module Api
             context = machine_authoring_audit_context
             return unless context
 
-            ::Assistant::Audit.record!(event: "machine.#{context.fetch(:action)}_rejected", attributes: {
-              correlation_id: machine_grant&.turn&.correlation_id,
-              user_id: machine_user&.id,
+            attributes = machine_audit_attributes.deep_dup
+            attributes.merge!(
               status: "rejected",
               target_type: context.fetch(:target_type),
-              target_id: machine_authoring_target_id,
-              metadata: {
-                operation: context.fetch(:operation), outcome: "rejected", reason: reason.to_s.first(255)
-              }
-            })
+              target_id: machine_authoring_target_id
+            )
+            attributes[:metadata].merge!(
+              operation: context.fetch(:operation),
+              outcome: "rejected",
+              reason: reason.to_s.first(255)
+            )
+            ::Assistant::Audit.record!(
+              event: "machine.#{context.fetch(:action)}_rejected",
+              attributes: attributes
+            )
           end
 
           def machine_authoring_audit_context
@@ -227,8 +262,8 @@ module Api
           end
 
           def authorize_tool!(tool, scope: nil, resource_type: nil, resource_id: nil)
-            ::Assistant::Grants::Authorizer.reserve!(
-              raw_grant: raw_turn_grant,
+            ::Assistant::Machine::Authorizer.reserve!(
+              authorization: machine_authorization,
               tool: tool,
               scope: scope,
               resource_type: resource_type,
@@ -248,12 +283,16 @@ module Api
 
           def machine_idempotency_key(tool, input)
             canonical = JSON.generate(deep_sort_machine_input(input))
-            Digest::SHA256.hexdigest([ machine_grant.turn_id, tool, canonical ].join(":"))
+            Digest::SHA256.hexdigest(
+              [ machine_authorization_subject, tool, canonical ].join(":")
+            )
           end
 
           def replay_machine_action(reservation, tool:, idempotency_key:)
             receipt = ::Assistant::ActionReceipt.replay(
-              grant: machine_grant, tool: tool, idempotency_key: idempotency_key
+              authorization: machine_authorization,
+              tool: tool,
+              idempotency_key: idempotency_key
             )
             return false unless receipt
 
@@ -262,7 +301,8 @@ module Api
           end
 
           def consume_machine_effect!(reservation, launch: false)
-            action = "#{launch ? 'launch' : 'effect'}:#{machine_grant.turn_id}"
+            subject = machine_authorization.token_only? ? "token" : machine_grant.turn_id
+            action = "#{launch ? 'launch' : 'effect'}:#{subject}"
             ::Assistant::RateLimiter.consume!(user: machine_user, action: action)
             true
           rescue ::Assistant::RateLimiter::LimitExceeded => error
@@ -274,7 +314,7 @@ module Api
 
           def issue_machine_receipt(tool:, status:, target_type:, target_id:, idempotency_key:)
             ::Assistant::ActionReceipt.issue!(
-              grant: machine_grant, tool: tool, status: status,
+              authorization: machine_authorization, tool: tool, status: status,
               target_type: target_type, target_id: target_id,
               idempotency_key: idempotency_key, replayed: false
             )
@@ -282,7 +322,7 @@ module Api
 
           def complete_machine_effect!(reservation, receipt:, status: :ok)
             payload = {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               receipt: receipt
             }
             reservation.complete_write!(bytes: JSON.generate(payload).bytesize)
@@ -330,6 +370,8 @@ module Api
           end
 
           def set_grant_budget_headers
+            return if machine_authorization.token_only?
+
             grant = machine_grant.reload
             response.headers["X-Hunter-Grant-Calls-Remaining"] =
               [ grant.max_calls - grant.call_count, 0 ].max.to_s
@@ -347,6 +389,8 @@ module Api
               "turn_grant_expired"
             when "invalid_service_token"
               "invalid_service_token"
+            when "invalid_machine_principal"
+              "invalid_machine_principal"
             else
               "invalid_turn_grant"
             end

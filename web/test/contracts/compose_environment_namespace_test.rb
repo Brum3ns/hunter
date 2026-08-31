@@ -39,6 +39,10 @@ class ComposeEnvironmentNamespaceTest < Minitest::Test
       assert_match(/\A\$\{HUNTER_DB_USERNAME(?::-|\})/, web_environment.fetch("DB_USERNAME"))
       assert_match(/\A\$\{HUNTER_ASSISTANT_MCP_HUNTER_TOKEN(?::-|\})/,
         web_environment.fetch("ASSISTANT_MCP_HUNTER_TOKEN"))
+      assert_equal(
+        "${HUNTER_ASSISTANT_MCP_BIND_IP:-127.0.0.1}:${HUNTER_ASSISTANT_MCP_PORT:-8080}:8080",
+        services.fetch("hunter-mcp").fetch("ports").sole
+      )
     end
   end
 

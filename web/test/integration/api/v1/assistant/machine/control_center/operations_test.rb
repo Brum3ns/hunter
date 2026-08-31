@@ -5,6 +5,8 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
 
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     Assistant::Setting.instance.update!(control_center_write_enabled: true)
@@ -15,6 +17,7 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "validates a structured Whiterabbit template without persisting it" do
@@ -24,7 +27,7 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
     } }
     assert_no_difference -> { ControlCenter::Template.count } do
       post "/api/v1/assistant/machine/control_center/templates/validate",
-        params: body, headers: headers(grant("validate_whiterabbit_template")), as: :json
+        params: body, headers: headers, as: :json
     end
 
     assert_response :success
@@ -38,7 +41,7 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
       assert_no_difference -> { ControlCenter::Job.count } do
         post "/api/v1/assistant/machine/control_center/jobs/resolve_targets",
           params: { selections: selections, targets: [] },
-          headers: headers(grant("resolve_job_targets")), as: :json
+          headers: headers, as: :json
       end
     end
 
@@ -57,7 +60,7 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
 
     assert_enqueued_with(job: ControlCenter::SubmitJob) do
       post "/api/v1/assistant/machine/control_center/jobs", params: body,
-        headers: headers(grant("submit_whiterabbit_job")), as: :json
+        headers: headers, as: :json
     end
 
     assert_response :created
@@ -74,7 +77,7 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
     }
     stub_methods(ControlCenter::Standalone, health: health) do
       get "/api/v1/assistant/machine/control_center/health",
-        headers: headers(grant("get_control_center_health"))
+        headers: headers
     end
 
     assert_response :success
@@ -90,11 +93,7 @@ class Api::V1::Assistant::Machine::ControlCenter::OperationsTest < ActionDispatc
     assistant_turns(:created).user
   end
 
-  def grant(tool)
-    Assistant::Grants::Issuer.call(turn: assistant_turns(:created), resources: [], tools: [ tool ])
-  end
-
-  def headers(raw_grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => raw_grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

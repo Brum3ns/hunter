@@ -41,7 +41,7 @@ module Api
               rows = scope.limit(::Assistant::Machine::WorkflowAnalysis::MAX_ROWS).to_a
               payload = ::Assistant::Machine::WorkflowAnalysis.jobs(rows, count: count)
               complete_read_response!(reservation,
-                { correlation_id: machine_grant.turn.correlation_id }.merge(payload))
+                { correlation_id: machine_correlation_id }.merge(payload))
             end
 
             def resolve_targets
@@ -53,7 +53,7 @@ module Api
               attrs = input.attributes
               ::ControlCenter::TargetSelection.validate!(attrs.fetch("selections"))
               payload = {
-                correlation_id: machine_grant.turn.correlation_id,
+                correlation_id: machine_correlation_id,
                 count: ::ControlCenter::TargetSelection.count(
                   attrs.fetch("selections"), attrs.fetch("targets")
                 ),

@@ -16,12 +16,10 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
 
   test "persists direct chat authority and audit before enqueuing without resolving browser context" do
     enqueued = nil
-    raw_grant_reference = nil
     with_enabled_assistant do
       stub_methods(Assistant::Context::Resolver, find: ->(**) { flunk "direct chat resolved context" }) do
         stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
-          raw_grant_reference = attributes[:turn_grant]
-          enqueued = attributes.merge(turn_grant: attributes[:turn_grant]&.dup)
+          enqueued = attributes
           # The job is enqueued only after TurnCreator's own transaction has
           # committed, so by the time this stub runs the turn must already be
           # readable as "queued" — proving the enqueue did not happen from
@@ -50,24 +48,17 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_equal "codex", enqueued.fetch(:backend)
     assert_equal "Draft a safe probe", enqueued.fetch(:prompt)
     refute enqueued.key?(:envelope)
-    assert_equal Assistant::TurnGrant.digest(enqueued.fetch(:turn_grant)), grant.token_digest
-    assert_equal "", raw_grant_reference, "the in-memory raw grant was not cleared after enqueue"
+    refute enqueued.key?(:turn_grant)
   end
 
-  test "a Claude Code turn issues a per-turn grant and enqueues TurnJob with the raw token" do
+  test "a Claude Code turn retains legacy stored authority but enqueues no raw token" do
     profile = assistant_provider_profiles(:claude_code)
     conversation = Assistant::Conversation.start!(user: @user, provider_profile: profile)
     enqueued = nil
-    raw_grant_reference = nil
 
     with_enabled_assistant do
       stub_methods(Assistant::TurnJob, perform_later: lambda { |**attributes|
-        # `raw_grant` is cleared in TurnCreator's `ensure` right after this stub
-        # runs, before control returns to this test — dup the token now (as a
-        # real ActiveJob adapter would serialize it into the persisted job row
-        # before that clear happens) so we can still inspect its real value.
-        raw_grant_reference = attributes[:turn_grant]
-        enqueued = attributes.merge(turn_grant: attributes[:turn_grant]&.dup)
+        enqueued = attributes
       }) do
         @turn = Assistant::TurnCreator.call(
           conversation: conversation,
@@ -90,10 +81,36 @@ class Assistant::TurnCreatorTest < ActiveSupport::TestCase
     assert_equal "claude_code", enqueued.fetch(:backend)
     refute enqueued.key?(:claude)
     assert_equal "hi claude", enqueued.fetch(:prompt)
-    refute_nil enqueued.fetch(:turn_grant)
-    refute_equal enqueued.fetch(:turn_grant), grant.token_digest
-    assert_equal Assistant::TurnGrant.digest(enqueued.fetch(:turn_grant)), grant.token_digest
-    assert_equal "", raw_grant_reference, "the in-memory raw grant was not cleared after enqueue"
+    refute enqueued.key?(:turn_grant)
+  end
+
+  test "the retained legacy raw grant buffer is cleared after grantless enqueue" do
+    raw_grant_reference = nil
+    issued_digest = nil
+    original_issuer = Assistant::Grants::Issuer.method(:call)
+
+    with_enabled_assistant do
+      stub_methods(Assistant::Grants::Issuer, call: lambda { |**attributes|
+        original_issuer.call(**attributes).tap do |raw_grant|
+          raw_grant_reference = raw_grant
+          issued_digest = Assistant::TurnGrant.digest(raw_grant)
+        end
+      }) do
+        stub_methods(Assistant::TurnJob, perform_later: ->(**attributes) {
+          refute attributes.key?(:turn_grant)
+        }) do
+          @turn = Assistant::TurnCreator.call(
+            conversation: @conversation,
+            user: @user,
+            body: "clear the legacy buffer",
+            context_refs: []
+          )
+        end
+      end
+    end
+
+    assert_equal issued_digest, @turn.turn_grant.token_digest
+    assert_equal "", raw_grant_reference
   end
 
 

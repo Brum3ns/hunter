@@ -34,7 +34,7 @@ import (
 
 const healthURL = "http://127.0.0.1:8080/healthz"
 
-const hunterInstructions = "Hunter Assistant has broad administrator-equivalent operational access through this reviewed MCP catalog only. It can inspect and analyze Hunter data, create and version-edit nonsecret artifacts, resolve and submit Whiterabbit jobs, run safe Ansible utilities, launch and cancel Ansible work, and create short-lived human-owned exports. No tool reveals or accepts secrets, deletes records, changes users/tokens/providers/Assistant governance, or provides generic network, shell, filesystem, credential, request, or arbitrary API access. Every action uses a closed schema, exact non-wildcard scope, live feature gate, server-side validation, bounded budget, and metadata-only action receipt.\n\n" +
+const hunterInstructions = "Hunter Assistant has broad administrator-equivalent operational access through this reviewed MCP catalog only. A valid shared bearer authorizes every currently enabled reviewed capability for this authenticated MCP client; there is no per-turn grant budget. Per-call response and hourly effect/launch limits remain enforced. It can inspect and analyze Hunter data, create and version-edit nonsecret artifacts, resolve and submit Whiterabbit jobs, run safe Ansible utilities, launch and cancel Ansible work, and create short-lived human-owned exports. No tool reveals or accepts secrets, deletes records, changes users/tokens/providers/Assistant governance, or provides generic network, shell, filesystem, credential, request, or arbitrary API access. Every action uses a closed schema, exact non-wildcard scope, live feature gate, server-side validation, and metadata-only action receipt.\n\n" +
 	"Listing & counting: every list_* tool returns {correlation_id, count, page, limit, items[]}. `count` is the TOTAL number of matches — use it to answer \"how many\" without paging. Page with `page` (1-based) and `limit` (default and max 50; list_run_events max 100).\n\n" +
 	"Detail: the read get_* tools each take an `id`. Formats differ: get_endpoint/get_template/get_job/get_playbook/get_run_group/get_run use a positive integer; get_cve uses a CVE id like \"CVE-2024-1234\" (GHSA ids also accepted); get_vulnerability uses a Mongo ObjectId hex string; get_program uses a program sid; get_target uses an alive-target id.\n\n" +
 	"Search (the `q` field): where a tool accepts `q` it supports a dork grammar — bare words match free text; `key:value` filters a field; multiple terms AND together; quote values with spaces (\"...\"). There is no negation or wildcard operator; to exclude, use a boolean field's no/false value where one exists. Each tool's description and its `q` field description list that tool's dork keys. Examples: list_endpoints q=`path:/admin status:200`; list_programs q=`platform:hackerone bounty:yes`; list_vulnerabilities q=`severity:high status:open`. Note: list_cves `q` is a plain substring search over id/summary/details, not a dork.\n\n" +
@@ -95,16 +95,14 @@ func main() {
 			Stateless:      true,
 			JSONResponse:   true,
 			SessionTimeout: 30 * time.Second,
-			// The outer middleware performs stricter exact Host and Origin checks
-			// before the SDK. Keeping both protections enabled would reject a
-			// legitimate loopback health/conformance proxy after Host validation.
+			// The shared bearer is the application authorization boundary. Host,
+			// TLS, and source-network restrictions belong to deployment ingress,
+			// so the SDK must not recreate a localhost-only policy here.
 			DisableLocalhostProtection: true,
 		},
 	)
 	authenticator := auth.NewMiddleware(
 		settings.GatewayToken,
-		settings.AllowedHosts,
-		settings.AllowedOrigins,
 		settings.MaxRequestBytes,
 	)
 

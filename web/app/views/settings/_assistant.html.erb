@@ -6,7 +6,7 @@
   <div class="flex items-start justify-between gap-4">
     <div>
       <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Assistant</h2>
-      <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Session-only administration for the Hunter assistant. Through the reviewed Hunter MCP catalog, enabled backends have administrator-equivalent operational access. The assistant can create or edit Whiterabbit templates with any executable and, when your message requests it, submit them without another prompt. Those jobs can cause arbitrary network, filesystem, process, privilege, or destructive effects available to the Whiterabbit worker; they can also cause exfiltration of worker-accessible data. You are responsible for target authorization and requested effects. Hunter attributes and metadata-audits the actions and enforces budgets and immediate live gates. Hunter exposes no dedicated secret-value or record-delete tool through its API, no dedicated Hunter governance tool for administering users, tokens, providers, or Assistant security settings, and no generic MCP proxy. Disabling the assistant or the relevant template-write or job-submit gate prevents new actions, but does not erase saved templates or reverse completed external effects.</p>
+      <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Session-only administration for the Hunter assistant. A valid shared Hunter MCP bearer grants the full enabled operational catalog to managed runners and external clients. Token-only calls are attributed to the configured administrator but are not bound to a prompt, turn, external client, or source IP; every holder of the shared bearer is indistinguishable and has the same enabled authority. The assistant can create or edit Whiterabbit templates with any executable and, when requested, submit them without another prompt. Those jobs can cause arbitrary network, filesystem, process, privilege, destructive, or exfiltration effects available to the Whiterabbit worker. Hunter enforces closed tools, per-call and hourly limits, immediate live gates, idempotency, and metadata-only audit, but no per-turn scopes, expiry, cancellation, call budget, or total-byte budget applies to token-only MCP. Hunter exposes no secret-value, record-delete, governance, or generic MCP proxy tool. Disabling the assistant or the relevant capability gate prevents new actions, but does not reverse completed external effects.</p>
     </div>
     <span class="rounded-full px-2.5 py-1 text-xs font-medium <%= Assistant::Config.enabled? && setting.assistant_enabled? ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' %>">
       <%= Assistant::Config.enabled? && setting.assistant_enabled? ? "Enabled" : "Disabled" %>
@@ -43,10 +43,10 @@
     <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
       <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Live MCP capability controls</h3>
       <p class="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-        Selected tools, effects, and modules are disabled immediately, including for active turn grants. The model cannot change these controls. Use Ctrl/Cmd-click to select or clear individual entries.
+        Selected tools, effects, and modules are disabled immediately for every shared-bearer client. The model cannot change these controls. Use Ctrl/Cmd-click to select or clear individual entries.
       </p>
       <p class="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-        Effective defaults: <%= Assistant::Config.max_tool_calls %> tool calls, <%= Assistant::Config.max_effects_per_turn %> effects, and <%= Assistant::Config.max_launches_per_turn %> launches per turn; <%= number_to_human_size(Assistant::Config.max_result_bytes) %> per result and <%= number_to_human_size(Assistant::Config.max_total_bytes) %> total result data.
+        Token-only limits: <%= number_to_human_size(Assistant::Config.max_result_bytes) %> per result, <%= Assistant::Config.max_effects_per_hour %> effects per hour, and <%= Assistant::Config.max_launches_per_hour %> launches per hour. There is no external-client or per-turn call/total-byte budget.
       </p>
       <div class="mt-3 grid gap-3 lg:grid-cols-3">
         <label class="text-xs font-medium text-zinc-700 dark:text-zinc-300">
@@ -127,6 +127,6 @@
   </div>
 
   <div class="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-xs leading-5 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400">
-    Provider subscriptions may retain data under their own policies. Hunter retains encrypted transcripts for the configured period above, while local deletion cannot erase provider or backup copies. Every Hunter feature, including future API-backed features, remains available to these backends only through the authenticated, per-turn-authorized Hunter MCP gateway. Codex may expose its pinned provider-owned internal utility and discovery tools inside its isolated read-only service; those tools have no direct Hunter or host access.
+    Provider subscriptions may retain data under their own policies. Hunter retains encrypted transcripts for the configured period above, while local deletion cannot erase provider or backup copies. Every Hunter feature remains available only through the fixed authenticated Hunter MCP catalog. The shared client bearer is sufficient for the full currently enabled catalog without a turn grant; rotating it interrupts managed and external clients together. External exposure is an infrastructure decision: Compose has a loopback default, and WAN access requires HTTPS or an authenticated VPN plus a source-network firewall/proxy restriction to the trusted client. Network and token administration are intentionally not exposed here.
   </div>
 </section>

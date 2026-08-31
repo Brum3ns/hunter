@@ -1,10 +1,8 @@
 require "test_helper"
 
 # Task 10: a turn on the Claude Code profile is dispatched to ClaudeCodeClient
-# (no context resolution or gateway envelope) and completes. Path B (task PB2):
-# the dispatch now also issues a per-turn grant
-# and threads its raw token through to ClaudeCodeClient, so these stubs must
-# accept the `turn_grant:` keyword too.
+# (no context resolution or gateway envelope) and completes. Legacy stored
+# grants remain for confirmation/validation flows but are never transported.
 class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
   setup do
     @user = users(:one)
@@ -17,13 +15,9 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
     conv = Assistant::Conversation.start!(user: @user, provider_profile: @profile)
 
     captured = {}
-    fake = lambda do |turn:, prompt:, turn_grant: nil|
+    fake = lambda do |turn:, prompt:|
       captured[:prompt] = prompt
       captured[:turn] = turn
-      # Same object as `raw_grant` in TurnCreator, which is `.clear`-ed in its
-      # `ensure` right after this synchronous inline job finishes — dup now so
-      # the assertion below inspects the real value, not the cleared buffer.
-      captured[:turn_grant] = turn_grant&.dup
       [
         { "schema_version" => 1, "event_id" => SecureRandom.uuid, "correlation_id" => turn.correlation_id,
           "turn_id" => turn.id, "provider_profile_id" => turn.provider_profile_id,
@@ -53,12 +47,8 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
     assert_equal "hi there", captured[:prompt]
     reply = conv.messages.where(role: "assistant").order(:id).last
     assert_equal "Hello!", reply.body
-    # Path B: a grant IS now issued for the Claude Code path, and its raw token
-    # (not the digest) is what reaches ClaudeCodeClient.
     grants = Assistant::TurnGrant.where(turn_id: conv.turns.pluck(:id))
     assert_equal 1, grants.count
-    refute_nil captured[:turn_grant]
-    assert_equal Assistant::TurnGrant.digest(captured[:turn_grant]), grants.sole.token_digest
   ensure
     ActiveJob::Base.queue_adapter = :test
   end
@@ -120,8 +110,7 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
         Assistant::TurnJob.new.perform(
           turn_id: turn.id,
           backend: "claude_code",
-          prompt: "secret prompt canary",
-          turn_grant: "raw grant canary"
+          prompt: "secret prompt canary"
         )
       rescue StandardError => error
         escaped = error
@@ -134,7 +123,6 @@ class Assistant::ClaudeCodeDispatchTest < ActiveSupport::TestCase
     assert_nil escaped
     refute_includes turn.error_code, sensitive
     refute_includes turn.error_code, "secret prompt canary"
-    refute_includes turn.error_code, "raw grant canary"
   ensure
     ActiveJob::Base.queue_adapter = previous_adapter
   end

@@ -3,6 +3,8 @@ module Api
     module Assistant
       module Machine
         class ArtifactsController < BaseController
+          require_turn_grant_authorization!
+
           ARTIFACT_TYPES = %w[whiterabbit_template ansible_playbook].freeze
 
           def show
@@ -26,7 +28,7 @@ module Api
               type: params[:resource_type], record: record
             )
             complete_machine_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               artifact: artifact
             })
           rescue ::Assistant::Context::Catalog::UnsafeContentError

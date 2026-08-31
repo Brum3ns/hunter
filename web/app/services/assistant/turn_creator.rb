@@ -43,7 +43,7 @@ module Assistant
         )
       end
 
-      dispatch(turn, raw_grant)
+      dispatch(turn)
     ensure
       raw_grant&.clear
     end
@@ -122,7 +122,7 @@ module Assistant
     end
     private_class_method :disclosure_label
 
-    def dispatch(turn, raw_grant)
+    def dispatch(turn)
       backend = Assistant::ChatBackend.slug_for(turn.provider_profile)
       raise Rejected, "legacy_provider_retired" unless backend
 
@@ -144,8 +144,7 @@ module Assistant
       Assistant::TurnJob.perform_later(
         turn_id: turn.id,
         backend: backend,
-        prompt: prompt,
-        turn_grant: raw_grant
+        prompt: prompt
       )
       turn.reload
     rescue Rejected => error

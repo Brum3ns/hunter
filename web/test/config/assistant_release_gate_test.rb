@@ -31,6 +31,7 @@ class AssistantReleaseGateTest < Minitest::Test
     assert_includes script, "assistant-claude"
     assert_includes script, "assert_connects assistant-codex hunter-mcp 8080"
     assert_includes script, "assert_connects assistant-claude hunter-mcp 8080"
+    assert_includes script, "assert_host_mcp_listener_if_reachable"
   end
 
   def test_compose_security_gate_checks_active_direct_seccomp_profiles
@@ -39,6 +40,9 @@ class AssistantReleaseGateTest < Minitest::Test
     assert_includes script, '"assistant-codex" => "codex"'
     assert_includes script, '"assistant-claude" => "claude"'
     assert_includes script, '"hunter-mcp" => "mcp"'
+    assert_includes script, 'HUNTER_ASSISTANT_MCP_BIND_IP'
+    assert_includes script, 'HUNTER_ASSISTANT_MCP_PORT'
+    assert_includes script, 'hunter-mcp must publish exactly one TCP listener'
   end
 
   def test_secret_gate_does_not_print_secret_values
@@ -112,5 +116,36 @@ class AssistantReleaseGateTest < Minitest::Test
       assert_includes direct_runbook, term.tr("\\", "")
     end
     assert_includes direct_runbook, "Never run `docker compose down -v`"
+  end
+
+  def test_token_only_external_mcp_risk_and_operator_path_are_disclosed
+    agents = ROOT.join("AGENTS.md").read
+    checklist = ROOT.join("docs/security/hunter-assistant-production-checklist.md").read
+    settings = ROOT.join("web/app/views/settings/_assistant.html.erb").read
+    runbook = ROOT.join("docs/runbooks/assistant-codex-mcp-smoke-test.md").read
+    broker_readme = ROOT.join("assistant/mcp/README.md").read
+    root_readme = ROOT.join("README.md").read
+
+    assert_includes agents, "Token-only external Hunter MCP access"
+    assert_includes agents, "2026-08-27-assistant-token-only-external-mcp-design.md"
+    assert_includes checklist, "shared-client indistinguishability"
+    assert_includes checklist, "shared token rotation impact"
+    assert_includes settings, "full enabled operational catalog"
+    assert_includes settings, "not bound to a prompt, turn, external client, or source IP"
+
+    %w[HUNTER_MCP_TOKEN].each do |term|
+      assert_includes runbook, term
+    end
+    assert_includes runbook, "codex mcp add hunter"
+    assert_includes runbook, "codex mcp get hunter"
+    assert_includes runbook, "codex mcp list"
+    assert_includes runbook, "HUNTER_ASSISTANT_MCP_HUNTER_TOKEN"
+
+    [ checklist, runbook, broker_readme, root_readme ].each do |document|
+      assert_includes document, "token-only external MCP"
+      assert_includes document, "loopback default"
+      assert_includes document, "HTTPS or authenticated VPN"
+      assert_includes document, "source-network firewall/proxy restriction"
+    end
   end
 end

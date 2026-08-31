@@ -98,6 +98,38 @@ class Assistant::RateLimiterTest < ActiveSupport::TestCase
     end
   end
 
+  test "token-only effects consume only the shared hourly effect window" do
+    now = Time.zone.parse("2026-08-19 12:34:30 UTC")
+
+    with_limits(max_effects_per_hour: 2) do
+      2.times do
+        Assistant::RateLimiter.consume!(user: users(:one), action: "effect:token", now: now)
+      end
+      error = assert_raises(Assistant::RateLimiter::LimitExceeded) do
+        Assistant::RateLimiter.consume!(user: users(:one), action: "effect:token", now: now)
+      end
+      assert_equal "effect_rate_limited", error.code
+    end
+
+    assert_equal [ "effect.hour" ],
+      Assistant::RateLimitBucket.where(user: users(:one)).pluck(:action)
+  end
+
+  test "token-only launches consume hourly effect and launch windows without turn buckets" do
+    now = Time.zone.parse("2026-08-19 12:34:30 UTC")
+
+    with_limits(max_effects_per_hour: 10, max_launches_per_hour: 1) do
+      Assistant::RateLimiter.consume!(user: users(:one), action: "launch:token", now: now)
+      error = assert_raises(Assistant::RateLimiter::LimitExceeded) do
+        Assistant::RateLimiter.consume!(user: users(:one), action: "launch:token", now: now)
+      end
+      assert_equal "effect_rate_limited", error.code
+    end
+
+    assert_equal [ "effect.hour", "launch.hour" ],
+      Assistant::RateLimitBucket.where(user: users(:one)).order(:action).pluck(:action)
+  end
+
   test "hour limits roll the rejected minute increment back" do
     now = Time.zone.parse("2026-07-26 12:34:30 UTC")
 

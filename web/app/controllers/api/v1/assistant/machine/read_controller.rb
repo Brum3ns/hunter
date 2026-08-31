@@ -20,14 +20,14 @@ module Api
 
           def list_response(reservation, count:, page:, limit:, items:)
             complete_read_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               count: count, page: page, limit: limit, items: items
             })
           end
 
           def detail_response(reservation, key:, value:)
             complete_read_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               key => value
             })
           end

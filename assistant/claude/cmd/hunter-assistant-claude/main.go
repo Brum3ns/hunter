@@ -115,10 +115,6 @@ func newHealthHandler() http.Handler {
 type chatRequestBody struct {
 	Prompt    string  `json:"prompt"`
 	SessionID *string `json:"session_id"`
-	// TurnGrant is the per-turn credential Rails issues (Issuer.call). It is
-	// optional: an absent or empty grant simply disables MCP for the turn
-	// (see chat.buildInvocation), it is never treated as a request error.
-	TurnGrant *string `json:"turn_grant"`
 }
 
 type chatResponseBody struct {
@@ -168,7 +164,7 @@ func newChatHandler(token string, allowedHosts []string, claudeBin string, mcpCf
 			return
 		}
 		var body chatRequestBody
-		if err := json.Unmarshal(payload, &body); err != nil || strings.TrimSpace(body.Prompt) == "" {
+		if !decodeExactJSON(payload, &body) || strings.TrimSpace(body.Prompt) == "" {
 			writeCode(response, http.StatusBadRequest, "invalid_request")
 			return
 		}
@@ -176,12 +172,7 @@ func newChatHandler(token string, allowedHosts []string, claudeBin string, mcpCf
 		if body.SessionID != nil {
 			sessionID = *body.SessionID
 		}
-		var turnGrant string
-		if body.TurnGrant != nil {
-			turnGrant = *body.TurnGrant
-		}
-
-		result, err := chat.Run(request.Context(), claudeBin, mcpCfg, chat.Request{Prompt: body.Prompt, SessionID: sessionID, TurnGrant: turnGrant})
+		result, err := chat.Run(request.Context(), claudeBin, mcpCfg, chat.Request{Prompt: body.Prompt, SessionID: sessionID})
 		if err != nil {
 			status, code := mapChatError(err)
 			writeCode(response, status, code)
@@ -192,6 +183,15 @@ func newChatHandler(token string, allowedHosts []string, claudeBin string, mcpCf
 		response.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(response).Encode(chatResponseBody{SessionID: result.SessionID, Reply: result.Reply})
 	})
+}
+
+func decodeExactJSON(payload []byte, destination any) bool {
+	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		return false
+	}
+	return decoder.Decode(&struct{}{}) == io.EOF
 }
 
 // mapChatError turns a chat.Run error into the stable code Rails matches on

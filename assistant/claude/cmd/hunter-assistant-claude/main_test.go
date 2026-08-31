@@ -116,6 +116,18 @@ func TestChatRejectsEmptyPrompt(t *testing.T) {
 	}
 }
 
+func TestChatRejectsRetiredTurnGrantField(t *testing.T) {
+	h := newChatHandler("tok", []string{"assistant-claude:8083"}, "true", chat.Config{})
+	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi","turn_grant":"grant-secret"}`))
+	r.Host = "assistant-claude:8083"
+	r.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // fakeClaude writes a fake `claude` script that prints out and exits rc,
 // mirroring internal/chat's test helper so the handler can be driven
 // end-to-end without the real CLI.
@@ -245,14 +257,13 @@ func fakeClaudeCapturingArgs(t *testing.T) (bin string, argsFile string) {
 	return bin, argsFile
 }
 
-// TestChatUsesMCPConfigWhenGrantProvided proves the handler threads a
-// request's turn_grant field, together with the configured MCP settings,
-// all the way down into the argv the CLI actually runs with.
-func TestChatUsesMCPConfigWhenGrantProvided(t *testing.T) {
+// TestChatUsesMCPConfigWithBearerOnly proves a request needs no second
+// per-turn credential to expose the reviewed Hunter MCP tools to the CLI.
+func TestChatUsesMCPConfigWithBearerOnly(t *testing.T) {
 	bin, argsFile := fakeClaudeCapturingArgs(t)
 	cfg := chat.Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok", AllowedTools: []string{"mcp__hunter__list_targets"}}
 	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin, cfg)
-	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi","turn_grant":"grant-abc"}`))
+	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`))
 	r.Host = "assistant-claude:8083"
 	r.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
@@ -267,31 +278,6 @@ func TestChatUsesMCPConfigWhenGrantProvided(t *testing.T) {
 	}
 	if !strings.Contains(string(captured), "--mcp-config") || !strings.Contains(string(captured), "--strict-mcp-config") {
 		t.Fatalf("want mcp-config args, got %s", captured)
-	}
-}
-
-// TestChatFallsBackWithoutTurnGrant proves that, even with MCP fully
-// configured, a request that omits turn_grant never reaches the CLI with an
-// MCP config — matching buildInvocation's own fallback rule.
-func TestChatFallsBackWithoutTurnGrant(t *testing.T) {
-	bin, argsFile := fakeClaudeCapturingArgs(t)
-	cfg := chat.Config{MCPURL: "http://hunter-mcp:8080/mcp", MCPToken: "tok", AllowedTools: []string{"mcp__hunter__list_targets"}}
-	h := newChatHandler("tok", []string{"assistant-claude:8083"}, bin, cfg)
-	r := httptest.NewRequest("POST", "http://assistant-claude:8083/chat", strings.NewReader(`{"prompt":"hi"}`)) // no turn_grant
-	r.Host = "assistant-claude:8083"
-	r.Header.Set("Authorization", "Bearer tok")
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, r)
-	if w.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	captured, err := os.ReadFile(argsFile)
-	if err != nil {
-		t.Fatalf("read captured args: %v", err)
-	}
-	if strings.Contains(string(captured), "--mcp-config") {
-		t.Fatalf("want no mcp-config without a turn grant, got %s", captured)
 	}
 }
 

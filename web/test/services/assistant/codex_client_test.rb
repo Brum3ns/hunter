@@ -35,7 +35,7 @@ class Assistant::CodexClientTest < ActiveSupport::TestCase
     end
   end
 
-  test "resume and grant are sent only from persisted server state" do
+  test "request body contains only prompt and persisted resume state" do
     with_codex_env do
       @turn.conversation.update!(codex_thread_id: "thr_old")
       seen = nil
@@ -43,7 +43,6 @@ class Assistant::CodexClientTest < ActiveSupport::TestCase
       Assistant::CodexClient.run_turn(
         turn: @turn,
         prompt: "again",
-        turn_grant: "raw",
         poster: lambda { |body|
           seen = body
           { "thread_id" => "thr_old", "reply" => "ok" }
@@ -51,13 +50,13 @@ class Assistant::CodexClientTest < ActiveSupport::TestCase
       )
 
       assert_equal(
-        { "prompt" => "again", "thread_id" => "thr_old", "turn_grant" => "raw" },
+        { "prompt" => "again", "thread_id" => "thr_old" },
         seen
       )
     end
   end
 
-  test "an absent grant is omitted from the service request" do
+  test "new turns send the exact grantless request body" do
     with_codex_env do
       seen = nil
 

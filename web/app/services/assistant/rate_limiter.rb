@@ -23,6 +23,11 @@ module Assistant
         when "turn_start" then consume_turn_start!(user, now.in_time_zone)
         when "create" then consume_create!(user, now.in_time_zone)
         when "edit" then consume_edit!(user, now.in_time_zone)
+        when "effect:token"
+          consume_effect_hour!(user, now.in_time_zone)
+        when "launch:token"
+          consume_effect_hour!(user, now.in_time_zone)
+          consume_launch_hour!(user, now.in_time_zone)
         when /\Aeffect:(\d+)\z/
           consume_effect!(user, Regexp.last_match(1), now.in_time_zone)
         when /\Alaunch:(\d+)\z/
@@ -111,6 +116,11 @@ module Assistant
         code: "effect_rate_limited",
         retry_after: ->(_start) { [ (turn.created_at + Assistant::Config.grant_ttl - now).ceil, 1 ].max }
       )
+      consume_effect_hour!(user, now)
+    end
+    private_class_method :consume_effect!
+
+    def consume_effect_hour!(user, now)
       consume_window!(
         user: user,
         action: "effect.hour",
@@ -120,7 +130,7 @@ module Assistant
         retry_after: ->(start) { (start + 1.hour - now).ceil }
       )
     end
-    private_class_method :consume_effect!
+    private_class_method :consume_effect_hour!
 
     def consume_launch!(user, turn_id, now)
       turn = rate_limit_turn!(user, turn_id)
@@ -132,6 +142,11 @@ module Assistant
         code: "effect_rate_limited",
         retry_after: ->(_start) { [ (turn.created_at + Assistant::Config.grant_ttl - now).ceil, 1 ].max }
       )
+      consume_launch_hour!(user, now)
+    end
+    private_class_method :consume_launch!
+
+    def consume_launch_hour!(user, now)
       consume_window!(
         user: user,
         action: "launch.hour",
@@ -141,7 +156,7 @@ module Assistant
         retry_after: ->(start) { (start + 1.hour - now).ceil }
       )
     end
-    private_class_method :consume_launch!
+    private_class_method :consume_launch_hour!
 
     def rate_limit_turn!(user, turn_id)
       turn = Assistant::Turn.where(user: user).find_by(id: turn_id)

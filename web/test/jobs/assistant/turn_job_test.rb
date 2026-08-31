@@ -79,7 +79,7 @@ class Assistant::TurnJobTest < Minitest::Test
     assert_equal 0, calls
   end
 
-  def test_enqueue_logging_never_includes_the_prompt_or_raw_turn_grant
+  def test_enqueue_logging_never_includes_the_prompt
     log_output = StringIO.new
     previous_logger = ActiveJob::Base.logger
     ActiveJob::Base.logger = ActiveSupport::TaggedLogging.new(ActiveSupport::Logger.new(log_output))
@@ -87,13 +87,12 @@ class Assistant::TurnJobTest < Minitest::Test
     Assistant::TurnJob.perform_later(
       turn_id: @turn.id,
       backend: "codex",
-      prompt: "logging-canary-secret-prompt",
-      turn_grant: "logging-canary-secret-grant"
+      prompt: "logging-canary-secret-prompt"
     )
 
     assert_includes log_output.string, "Enqueued Assistant::TurnJob"
     refute_includes log_output.string, "logging-canary-secret-prompt"
-    refute_includes log_output.string, "logging-canary-secret-grant"
+    refute_includes enqueued_jobs.sole.fetch(:args).to_json, "turn_grant"
   ensure
     ActiveJob::Base.logger = previous_logger
   end
@@ -180,9 +179,9 @@ class Assistant::TurnJobTest < Minitest::Test
         run_turn: ->(**) { flunk "a Codex job reached Claude Code" }) do
         stub_methods(Assistant::CodexClient, run_turn: lambda { |**attributes|
           calls += 1
+          assert_equal %i[prompt turn], attributes.keys.sort
           assert_equal @turn, attributes.fetch(:turn)
           assert_equal "persisted prompt", attributes.fetch(:prompt)
-          assert_equal "raw grant", attributes.fetch(:turn_grant)
           events
         }) do
           stub_methods(Assistant::EventIngestor,
@@ -192,8 +191,7 @@ class Assistant::TurnJobTest < Minitest::Test
                 Assistant::TurnJob.new.perform(
                   turn_id: @turn.id,
                   backend: "codex",
-                  prompt: "persisted prompt",
-                  turn_grant: "raw grant"
+                  prompt: "persisted prompt"
                 )
               end
             end
@@ -217,9 +215,9 @@ class Assistant::TurnJobTest < Minitest::Test
         run_turn: ->(**) { flunk "a Claude Code job reached Codex" }) do
         stub_methods(Assistant::ClaudeCodeClient, run_turn: lambda { |**attributes|
           calls += 1
+          assert_equal %i[prompt turn], attributes.keys.sort
           assert_equal @turn, attributes.fetch(:turn)
           assert_equal "persisted prompt", attributes.fetch(:prompt)
-          assert_equal "raw grant", attributes.fetch(:turn_grant)
           events
         }) do
           stub_methods(Assistant::EventIngestor,
@@ -229,8 +227,7 @@ class Assistant::TurnJobTest < Minitest::Test
                 Assistant::TurnJob.new.perform(
                   turn_id: @turn.id,
                   backend: "claude_code",
-                  prompt: "persisted prompt",
-                  turn_grant: "raw grant"
+                  prompt: "persisted prompt"
                 )
               end
             end
@@ -259,8 +256,7 @@ class Assistant::TurnJobTest < Minitest::Test
                 Assistant::TurnJob.new.perform(
                   turn_id: @turn.id,
                   backend: "../../gateway",
-                  prompt: "secret prompt",
-                  turn_grant: "secret grant"
+                  prompt: "secret prompt"
                 )
               end
             end
@@ -273,7 +269,6 @@ class Assistant::TurnJobTest < Minitest::Test
     assert_equal "assistant_backend_invalid", ingested.first.dig("data", "code")
     refute_includes ingested.to_json, "../../gateway"
     refute_includes ingested.to_json, "secret prompt"
-    refute_includes ingested.to_json, "secret grant"
   end
 
   def test_empty_direct_responses_use_closed_backend_error_codes
@@ -289,7 +284,7 @@ class Assistant::TurnJobTest < Minitest::Test
           find_turn_returning(@turn) do
             without_real_transactions do
               Assistant::TurnJob.new.perform(
-                turn_id: @turn.id, backend: backend, prompt: "prompt", turn_grant: "grant"
+                turn_id: @turn.id, backend: backend, prompt: "prompt"
               )
             end
           end

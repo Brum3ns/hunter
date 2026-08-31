@@ -20,8 +20,6 @@ type Config struct {
 	GatewayToken       string
 	HunterServiceToken string
 	HunterBaseURL      string
-	AllowedHosts       []string
-	AllowedOrigins     []string
 	MaxRequestBytes    int64
 	MaxResponseBytes   int64
 	RequestTimeout     time.Duration
@@ -47,8 +45,6 @@ func Load() (Config, error) {
 		GatewayToken:       gatewayToken,
 		HunterServiceToken: hunterToken,
 		HunterBaseURL:      baseURL,
-		AllowedHosts:       splitList(envOr("ASSISTANT_MCP_ALLOWED_HOSTS", "hunter-mcp:8080")),
-		AllowedOrigins:     splitList(os.Getenv("ASSISTANT_MCP_ALLOWED_ORIGINS")),
 		MaxRequestBytes:    1 << 20,
 		MaxResponseBytes:   1 << 20,
 		RequestTimeout:     15 * time.Second,

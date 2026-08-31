@@ -44,7 +44,7 @@ module Api
             rows = scope.order(:id).limit(::Assistant::Machine::WorkflowAnalysis::MAX_ROWS).to_a
             payload = ::Assistant::Machine::WorkflowAnalysis.endpoints(rows, count: count)
             complete_read_response!(reservation,
-              { correlation_id: machine_grant.turn.correlation_id }.merge(payload))
+              { correlation_id: machine_correlation_id }.merge(payload))
           end
 
           private

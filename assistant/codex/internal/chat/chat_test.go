@@ -76,27 +76,33 @@ func TestBuildInvocationUsesExactHardenedArgvForNewAndResumedTurns(t *testing.T)
 	}
 }
 
-func TestBuildInvocationKeepsCredentialsAndGrantOutOfArgv(t *testing.T) {
+func TestBuildInvocationUsesBearerOnlyMCPConfiguration(t *testing.T) {
 	cfg := Config{
 		CodexHome:    "/home/codex/.codex",
 		MCPURL:       "http://hunter-mcp:8080/mcp",
 		MCPToken:     "mcp-secret-xyz",
 		AllowedTools: []string{"list_targets", "get_target"},
 	}
-	req := Request{Prompt: "hello", TurnGrant: "turn-grant-xyz"}
+	req := Request{Prompt: "hello"}
 
 	got := buildInvocation(cfg, req)
 	joinedArgs := strings.Join(got.Args, "\x00")
-	for _, secret := range []string{cfg.MCPToken, req.TurnGrant} {
-		if strings.Contains(joinedArgs, secret) {
-			t.Fatalf("secret %q appeared in argv", secret)
-		}
+	if strings.Contains(joinedArgs, cfg.MCPToken) {
+		t.Fatalf("MCP bearer appeared in argv")
+	}
+	if !slices.Contains(got.Args, `mcp_servers.hunter.bearer_token_env_var="HUNTER_MCP_TOKEN"`) {
+		t.Fatalf("bearer-token environment setting missing from argv: %#v", got.Args)
+	}
+	if strings.Contains(joinedArgs, "env_http_headers") || strings.Contains(joinedArgs, "X-Hunter-Turn-Grant") {
+		t.Fatalf("turn-grant HTTP configuration appeared in argv: %#v", got.Args)
 	}
 	if !slices.Contains(got.Env, "HUNTER_MCP_TOKEN=mcp-secret-xyz") {
 		t.Fatalf("MCP credential missing from explicit child env: %#v", got.Env)
 	}
-	if !slices.Contains(got.Env, "HUNTER_TURN_GRANT=turn-grant-xyz") {
-		t.Fatalf("turn grant missing from explicit child env: %#v", got.Env)
+	for _, entry := range got.Env {
+		if strings.HasPrefix(entry, "HUNTER_TURN_GRANT=") {
+			t.Fatalf("turn grant present in explicit child env: %#v", got.Env)
+		}
 	}
 	for _, inherited := range []string{"OPENAI_API_KEY=", "CODEX_API_KEY="} {
 		for _, entry := range got.Env {
@@ -104,6 +110,34 @@ func TestBuildInvocationKeepsCredentialsAndGrantOutOfArgv(t *testing.T) {
 				t.Fatalf("API-key login variable %q present in explicit child env", entry)
 			}
 		}
+	}
+}
+
+func TestBuildInvocationEnablesMCPOnlyForCompleteBearerConfiguration(t *testing.T) {
+	complete := Config{
+		MCPURL:       "http://hunter-mcp:8080/mcp",
+		MCPToken:     "mcp-secret-xyz",
+		AllowedTools: []string{"list_targets"},
+	}
+	tests := []struct {
+		name string
+		cfg  Config
+		want bool
+	}{
+		{name: "complete", cfg: complete, want: true},
+		{name: "missing URL", cfg: Config{MCPToken: complete.MCPToken, AllowedTools: complete.AllowedTools}},
+		{name: "missing bearer", cfg: Config{MCPURL: complete.MCPURL, AllowedTools: complete.AllowedTools}},
+		{name: "missing tools", cfg: Config{MCPURL: complete.MCPURL, MCPToken: complete.MCPToken}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := buildInvocation(test.cfg, Request{Prompt: "hello"})
+			enabled := slices.Contains(got.Args, `mcp_servers.hunter.required=true`)
+			if enabled != test.want {
+				t.Fatalf("MCP enabled = %v, want %v; argv: %#v", enabled, test.want, got.Args)
+			}
+		})
 	}
 }
 

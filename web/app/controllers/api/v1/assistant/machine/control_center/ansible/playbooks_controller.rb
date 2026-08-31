@@ -42,7 +42,7 @@ module Api
                 count = scope.count
                 rows = scope.limit(::Assistant::Machine::WorkflowAnalysis::MAX_ROWS).to_a
                 complete_machine_response!(reservation, {
-                  correlation_id: machine_grant.turn.correlation_id
+                  correlation_id: machine_correlation_id
                 }.merge(::Assistant::Machine::WorkflowAnalysis.playbooks(rows, count: count)))
               end
 
@@ -56,7 +56,7 @@ module Api
                 end
                 result = ::Assistant::DraftValidation::AnsibleStatic.call(source)
                 complete_machine_response!(reservation, {
-                  correlation_id: machine_grant.turn.correlation_id,
+                  correlation_id: machine_correlation_id,
                   valid: result.valid?, codes: result.codes
                 })
               end
@@ -74,7 +74,9 @@ module Api
                 end
                 idempotency_key = machine_idempotency_key(tool, ids: ids)
                 replay = ::Assistant::ActionReceipt.replay(
-                  grant: machine_grant, tool: tool, idempotency_key: idempotency_key
+                  authorization: machine_authorization,
+                  tool: tool,
+                  idempotency_key: idempotency_key
                 )
                 if replay
                   artifact = ::Assistant::ExportArtifact.find_by(id: replay.dig("target", "id"), user: machine_user)
@@ -184,7 +186,7 @@ module Api
         def complete_export_response(reservation, receipt, artifact, status: :ok)
         return machine_not_found(reservation) unless artifact
         payload = {
-          correlation_id: machine_grant.turn.correlation_id,
+          correlation_id: machine_correlation_id,
           receipt: receipt.merge("artifact" => artifact.safe_metadata)
         }
         reservation.complete_write!(bytes: JSON.generate(payload).bytesize)

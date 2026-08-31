@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"hunter.local/assistant/mcp/internal/auth"
 )
 
 // Register binds every registry tool to the MCP server, routing calls through
@@ -20,7 +19,7 @@ func Register(server *mcp.Server, r *Runner) {
 			InputSchema:  definition.InputSchema,
 			OutputSchema: definition.OutputSchema,
 		}, func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			payload, err := r.Dispatch(ctx, auth.GrantFromContext(ctx), definition.Name, request.Params.Arguments)
+			payload, err := r.Dispatch(ctx, definition.Name, request.Params.Arguments)
 			if err != nil {
 				return &mcp.CallToolResult{
 					Content: []mcp.Content{&mcp.TextContent{Text: PublicError(err)}},
@@ -66,18 +65,8 @@ func PublicError(err error) string {
 		return "unknown_tool"
 	case errors.Is(err, ErrInvalidInput):
 		return "invalid_tool_input"
-	case errors.Is(err, ErrResourceDenied):
-		return "scope_not_granted"
-	case errors.Is(err, ErrScopeDenied):
-		return "scope_not_granted"
-	case errors.Is(err, ErrCallBudgetExhausted):
-		return "turn_call_budget_exhausted"
-	case errors.Is(err, ErrGrantExpired):
-		return "turn_grant_expired"
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return "tool_call_cancelled"
-	case errors.Is(err, ErrToolDenied):
-		return "scope_not_granted"
 	default:
 		return "tool_response_rejected"
 	}

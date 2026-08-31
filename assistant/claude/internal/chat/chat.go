@@ -38,11 +38,6 @@ type Config struct {
 type Request struct {
 	Prompt    string
 	SessionID string
-	// TurnGrant is the per-turn credential Rails issues for this turn
-	// (Issuer.call); it is presented to hunter-mcp as X-Hunter-Turn-Grant. A
-	// missing or malformed grant disables MCP for the turn — it never causes
-	// an unauthenticated MCP config to be written (see validGrant).
-	TurnGrant string
 }
 
 type Response struct {
@@ -69,17 +64,15 @@ type mcpServerConfig struct {
 	Headers map[string]string `json:"headers"`
 }
 
-// buildInvocation assembles the claude CLI argv and, when MCP is enabled for
-// this turn, writes the per-request --mcp-config file next to it. Given the
+// buildInvocation assembles the claude CLI argv and, when MCP is enabled,
+// writes the per-request --mcp-config file next to it. Given the
 // same cfg/req it always produces the same argv shape; the only side effect
 // is that one temp file, and the returned cleanup always removes exactly
 // that file (or is a no-op when none was written).
 //
-// MCP is enabled only when cfg.MCPURL is set AND req.TurnGrant passes
-// validGrant. A missing or malformed grant is not an error: buildInvocation
-// silently falls back to the no-MCP argv, because writing an MCP config
-// without a valid grant would hand the CLI an unauthenticated path to
-// hunter-mcp — the one thing this function must never do.
+// MCP is enabled only when its URL, bearer, and reviewed tool list are all
+// configured. An incomplete configuration silently falls back to the no-MCP
+// argv and never writes a credential-bearing temporary file.
 func buildInvocation(cfg Config, req Request) (args []string, mcpConfigPath string, cleanup func(), err error) {
 	noop := func() {}
 
@@ -88,7 +81,7 @@ func buildInvocation(cfg Config, req Request) (args []string, mcpConfigPath stri
 		args = append(args, "--resume", req.SessionID)
 	}
 
-	if cfg.MCPURL == "" || !validGrant(req.TurnGrant) {
+	if cfg.MCPURL == "" || cfg.MCPToken == "" || len(cfg.AllowedTools) == 0 {
 		args = append(args, "--allowedTools", "")
 		return args, "", noop, nil
 	}
@@ -99,8 +92,7 @@ func buildInvocation(cfg Config, req Request) (args []string, mcpConfigPath stri
 				Type: "http",
 				URL:  cfg.MCPURL,
 				Headers: map[string]string{
-					"Authorization":       "Bearer " + cfg.MCPToken,
-					"X-Hunter-Turn-Grant": req.TurnGrant,
+					"Authorization": "Bearer " + cfg.MCPToken,
 				},
 			},
 		},
@@ -143,16 +135,6 @@ func buildInvocation(cfg Config, req Request) (args []string, mcpConfigPath stri
 	}
 	args = append(args, "--mcp-config", path, "--strict-mcp-config", "--allowedTools", strings.Join(cfg.AllowedTools, " "))
 	return args, path, cleanup, nil
-}
-
-// validGrant mirrors the MCP gateway's own rule
-// (assistant/mcp/internal/auth/middleware.go's validGrant) so both sides of
-// the trust boundary agree on what a well-formed grant looks like.
-func validGrant(grant string) bool {
-	if len(grant) == 0 || len(grant) > 1024 {
-		return false
-	}
-	return !strings.ContainsAny(grant, "\x00\r\n\t ")
 }
 
 func Run(ctx context.Context, bin string, cfg Config, req Request) (Response, error) {

@@ -28,16 +28,17 @@ class Settings::AssistantTest < ActionDispatch::IntegrationTest
     assert_select "select[name='settings[disabled_capability_tools][]'] option", count: 70
     assert_select "select[name='settings[disabled_capability_effects][]'] option"
     assert_select "select[name='settings[disabled_capability_modules][]'] option"
-    assert_includes response.body, "including for active turn grants"
-    assert_includes response.body, "64 tool calls"
-    assert_includes response.body, "administrator-equivalent operational access"
+    assert_includes response.body, "full enabled operational catalog"
+    assert_includes response.body, "not bound to a prompt, turn, external client, or source IP"
+    assert_includes response.body, "Token-only limits"
+    assert_includes response.body, "effects per hour"
+    assert_includes response.body, "launches per hour"
     assert_includes response.body, "rename and reorder"
     assert_includes response.body, "any executable"
     assert_includes response.body, "destructive effects"
     assert_includes response.body, "exfiltration"
     assert_includes response.body, "Whiterabbit worker"
-    assert_includes response.body, "no dedicated secret-value or record-delete tool"
-    assert_includes response.body, "no dedicated Hunter governance tool"
+    assert_includes response.body, "no secret-value, record-delete, governance, or generic MCP proxy tool"
     assert_select "section#assistant article[data-assistant-backend]", count: 2
     assert_select "section#assistant article[data-assistant-backend='codex']", text: /OpenAI/
     assert_select "section#assistant article[data-assistant-backend='claude_code']", text: /Anthropic/
@@ -45,9 +46,10 @@ class Settings::AssistantTest < ActionDispatch::IntegrationTest
     assert_select "section#assistant article[data-assistant-backend='claude_code'] img[src*='assistant/anthropic']"
     assert_includes response.body, "codex login --device-auth"
     assert_includes response.body, "claude login"
-    assert_includes response.body, "Hunter MCP gateway"
-    assert_includes response.body, "provider-owned internal utility and discovery tools"
-    assert_includes response.body, "no direct Hunter or host access"
+    assert_includes response.body, "fixed authenticated Hunter MCP catalog"
+    assert_includes response.body, "loopback default"
+    assert_includes response.body, "HTTPS or an authenticated VPN"
+    assert_includes response.body, "source-network firewall/proxy restriction"
     assert_includes response.body, "subscription"
     assert_includes response.body, "API-key provider profiles are retired"
     assert_select "section#assistant form[action='/api/v1/assistant/provider_profiles']", count: 0

@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunsTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -12,6 +14,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunsTest < ActionDisp
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "get_run returns the full projection, excluding secret snapshot fields" do
@@ -27,7 +30,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunsTest < ActionDisp
       status: "succeeded", exit_status: 0
     )
 
-    get "/api/v1/assistant/machine/control_center/ansible/runs/#{record.id}", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/control_center/ansible/runs/#{record.id}", headers: headers
 
     assert_response :success
     result = response.parsed_body["run"]
@@ -49,22 +52,20 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunsTest < ActionDisp
     refute_match(/hosts: workers/, response.body)
   end
 
-  test "get_run is refused without the control_center_ansible scope" do
+  test "get_run is refused when its live capability is disabled" do
     record = run_record
-    grant = read_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:read_scopes, [])
+    Assistant::Setting.instance.update!(disabled_capability_tools: [ "get_run" ])
 
-    get "/api/v1/assistant/machine/control_center/ansible/runs/#{record.id}", headers: headers(grant)
+    get "/api/v1/assistant/machine/control_center/ansible/runs/#{record.id}", headers: headers
 
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
   test "get_run releases the reservation on a miss" do
-    get "/api/v1/assistant/machine/control_center/ansible/runs/999999999", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/control_center/ansible/runs/999999999", headers: headers
 
     assert_response :not_found
-    assert_equal 0, Assistant::TurnGrant.order(:id).last.reload.reserved_bytes
   end
 
   private
@@ -85,15 +86,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunsTest < ActionDisp
     end
   end
 
-  def read_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created),
-      resources: [],
-      tools: [ "get_run" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -12,6 +14,7 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "list_targets returns a bounded projection and count" do
@@ -23,7 +26,7 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
     }
 
     stub_methods(Targets::MongoSource, all: [ doc ], count: 1) do
-      get "/api/v1/assistant/machine/targets", params: { q: "example.com" }, headers: headers(read_grant)
+      get "/api/v1/assistant/machine/targets", params: { q: "example.com" }, headers: headers
     end
 
     assert_response :success
@@ -45,7 +48,7 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
     }
 
     stub_methods(Targets::MongoSource, all: [ doc ], count: 1) do
-      get "/api/v1/assistant/machine/targets", headers: headers(read_grant)
+      get "/api/v1/assistant/machine/targets", headers: headers
     end
 
     assert_response :success
@@ -54,31 +57,27 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
   end
 
   test "the final read gate rejects any residual secret and releases its reservation" do
-    grant = read_grant
-    grant_record = Assistant::TurnGrant.order(:id).last
     unsafe = Assistant::Machine::SensitiveData::Result.new(
       value: { "items" => [ { "title" => "Cookie: session=residual-secret" } ] }, redacted: false
     )
 
     stub_methods(Targets::MongoSource, all: [], count: 0) do
       stub_methods(Assistant::Machine::SensitiveData, payload: ->(*) { unsafe }) do
-        get "/api/v1/assistant/machine/targets", headers: headers(grant)
+        get "/api/v1/assistant/machine/targets", headers: headers
       end
     end
 
     assert_response :forbidden
     assert_equal "tool_response_rejected", response.parsed_body["error"]
-    assert_equal 0, grant_record.reload.reserved_bytes
   end
 
-  test "list_targets is refused without the targets scope" do
-    grant = read_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:read_scopes, [])
+  test "list_targets is refused when its live capability is disabled" do
+    Assistant::Setting.instance.update!(disabled_capability_tools: [ "list_targets" ])
 
-    get "/api/v1/assistant/machine/targets", headers: headers(grant)
+    get "/api/v1/assistant/machine/targets", headers: headers
 
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
   test "get_target returns the full projection" do
@@ -93,7 +92,7 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
     }
 
     stub_methods(Targets::MongoSource, find: doc) do
-      get "/api/v1/assistant/machine/targets/t1", headers: headers(read_grant)
+      get "/api/v1/assistant/machine/targets/t1", headers: headers
     end
 
     assert_response :success
@@ -111,24 +110,15 @@ class Api::V1::Assistant::Machine::TargetsTest < ActionDispatch::IntegrationTest
 
   test "get_target releases the reservation on a miss" do
     stub_methods(Targets::MongoSource, find: nil) do
-      get "/api/v1/assistant/machine/targets/missing", headers: headers(read_grant)
+      get "/api/v1/assistant/machine/targets/missing", headers: headers
     end
 
     assert_response :not_found
-    assert_equal 0, Assistant::TurnGrant.order(:id).last.reload.reserved_bytes
   end
 
   private
 
-  def read_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created),
-      resources: [],
-      tools: [ "list_targets", "get_target" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

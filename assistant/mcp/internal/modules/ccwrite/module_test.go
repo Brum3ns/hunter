@@ -22,7 +22,7 @@ func find(t *testing.T, tools []tool.Tool, name string) tool.Tool {
 func receipt(toolName, targetType string) string {
 	return `{"correlation_id":"3b241101-e2bb-4255-8caf-4136c566a962","receipt":{` +
 		`"receipt_id":"3b241101-e2bb-4255-8caf-4136c566a963","tool":"` + toolName + `","status":"created",` +
-		`"target":{"type":"` + targetType + `","id":"1"},"human_user_id":1,"turn_id":1,` +
+		`"target":{"type":"` + targetType + `","id":"1"},"human_user_id":1,"turn_id":null,` +
 		`"idempotency_digest":"` + strings.Repeat("a", 64) + `","replayed":false,"occurred_at":"2026-08-19T00:00:00Z"}}`
 }
 

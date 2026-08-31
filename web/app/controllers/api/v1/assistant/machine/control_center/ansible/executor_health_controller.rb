@@ -17,7 +17,7 @@ module Api
                 ).distinct.count(:runner_id)
                 queued_at = ::ControlCenter::Ansible::Run.queued.minimum(:queued_at)
                 complete_machine_response!(reservation, {
-                  correlation_id: machine_grant.turn.correlation_id,
+                  correlation_id: machine_correlation_id,
                   health: {
                     configured_runners: runners.count, active_runners: active,
                     last_seen_at: runners.maximum(:last_seen_at),

@@ -168,7 +168,7 @@ func TestVulnerabilityWriteToolsValidateActionReceipts(t *testing.T) {
 		"receipt":{
 			"receipt_id":"5d6d2d1f-f225-4e63-82e7-f4f23e9648cb","tool":"create_vulnerability",
 			"status":"created","target":{"type":"vulnerability","id":"60f7c2d2b1a2c3d4e5f6a7b8"},
-			"human_user_id":1,"turn_id":1,"idempotency_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"human_user_id":1,"turn_id":null,"idempotency_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			"replayed":false,"occurred_at":"2026-08-19T00:00:00Z"
 		}
 	}`)

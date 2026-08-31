@@ -412,7 +412,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -515,7 +518,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -664,7 +670,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -803,7 +812,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -934,7 +946,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -1052,7 +1067,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -1187,7 +1205,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -1387,7 +1408,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -1578,7 +1602,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -1725,7 +1752,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -1863,7 +1893,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -1990,7 +2023,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -2132,7 +2168,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -2329,7 +2368,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -3071,7 +3113,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -3349,7 +3394,7 @@
   },
   {
     "name": "list_hunter_capabilities",
-    "description": "List the exact Hunter MCP capabilities currently enabled for this Assistant turn, with safe authority metadata and effective workflow limits.",
+    "description": "List the exact Hunter MCP capabilities currently enabled for this authenticated MCP client, with safe authority metadata and per-call/hourly workflow limits.",
     "input_schema": {
       "type": "object",
       "additionalProperties": false,
@@ -4057,7 +4102,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -4165,7 +4213,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -4274,7 +4325,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -4526,7 +4580,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {
@@ -4734,7 +4791,10 @@
                   "minimum": 1
                 },
                 "turn_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1
                 },
                 "idempotency_digest": {

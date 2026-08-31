@@ -28,14 +28,13 @@ class Assistant::ClaudeCodeClientTest < ActiveSupport::TestCase
     end
   end
 
-  test "the stored session id is sent back to the service for resume" do
+  test "request body contains only prompt and persisted resume state" do
     with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
       @turn.conversation.update!(claude_session_id: "sess_prev")
       seen = nil
       poster = ->(body) { seen = body; { "session_id" => "sess_prev", "reply" => "ok" } }
       Assistant::ClaudeCodeClient.run_turn(turn: @turn, prompt: "again", poster: poster)
-      assert_equal "sess_prev", seen["session_id"]
-      assert_equal "again", seen["prompt"]
+      assert_equal({ "prompt" => "again", "session_id" => "sess_prev" }, seen)
     end
   end
 
@@ -155,23 +154,12 @@ class Assistant::ClaudeCodeClientTest < ActiveSupport::TestCase
     end
   end
 
-  test "turn_grant is included in the request body when present" do
-    with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
-      seen = nil
-      poster = ->(body) { seen = body; { "session_id" => "sess_9", "reply" => "Hi!" } }
-      Assistant::ClaudeCodeClient.run_turn(
-        turn: @turn, prompt: "hello", turn_grant: "raw-grant-token", poster: poster
-      )
-      assert_equal "raw-grant-token", seen["turn_grant"]
-    end
-  end
-
-  test "turn_grant is omitted from the request body when absent" do
+  test "new turns send the exact grantless request body" do
     with_env("ASSISTANT_CLAUDE_URL" => "http://assistant-claude:8083") do
       seen = nil
       poster = ->(body) { seen = body; { "session_id" => "sess_9", "reply" => "Hi!" } }
       Assistant::ClaudeCodeClient.run_turn(turn: @turn, prompt: "hello", poster: poster)
-      refute seen.key?("turn_grant")
+      assert_equal({ "prompt" => "hello", "session_id" => nil }, seen)
     end
   end
 

@@ -36,6 +36,21 @@ class Assistant::AuditTest < ActiveSupport::TestCase
     end
   end
 
+  test "audit metadata accepts only safe machine authorization attribution" do
+    event = Assistant::Audit.record!(
+      event: "tool.called",
+      attributes: {
+        metadata: {
+          authorization_mode: "token_only",
+          authorization_subject_digest: "a" * 64
+        }
+      }
+    )
+
+    assert_equal "token_only", event.metadata.fetch("authorization_mode")
+    assert_equal "a" * 64, event.metadata.fetch("authorization_subject_digest")
+  end
+
   test "audit metadata rejects nested and oversized values" do
     assert_raises(ArgumentError) do
       Assistant::Audit.record!(

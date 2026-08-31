@@ -56,7 +56,7 @@ module Api
             )
             payload = ::Assistant::Machine::WorkflowAnalysis.targets(docs, count: count)
             complete_read_response!(reservation,
-              { correlation_id: machine_grant.turn.correlation_id }.merge(payload))
+              { correlation_id: machine_correlation_id }.merge(payload))
           end
         end
       end

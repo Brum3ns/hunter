@@ -3,6 +3,8 @@ module Api
     module Assistant
       module Machine
         class ValidationsController < BaseController
+          require_turn_grant_authorization!
+
           VALIDATION_TOOLS = {
             "whiterabbit_template" => "validate_whiterabbit_draft",
             "ansible_playbook" => "validate_ansible_draft"
@@ -31,7 +33,7 @@ module Api
             stored = validation.result || {}
             normalized = stored["normalized"] && { source: stored["normalized"] }
             complete_machine_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               validation: validation_payload(
                 id: validation.id,
                 artifact_type: "ansible_playbook",
@@ -51,7 +53,7 @@ module Api
             result = ::Assistant::DraftValidation::Whiterabbit.call(params[:draft])
             content = JSON.generate(result.normalized) if result.normalized
             complete_machine_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               validation: validation_payload(
                 id: nil,
                 artifact_type: "whiterabbit_template",
@@ -69,7 +71,7 @@ module Api
             draft = ::Assistant::DraftEnvelope.ansible(params[:draft])
             unless draft.valid?
               return complete_machine_response!(reservation, {
-                correlation_id: machine_grant.turn.correlation_id,
+                correlation_id: machine_correlation_id,
                 validation: validation_payload(
                   id: nil, artifact_type: "ansible_playbook", status: "invalid",
                   version: ::Assistant::DraftValidation::AnsibleStatic::VALIDATION_VERSION,
@@ -86,7 +88,7 @@ module Api
             )
             validation = ::Assistant::ValidationRequest.find(validation_id)
             complete_machine_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               validation: validation_payload(
                 id: validation.id,
                 artifact_type: "ansible_playbook",
@@ -101,7 +103,7 @@ module Api
           rescue ::Assistant::ValidationDispatcher::InvalidDraft => error
             result = error.result
             complete_machine_response!(reservation, {
-              correlation_id: machine_grant.turn.correlation_id,
+              correlation_id: machine_correlation_id,
               validation: validation_payload(
                 id: nil,
                 artifact_type: "ansible_playbook",

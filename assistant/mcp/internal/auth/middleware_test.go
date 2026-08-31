@@ -7,57 +7,102 @@ import (
 	"testing"
 )
 
-func TestMiddlewareRequiresExactBearerGrantHostOriginAndJSON(t *testing.T) {
-	middleware := NewMiddleware("gateway-secret", []string{"hunter-mcp:8080"}, []string{"http://hunter-gateway:8080"}, 1024)
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if GrantFromContext(r.Context()) != "turn-grant" {
-			t.Fatal("grant missing from context")
-		}
+func TestMiddlewareAcceptsOneBearerWithoutGrantHostOrOriginRestrictions(t *testing.T) {
+	middleware := NewMiddleware("gateway-secret", 1024)
+	called := 0
+	handler := middleware.Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called++
 		w.WriteHeader(http.StatusNoContent)
-	})
-	handler := middleware.Wrap(next)
+	}))
 
-	request := httptest.NewRequest(http.MethodPost, "http://hunter-mcp:8080/mcp", strings.NewReader(`{}`))
-	request.Host = "hunter-mcp:8080"
-	request.Header.Set("Authorization", "Bearer gateway-secret")
-	request.Header.Set("X-Hunter-Turn-Grant", "turn-grant")
-	request.Header.Set("Origin", "http://hunter-gateway:8080")
-	request.Header.Set("Content-Type", "application/json")
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusNoContent {
-		t.Fatalf("status=%d", response.Code)
-	}
-
-	for name, mutate := range map[string]func(*http.Request){
-		"token":  func(r *http.Request) { r.Header.Set("Authorization", "Bearer wrong") },
-		"grant":  func(r *http.Request) { r.Header.Del("X-Hunter-Turn-Grant") },
-		"host":   func(r *http.Request) { r.Host = "evil.test" },
-		"origin": func(r *http.Request) { r.Header.Set("Origin", "https://evil.test") },
-		"type":   func(r *http.Request) { r.Header.Set("Content-Type", "text/plain") },
+	for _, tc := range []struct {
+		name   string
+		host   string
+		origin string
+	}{
+		{name: "loopback", host: "127.0.0.1:8080"},
+		{name: "docker gateway", host: "172.17.0.1:8080", origin: "http://host.docker.internal"},
+		{name: "external DNS", host: "hunter.example.test", origin: "https://codex.example.test"},
 	} {
-		t.Run(name, func(t *testing.T) {
-			req := request.Clone(request.Context())
-			mutate(req)
-			res := httptest.NewRecorder()
-			handler.ServeHTTP(res, req)
-			if res.Code < 400 {
-				t.Fatalf("status=%d", res.Code)
+		t.Run(tc.name, func(t *testing.T) {
+			request := jsonRequest("Bearer gateway-secret", `{}`)
+			request.Host = tc.host
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusNoContent {
+				t.Fatalf("status=%d body=%q", response.Code, response.Body.String())
 			}
 		})
 	}
+	if called != 3 {
+		t.Fatalf("handler calls=%d, want 3", called)
+	}
 }
 
-func TestMiddlewareCapsBodies(t *testing.T) {
-	handler := NewMiddleware("gateway-secret", []string{"hunter-mcp:8080"}, nil, 4).Wrap(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	request := httptest.NewRequest(http.MethodPost, "http://hunter-mcp:8080/mcp", strings.NewReader("12345"))
-	request.Host = "hunter-mcp:8080"
-	request.Header.Set("Authorization", "Bearer gateway-secret")
-	request.Header.Set("X-Hunter-Turn-Grant", "turn-grant")
-	request.Header.Set("Content-Type", "application/json")
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("status=%d", response.Code)
+func TestMiddlewareRejectsInvalidBearersBeforeTheHandlerWithOneSafeEnvelope(t *testing.T) {
+	const secret = "gateway-secret-canary"
+	called := false
+	handler := NewMiddleware(secret, 1024).Wrap(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		called = true
+	}))
+
+	for name, header := range map[string]string{
+		"absent":      "",
+		"malformed":   "Basic gateway-secret-canary",
+		"empty":       "Bearer ",
+		"wrong":       "Bearer wrong",
+		"space":       "Bearer gateway secret",
+		"trailing":    "Bearer gateway-secret-canary ",
+		"second word": "Bearer gateway-secret-canary extra",
+	} {
+		t.Run(name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, jsonRequest(header, `{}`))
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("status=%d", response.Code)
+			}
+			if response.Body.String() != "{\"error\":\"request_rejected\"}\n" {
+				t.Fatalf("body=%q", response.Body.String())
+			}
+			if strings.Contains(response.Body.String(), secret) {
+				t.Fatal("response leaked bearer")
+			}
+		})
 	}
+	if called {
+		t.Fatal("handler ran for a rejected bearer")
+	}
+}
+
+func TestMiddlewareKeepsJSONAndBodyLimits(t *testing.T) {
+	handler := NewMiddleware("gateway-secret", 4).Wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	wrongType := jsonRequest("Bearer gateway-secret", `{}`)
+	wrongType.Header.Set("Content-Type", "text/plain")
+	wrongTypeResponse := httptest.NewRecorder()
+	handler.ServeHTTP(wrongTypeResponse, wrongType)
+	if wrongTypeResponse.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("wrong type status=%d", wrongTypeResponse.Code)
+	}
+
+	tooLarge := jsonRequest("Bearer gateway-secret", "12345")
+	tooLargeResponse := httptest.NewRecorder()
+	handler.ServeHTTP(tooLargeResponse, tooLarge)
+	if tooLargeResponse.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("large body status=%d", tooLargeResponse.Code)
+	}
+}
+
+func jsonRequest(authorization, body string) *http.Request {
+	request := httptest.NewRequest(http.MethodPost, "http://arbitrary.example/mcp", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	if authorization != "" {
+		request.Header.Set("Authorization", authorization)
+	}
+	return request
 }

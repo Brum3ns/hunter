@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunEventsTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -12,6 +14,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunEventsTest < Actio
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "list_run_events returns a bounded projection filtered by run_id, ordered by counter" do
@@ -22,7 +25,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunEventsTest < Actio
     event(other_run, counter: 1, event_type: "runner_on_ok")
 
     get "/api/v1/assistant/machine/control_center/ansible/run_events",
-      params: { run_id: run.id }, headers: headers(read_grant)
+      params: { run_id: run.id }, headers: headers
 
     assert_response :success
     body = response.parsed_body
@@ -41,7 +44,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunEventsTest < Actio
     event(run, counter: 3, event_type: "c")
 
     get "/api/v1/assistant/machine/control_center/ansible/run_events",
-      params: { run_id: run.id, after_counter: 1 }, headers: headers(read_grant)
+      params: { run_id: run.id, after_counter: 1 }, headers: headers
 
     assert_response :success
     body = response.parsed_body
@@ -50,21 +53,20 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunEventsTest < Actio
   end
 
   test "list_run_events is not_found without a run_id param" do
-    get "/api/v1/assistant/machine/control_center/ansible/run_events", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/control_center/ansible/run_events", headers: headers
 
     assert_response :not_found
   end
 
-  test "list_run_events is refused without the control_center_ansible scope" do
+  test "list_run_events is refused when its live capability is disabled" do
     run = run_record
-    grant = read_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:read_scopes, [])
+    Assistant::Setting.instance.update!(disabled_capability_tools: [ "list_run_events" ])
 
     get "/api/v1/assistant/machine/control_center/ansible/run_events",
-      params: { run_id: run.id }, headers: headers(grant)
+      params: { run_id: run.id }, headers: headers
 
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
   private
@@ -88,15 +90,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::RunEventsTest < Actio
     )
   end
 
-  def read_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created),
-      resources: [],
-      tools: [ "list_run_events" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

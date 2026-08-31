@@ -12,6 +12,8 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
 
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     Assistant::Setting.instance.enable_control_center_write!
@@ -28,6 +30,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
     ENV["ASSISTANT_ANSIBLE_MODULE_ALLOWLIST"] = @original_allowlist
   end
 
@@ -35,7 +38,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
     patch endpoint, params: {
       expected_lock_version: @playbook.lock_version,
       changes: { name: "renamed-playbook", description: "Updated", source: VALID_YAML }
-    }, headers: headers(edit_grant), as: :json
+    }, headers: headers, as: :json
 
     assert_response :success
     assert_equal "updated", response.parsed_body.dig("receipt", "status")
@@ -52,7 +55,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
     patch endpoint, params: {
       expected_lock_version: @playbook.lock_version,
       changes: { name: "renamed-with-null-description" }
-    }, headers: headers(edit_grant), as: :json
+    }, headers: headers, as: :json
 
     assert_response :success
     assert_nil @playbook.reload.description
@@ -61,7 +64,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
   test "stale and prohibited edits fail closed without changing the playbook" do
     original = @playbook.attributes
     patch endpoint, params: { expected_lock_version: 50, changes: { description: "Lost" } },
-      headers: headers(edit_grant), as: :json
+      headers: headers, as: :json
     assert_response :conflict
     assert_equal "version_conflict", response.parsed_body["error"]
     assert_equal original, @playbook.reload.attributes
@@ -69,7 +72,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
     unsafe = "---\n- hosts: all\n  tasks:\n    - ansible.builtin.shell: whoami\n"
     patch endpoint, params: {
       expected_lock_version: @playbook.lock_version, changes: { source: unsafe }
-    }, headers: headers(edit_grant), as: :json
+    }, headers: headers, as: :json
     assert_response :unprocessable_content
     assert_equal "validation_failed", response.parsed_body["error"]
     assert_equal original, @playbook.reload.attributes
@@ -85,13 +88,7 @@ class Api::V1::Assistant::Machine::ControlCenter::Ansible::PlaybooksEditTest < A
     assistant_turns(:created).user
   end
 
-  def edit_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created), resources: [], tools: [ "edit_ansible_playbook" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

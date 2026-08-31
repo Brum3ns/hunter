@@ -40,7 +40,7 @@ module Api
               rows = scope.limit(::Assistant::Machine::WorkflowAnalysis::MAX_ROWS).to_a
               payload = ::Assistant::Machine::WorkflowAnalysis.templates(rows, count: count)
               complete_read_response!(reservation,
-                { correlation_id: machine_grant.turn.correlation_id }.merge(payload))
+                { correlation_id: machine_correlation_id }.merge(payload))
             end
 
             def validate
@@ -53,7 +53,7 @@ module Api
               result = input.valid? ? validate_whiterabbit(input.normalized) : nil
               codes = input.valid? ? result.codes : input.codes
               complete_read_response!(reservation, {
-                correlation_id: machine_grant.turn.correlation_id,
+                correlation_id: machine_correlation_id,
                 valid: codes.empty?, codes: codes
               })
             end
@@ -80,7 +80,7 @@ module Api
                 result.codes
               end
               complete_read_response!(reservation, {
-                correlation_id: machine_grant.turn.correlation_id,
+                correlation_id: machine_correlation_id,
                 valid: codes.empty?, codes: codes
               })
             end

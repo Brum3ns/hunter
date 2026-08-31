@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::WorkflowReadsTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -12,6 +14,7 @@ class Api::V1::Assistant::Machine::WorkflowReadsTest < ActionDispatch::Integrati
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "target analysis aggregates the complete matching selection in one call" do
@@ -26,7 +29,7 @@ class Api::V1::Assistant::Machine::WorkflowReadsTest < ActionDispatch::Integrati
 
     stub_methods(Targets::MongoSource, all: docs, count: 57) do
       post "/api/v1/assistant/machine/targets/analyze",
-        params: { q: "program:acme" }, headers: headers(grant("analyze_targets")), as: :json
+        params: { q: "program:acme" }, headers: headers, as: :json
     end
 
     assert_response :success
@@ -49,12 +52,12 @@ class Api::V1::Assistant::Machine::WorkflowReadsTest < ActionDispatch::Integrati
     )
 
     get "/api/v1/assistant/machine/programs/changes",
-      headers: headers(grant("list_program_changes"))
+      headers: headers
     assert_response :success
     assert_equal change.id, response.parsed_body.fetch("items").sole.fetch("id")
 
     get "/api/v1/assistant/machine/programs/scope_runs/#{run.id}",
-      headers: headers(grant("get_scope_run"))
+      headers: headers
     assert_response :success
     assert_equal run.id, response.parsed_body.dig("scope_run", "id")
     assert_equal machine_user.username, response.parsed_body.dig("scope_run", "user")
@@ -68,7 +71,7 @@ class Api::V1::Assistant::Machine::WorkflowReadsTest < ActionDispatch::Integrati
     } ]
     stub_methods(Cves::MongoSource, new_since: docs) do
       get "/api/v1/assistant/machine/cves/new",
-        params: { since: "2026-08-19T00:00:00Z" }, headers: headers(grant("list_new_cves"))
+        params: { since: "2026-08-19T00:00:00Z" }, headers: headers
     end
 
     assert_response :success
@@ -79,7 +82,7 @@ class Api::V1::Assistant::Machine::WorkflowReadsTest < ActionDispatch::Integrati
 
   test "analysis request bodies are closed" do
     post "/api/v1/assistant/machine/targets/analyze",
-      params: { q: "acme", method: "DELETE" }, headers: headers(grant("analyze_targets")), as: :json
+      params: { q: "acme", method: "DELETE" }, headers: headers, as: :json
 
     assert_response :unprocessable_content
     assert_equal "validation_failed", response.parsed_body.fetch("error")
@@ -91,11 +94,7 @@ class Api::V1::Assistant::Machine::WorkflowReadsTest < ActionDispatch::Integrati
     assistant_turns(:created).user
   end
 
-  def grant(tool)
-    Assistant::Grants::Issuer.call(turn: assistant_turns(:created), resources: [], tools: [ tool ])
-  end
-
-  def headers(raw_grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => raw_grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

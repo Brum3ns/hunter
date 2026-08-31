@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -12,6 +14,7 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "list_cves returns a bounded projection and count" do
@@ -26,7 +29,7 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
     }
 
     stub_methods(Cves::MongoSource, all: [ cve ], count: 1) do
-      get "/api/v1/assistant/machine/cves", params: { q: "bad" }, headers: headers(read_grant)
+      get "/api/v1/assistant/machine/cves", params: { q: "bad" }, headers: headers
     end
 
     assert_response :success
@@ -39,14 +42,13 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "very long body"
   end
 
-  test "list_cves is refused without the cves scope" do
-    grant = read_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:read_scopes, [])
+  test "list_cves is refused when its live capability is disabled" do
+    Assistant::Setting.instance.update!(disabled_capability_tools: [ "list_cves" ])
 
-    get "/api/v1/assistant/machine/cves", headers: headers(grant)
+    get "/api/v1/assistant/machine/cves", headers: headers
 
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
   test "get_cve returns the full projection" do
@@ -75,7 +77,7 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
     }
 
     stub_methods(Cves::MongoSource, find: cve) do
-      get "/api/v1/assistant/machine/cves/CVE-2024-1234", headers: headers(read_grant)
+      get "/api/v1/assistant/machine/cves/CVE-2024-1234", headers: headers
     end
 
     assert_response :success
@@ -94,24 +96,15 @@ class Api::V1::Assistant::Machine::CvesTest < ActionDispatch::IntegrationTest
 
   test "get_cve releases the reservation on a miss" do
     stub_methods(Cves::MongoSource, find: nil) do
-      get "/api/v1/assistant/machine/cves/CVE-9999-0000", headers: headers(read_grant)
+      get "/api/v1/assistant/machine/cves/CVE-9999-0000", headers: headers
     end
 
     assert_response :not_found
-    assert_equal 0, Assistant::TurnGrant.order(:id).last.reload.reserved_bytes
   end
 
   private
 
-  def read_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created),
-      resources: [],
-      tools: [ "list_cves", "get_cve" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

@@ -3,6 +3,8 @@ require "test_helper"
 class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::IntegrationTest
   setup do
     @original_config_enabled = Assistant::Config.method(:enabled?)
+    @original_admin_username = ENV["ADMIN_USERNAME"]
+    ENV["ADMIN_USERNAME"] = users(:one).username
     Assistant::Config.define_singleton_method(:enabled?) { |*, **| true }
     Assistant::Setting.instance.enable!
     _identity, @service_token = Assistant::ServiceIdentity.generate!(
@@ -12,13 +14,14 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
 
   teardown do
     Assistant::Config.define_singleton_method(:enabled?, @original_config_enabled)
+    ENV["ADMIN_USERNAME"] = @original_admin_username
   end
 
   test "list_endpoints returns a bounded projection and count" do
     target = sitemap_target
     endpoint(target, url: "https://example.com/a?x=1", path: "/a", status_code: 200)
 
-    get "/api/v1/assistant/machine/sitemap/endpoints", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/sitemap/endpoints", headers: headers
 
     assert_response :success
     body = response.parsed_body
@@ -29,14 +32,13 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
     assert_equal "GET", item["method"]
   end
 
-  test "list_endpoints is refused without the sitemap scope" do
-    grant = read_grant
-    Assistant::TurnGrant.order(:id).last.update_column(:read_scopes, [])
+  test "list_endpoints is refused when its live capability is disabled" do
+    Assistant::Setting.instance.update!(disabled_capability_tools: [ "list_endpoints" ])
 
-    get "/api/v1/assistant/machine/sitemap/endpoints", headers: headers(grant)
+    get "/api/v1/assistant/machine/sitemap/endpoints", headers: headers
 
     assert_response :forbidden
-    assert_equal "scope_not_granted", response.parsed_body["error"]
+    assert_equal "capability_disabled", response.parsed_body["error"]
   end
 
   test "list_endpoints narrows by the status filter, accepting a comma-joined string" do
@@ -44,7 +46,7 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
     endpoint(target, url: "https://example.com/ok", path: "/ok", status_code: 200)
     endpoint(target, url: "https://example.com/missing", path: "/missing", status_code: 404)
 
-    get "/api/v1/assistant/machine/sitemap/endpoints", params: { status: "4" }, headers: headers(read_grant)
+    get "/api/v1/assistant/machine/sitemap/endpoints", params: { status: "4" }, headers: headers
 
     assert_response :success
     body = response.parsed_body
@@ -57,7 +59,7 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
     endpoint(target, url: "https://example.com/get", path: "/get", method: "GET")
     endpoint(target, url: "https://example.com/post", path: "/post", method: "POST")
 
-    get "/api/v1/assistant/machine/sitemap/endpoints", params: { methods: "POST,PUT" }, headers: headers(read_grant)
+    get "/api/v1/assistant/machine/sitemap/endpoints", params: { methods: "POST,PUT" }, headers: headers
 
     assert_response :success
     body = response.parsed_body
@@ -70,7 +72,7 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
     endpoint(target, url: "https://example.com/admin/login", path: "/admin/login", status_code: 200)
     endpoint(target, url: "https://example.com/public/home", path: "/public/home", status_code: 200)
 
-    get "/api/v1/assistant/machine/sitemap/endpoints", params: { q: "path:admin" }, headers: headers(read_grant)
+    get "/api/v1/assistant/machine/sitemap/endpoints", params: { q: "path:admin" }, headers: headers
 
     assert_response :success
     body = response.parsed_body
@@ -85,7 +87,7 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
       content_type: "text/html", content_length: 512
     )
 
-    get "/api/v1/assistant/machine/sitemap/endpoints/#{record.id}", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/sitemap/endpoints/#{record.id}", headers: headers
 
     assert_response :success
     result = response.parsed_body["endpoint"]
@@ -102,10 +104,9 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
   end
 
   test "get_endpoint releases the reservation on a miss" do
-    get "/api/v1/assistant/machine/sitemap/endpoints/999999999", headers: headers(read_grant)
+    get "/api/v1/assistant/machine/sitemap/endpoints/999999999", headers: headers
 
     assert_response :not_found
-    assert_equal 0, Assistant::TurnGrant.order(:id).last.reload.reserved_bytes
   end
 
   private
@@ -126,15 +127,7 @@ class Api::V1::Assistant::Machine::SitemapEndpointsTest < ActionDispatch::Integr
     )
   end
 
-  def read_grant
-    Assistant::Grants::Issuer.call(
-      turn: assistant_turns(:created),
-      resources: [],
-      tools: [ "list_endpoints", "get_endpoint" ]
-    )
-  end
-
-  def headers(grant)
-    { "Authorization" => "Bearer #{@service_token}", "X-Hunter-Turn-Grant" => grant }
+  def headers(*)
+    { "Authorization" => "Bearer #{@service_token}" }
   end
 end

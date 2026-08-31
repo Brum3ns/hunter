@@ -32,7 +32,7 @@ func Schema() json.RawMessage {
 					"properties":{
 						"receipt_id":{"type":"string","format":"uuid"},"tool":{"type":"string"},"status":{"type":"string"},
 						"target":{"type":"object","additionalProperties":false,"required":["type","id"],"properties":{"type":{"type":"string"},"id":{"type":"string"}}},
-						"human_user_id":{"type":"integer","minimum":1},"turn_id":{"type":"integer","minimum":1},
+						"human_user_id":{"type":"integer","minimum":1},"turn_id":{"type":["integer","null"],"minimum":1},
 						"idempotency_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"},"replayed":{"type":"boolean"},
 						"occurred_at":{"type":"string","format":"date-time"}
 					}
@@ -59,13 +59,14 @@ func Validate(expectedTool string) func([]byte) error {
 			return errRejected
 		}
 		var receiptID, toolName, status, digest, occurredAt string
-		var userID, turnID int64
+		var userID int64
+		var turnID *int64
 		var replayed bool
 		if json.Unmarshal(receipt["receipt_id"], &receiptID) != nil || !uuidPattern.MatchString(receiptID) ||
 			json.Unmarshal(receipt["tool"], &toolName) != nil || toolName != expectedTool ||
 			json.Unmarshal(receipt["status"], &status) != nil || !safeSlug.MatchString(status) ||
 			json.Unmarshal(receipt["human_user_id"], &userID) != nil || userID <= 0 ||
-			json.Unmarshal(receipt["turn_id"], &turnID) != nil || turnID <= 0 ||
+			json.Unmarshal(receipt["turn_id"], &turnID) != nil || (turnID != nil && *turnID <= 0) ||
 			json.Unmarshal(receipt["idempotency_digest"], &digest) != nil || !digestPattern.MatchString(digest) ||
 			json.Unmarshal(receipt["replayed"], &replayed) != nil ||
 			json.Unmarshal(receipt["occurred_at"], &occurredAt) != nil {

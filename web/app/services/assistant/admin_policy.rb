@@ -11,6 +11,11 @@ module Assistant
       normalize(ENV.fetch("ADMIN_USERNAME", "admin"))
     end
 
+    def configured_user
+      username = configured_username
+      User.find_by(username: username) if username.present?
+    end
+
     def normalize(username)
       username.to_s.strip.downcase
     end

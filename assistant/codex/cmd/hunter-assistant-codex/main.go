@@ -100,9 +100,8 @@ func newHealthHandler() http.Handler {
 }
 
 type chatRequestBody struct {
-	Prompt    string  `json:"prompt"`
-	ThreadID  *string `json:"thread_id"`
-	TurnGrant *string `json:"turn_grant"`
+	Prompt   string  `json:"prompt"`
+	ThreadID *string `json:"thread_id"`
 }
 
 type chatResponseBody struct {
@@ -138,16 +137,13 @@ func newChatHandler(token string, allowedHosts []string, codexBin string, cfg ch
 			return
 		}
 
-		var threadID, turnGrant string
+		var threadID string
 		if body.ThreadID != nil {
 			threadID = *body.ThreadID
 		}
-		if body.TurnGrant != nil {
-			turnGrant = *body.TurnGrant
-		}
 
 		result, err := chat.Run(request.Context(), codexBin, cfg, chat.Request{
-			Prompt: body.Prompt, ThreadID: threadID, TurnGrant: turnGrant,
+			Prompt: body.Prompt, ThreadID: threadID,
 		})
 		if err != nil {
 			status, code := mapChatError(err)
